@@ -1,0 +1,6 @@
+{
+  "name": "CozyPresenter 3D",
+  "description": "A lo-fi 3D voxel presentation world with procedural terrain, biomes, walking character, signposts, nature elements, and real-time creator mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

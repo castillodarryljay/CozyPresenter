@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CozyPresenter 3D</title>
+    <meta name="description" content="A lo-fi 3D voxel presentation world with procedural terrain, biomes, walking character, signposts, nature elements, and real-time creator mode.">
+    <meta property="og:title" content="CozyPresenter 3D">
+    <meta property="og:description" content="A lo-fi 3D voxel presentation world with procedural terrain, biomes, walking character, signposts, nature elements, and real-time creator mode.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'VT323', monospace;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            touch-action: none;
+            image-rendering: pixelated; /* Essential for the MC look */
+        }
+        canvas {
+            display: block;
+            outline: none;
+        }
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        /* Minecraft-style Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #222; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888; 
+            border: 2px solid #222;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #aaa; 
+        }
+
+        /* Minecraft Button Class */
+        .mc-btn {
+            background-color: #7f7f7f;
+            border-top: 2px solid #ddd;
+            border-left: 2px solid #ddd;
+            border-bottom: 2px solid #222;
+            border-right: 2px solid #222;
+            color: white;
+            text-shadow: 2px 2px 0px #000;
+            transition: none;
+        }
+        .mc-btn:active {
+            border-top: 2px solid #222;
+            border-left: 2px solid #222;
+            border-bottom: 2px solid #ddd;
+            border-right: 2px solid #ddd;
+            background-color: #555;
+        }
+        .mc-panel {
+            background-color: #c6c6c6;
+            border: 2px solid #000;
+            box-shadow: inset 2px 2px 0px #fff, inset -2px -2px 0px #555;
+        }
+        .mc-input {
+            background-color: #000;
+            border: 2px solid #555;
+            color: white;
+            font-family: 'VT323', monospace;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "three": "https://esm.sh/three@0.161.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.102.6?external=react,react-dom,three,@react-three/fiber",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+    "@google/genai": "https://esm.sh/@google/genai"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="no-select">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
