@@ -545,23 +545,33 @@ export function getChunkNature(
 
 /**
  * 3D Component: Infinite Chunk-based Voxel Terrain Mesh
- * Renders an active window of chunks around the player, recycling memory seamlessly.
+ * Renders an active window of chunks around the player ONLY when crossing chunks.
  */
-export const VoxelTerrainMesh: React.FC<{
+export const VoxelTerrainMesh = React.memo<{
   settings: MapSettings;
-  playerPos: Position;
+  playerChunk: { cx: number; cz: number };
   onPointerDown?: (e: any) => void;
   onPointerUp?: (e: any) => void;
-  onPointerMove?: (e: any) => void;
-}> = ({ settings, playerPos, onPointerDown, onPointerUp, onPointerMove }) => {
-  // Determine player's current chunk
-  const currentChunkX = Math.floor((playerPos.x * WORLD_SCALE) / CHUNK_SIZE);
-  const currentChunkZ = Math.floor((playerPos.y * WORLD_SCALE) / CHUNK_SIZE);
+}>(({ settings, playerChunk, onPointerDown, onPointerUp }) => {
+  const currentChunkX = playerChunk.cx;
+  const currentChunkZ = playerChunk.cz;
 
   // Render distance: 1 = 3x3 (Fast), 2 = 5x5 (Normal), 3 = 7x7 (Far)
   const renderRadius = Math.min(3, Math.max(1, settings.renderDistance ?? 2));
 
-  // Compute active chunk list
+  // Single shared terrain material to avoid allocating 25 new materials every render
+  const sharedTerrainMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.92,
+      metalness: 0.04,
+      flatShading: false,
+      side: THREE.FrontSide, // FrontSide avoids backface Z-fighting and halves geometry draw cost
+      shadowSide: THREE.FrontSide,
+    });
+  }, []);
+
+  // Compute active chunk list only when chunk coordinates change
   const activeChunks = useMemo(() => {
     const chunks: { cx: number; cz: number; key: string }[] = [];
     for (let dx = -renderRadius; dx <= renderRadius; dx++) {
@@ -582,97 +592,96 @@ export const VoxelTerrainMesh: React.FC<{
           <mesh
             key={key}
             geometry={geo}
+            material={sharedTerrainMaterial}
             receiveShadow
             castShadow
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
-            onPointerMove={onPointerMove}
-          >
-            <meshStandardMaterial
-              vertexColors
-              roughness={0.9}
-              metalness={0.05}
-              flatShading={false}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          />
         );
       })}
 
-      {/* Infinite Invisible Floor Plane for Raycasting anywhere clicked outside mesh */}
+      {/* Lightweight Invisible Floor Plane for Raycasting anywhere clicked without querying chunk meshes */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[currentChunkX * CHUNK_SIZE + CHUNK_SIZE / 2, -0.01, currentChunkZ * CHUNK_SIZE + CHUNK_SIZE / 2]}
-        visible={false}
+        position={[currentChunkX * CHUNK_SIZE + CHUNK_SIZE / 2, 0, currentChunkZ * CHUNK_SIZE + CHUNK_SIZE / 2]}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
-        onPointerMove={onPointerMove}
       >
         <planeGeometry args={[CHUNK_SIZE * (renderRadius * 2 + 3), CHUNK_SIZE * (renderRadius * 2 + 3)]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>
   );
-};
+});
 
 /**
- * 3D Component: Infinite Water Layer centered on the player's active region
+ * 3D Component: Infinite Water Layer centered on the active chunk region
+ * Clean static height with depthWrite: false to completely eliminate Z-fighting flicker.
  */
-export const WaterMesh: React.FC<{
-  playerPos: Position;
+export const WaterMesh = React.memo<{
+  playerChunk: { cx: number; cz: number };
   settings: MapSettings;
   visible?: boolean;
-}> = ({ playerPos, settings, visible = true }) => {
-  const waterRef = useRef<THREE.Mesh>(null);
-  const currentChunkX = Math.floor((playerPos.x * WORLD_SCALE) / CHUNK_SIZE);
-  const currentChunkZ = Math.floor((playerPos.y * WORLD_SCALE) / CHUNK_SIZE);
+}>(({ playerChunk, settings, visible = true }) => {
+  const currentChunkX = playerChunk.cx;
+  const currentChunkZ = playerChunk.cz;
   const renderRadius = Math.min(3, Math.max(1, settings.renderDistance ?? 2));
   const waterSize = CHUNK_SIZE * (renderRadius * 2 + 2);
 
-  useFrame(({ clock }) => {
-    if (waterRef.current) {
-      waterRef.current.position.y = WATER_LEVEL + Math.sin(clock.elapsedTime * 1.5) * 0.015;
-    }
-  });
+  const waterMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: '#2979ff',
+      transparent: true,
+      opacity: 0.72,
+      roughness: 0.12,
+      metalness: 0.08,
+      depthWrite: false, // Prevents Z-fighting with sand and underwater steps
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+  }, []);
 
   if (!visible) return null;
 
   return (
     <mesh
-      ref={waterRef}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[
         currentChunkX * CHUNK_SIZE + CHUNK_SIZE / 2,
         WATER_LEVEL,
         currentChunkZ * CHUNK_SIZE + CHUNK_SIZE / 2,
       ]}
+      material={waterMaterial}
       receiveShadow
     >
       <planeGeometry args={[waterSize, waterSize]} />
-      <meshStandardMaterial
-        color="#3478E3"
-        transparent
-        opacity={0.78}
-        roughness={0.15}
-        metalness={0.1}
-      />
     </mesh>
   );
-};
+});
+
+// Static max instance capacities to avoid GPU reallocation / flickering
+const MAX_TRUNKS = 800;
+const MAX_LEAVES = 1400;
+const MAX_ROCKS = 400;
+const MAX_GRASS = 1400;
+const MAX_FLOWERS = 600;
+const MAX_LILYPADS = 250;
+const MAX_REEDS = 400;
 
 /**
- * 3D Component: Instanced Nature (Trees, Rocks, Reeds, Lilypads, Grass, Flowers) for active chunks
+ * 3D Component: Instanced Nature (Trees, Rocks, Reeds, Lilypads, Grass, Flowers)
+ * Uses fixed-size GPU buffers with count updates to prevent tearing down meshes and flickering.
  */
-export const NatureInstances: React.FC<{
+export const NatureInstances = React.memo<{
   settings: MapSettings;
-  blackboards: Blackboard[];
-  playerPos: Position;
-}> = ({ settings, blackboards, playerPos }) => {
-  const currentChunkX = Math.floor((playerPos.x * WORLD_SCALE) / CHUNK_SIZE);
-  const currentChunkZ = Math.floor((playerPos.y * WORLD_SCALE) / CHUNK_SIZE);
+  blackboards?: Blackboard[];
+  playerChunk: { cx: number; cz: number };
+}>(({ settings, blackboards = [], playerChunk }) => {
+  const currentChunkX = playerChunk.cx;
+  const currentChunkZ = playerChunk.cz;
   const renderRadius = Math.min(3, Math.max(1, settings.renderDistance ?? 2));
 
-  // Collect data across all active chunks
+  // Collect data across all active chunks ONLY when chunk coordinates or settings change
   const { trunks, leaves, rocks, lilypads, reeds, grass, flowers } = useMemo(() => {
     const allTrunks: NatureData['trunks'] = [];
     const allLeaves: NatureData['leaves'] = [];
@@ -713,178 +722,208 @@ export const NatureInstances: React.FC<{
   const rocksRef = useRef<THREE.InstancedMesh>(null);
   const grassRef = useRef<THREE.InstancedMesh>(null);
   const flowerRef = useRef<THREE.InstancedMesh>(null);
+  const lilyRef = useRef<THREE.InstancedMesh>(null);
+  const reedRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  // Update instanced matrices when active chunk contents change
+  // Update instanced matrices when active chunk contents change without remounting
   React.useLayoutEffect(() => {
-    if (trunkRef.current && trunks.length > 0) {
-      trunks.forEach((t, i) => {
+    if (trunkRef.current) {
+      const count = Math.min(trunks.length, MAX_TRUNKS);
+      for (let i = 0; i < count; i++) {
+        const t = trunks[i];
         dummy.position.set(t.x, t.y, t.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
-        trunkRef.current!.setMatrixAt(i, dummy.matrix);
-        if (t.color) trunkRef.current!.setColorAt(i, new THREE.Color(t.color));
-      });
+        trunkRef.current.setMatrixAt(i, dummy.matrix);
+        if (t.color) trunkRef.current.setColorAt(i, new THREE.Color(t.color));
+      }
+      trunkRef.current.count = count;
       trunkRef.current.instanceMatrix.needsUpdate = true;
       if (trunkRef.current.instanceColor) trunkRef.current.instanceColor.needsUpdate = true;
     }
 
-    if (leavesRef.current && leaves.length > 0) {
-      leaves.forEach((l, i) => {
+    if (leavesRef.current) {
+      const count = Math.min(leaves.length, MAX_LEAVES);
+      for (let i = 0; i < count; i++) {
+        const l = leaves[i];
         dummy.position.set(l.x, l.y, l.z);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
-        leavesRef.current!.setMatrixAt(i, dummy.matrix);
-        if (l.color) leavesRef.current!.setColorAt(i, new THREE.Color(l.color));
-      });
+        leavesRef.current.setMatrixAt(i, dummy.matrix);
+        if (l.color) leavesRef.current.setColorAt(i, new THREE.Color(l.color));
+      }
+      leavesRef.current.count = count;
       leavesRef.current.instanceMatrix.needsUpdate = true;
       if (leavesRef.current.instanceColor) leavesRef.current.instanceColor.needsUpdate = true;
     }
 
-    if (rocksRef.current && rocks.length > 0) {
-      rocks.forEach((r, i) => {
+    if (rocksRef.current) {
+      const count = Math.min(rocks.length, MAX_ROCKS);
+      for (let i = 0; i < count; i++) {
+        const r = rocks[i];
         dummy.position.set(r.x, r.y, r.z);
         dummy.rotation.set(0, (i * 0.7) % Math.PI, 0);
         dummy.scale.set(r.scale, r.scale * 0.7, r.scale);
         dummy.updateMatrix();
-        rocksRef.current!.setMatrixAt(i, dummy.matrix);
-        rocksRef.current!.setColorAt(i, new THREE.Color(r.color));
-      });
+        rocksRef.current.setMatrixAt(i, dummy.matrix);
+        rocksRef.current.setColorAt(i, new THREE.Color(r.color));
+      }
+      rocksRef.current.count = count;
       rocksRef.current.instanceMatrix.needsUpdate = true;
       if (rocksRef.current.instanceColor) rocksRef.current.instanceColor.needsUpdate = true;
     }
 
-    if (grassRef.current && grass.length > 0) {
-      grass.forEach((g, i) => {
+    if (grassRef.current) {
+      const count = Math.min(grass.length, MAX_GRASS);
+      for (let i = 0; i < count; i++) {
+        const g = grass[i];
         dummy.position.set(g.x, g.y + 0.15, g.z);
         dummy.rotation.set(0, (i * 0.8) % Math.PI, 0);
         dummy.scale.set(1, g.s, 1);
         dummy.updateMatrix();
-        grassRef.current!.setMatrixAt(i, dummy.matrix);
-      });
+        grassRef.current.setMatrixAt(i, dummy.matrix);
+      }
+      grassRef.current.count = count;
       grassRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    if (flowerRef.current && flowers.length > 0) {
-      flowers.forEach((fl, i) => {
+    if (flowerRef.current) {
+      const count = Math.min(flowers.length, MAX_FLOWERS);
+      for (let i = 0; i < count; i++) {
+        const fl = flowers[i];
         dummy.position.set(fl.x, fl.y + 0.175, fl.z);
         dummy.rotation.set(0, (i * 1.1) % Math.PI, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
-        flowerRef.current!.setMatrixAt(i, dummy.matrix);
-        flowerRef.current!.setColorAt(i, new THREE.Color(fl.color));
-      });
+        flowerRef.current.setMatrixAt(i, dummy.matrix);
+        flowerRef.current.setColorAt(i, new THREE.Color(fl.color));
+      }
+      flowerRef.current.count = count;
       flowerRef.current.instanceMatrix.needsUpdate = true;
       if (flowerRef.current.instanceColor) flowerRef.current.instanceColor.needsUpdate = true;
     }
-  }, [trunks, leaves, rocks, grass, flowers, dummy]);
+
+    if (lilyRef.current) {
+      const count = Math.min(lilypads.length, MAX_LILYPADS);
+      for (let i = 0; i < count; i++) {
+        const lp = lilypads[i];
+        dummy.position.set(lp.x, lp.y, lp.z);
+        dummy.rotation.set(-Math.PI / 2, 0, lp.rotation);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        lilyRef.current.setMatrixAt(i, dummy.matrix);
+      }
+      lilyRef.current.count = count;
+      lilyRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (reedRef.current) {
+      const count = Math.min(reeds.length, MAX_REEDS);
+      for (let i = 0; i < count; i++) {
+        const rd = reeds[i];
+        dummy.position.set(rd.x, rd.y, rd.z);
+        dummy.rotation.set(0, (i * 0.5) % Math.PI, 0);
+        dummy.scale.set(1, rd.height, 1);
+        dummy.updateMatrix();
+        reedRef.current.setMatrixAt(i, dummy.matrix);
+      }
+      reedRef.current.count = count;
+      reedRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [trunks, leaves, rocks, grass, flowers, lilypads, reeds, dummy]);
 
   return (
-    <>
+    <group>
       {/* Tree Trunks */}
-      {trunks.length > 0 && (
-        <instancedMesh
-          key={`trunks-${trunks.length}`}
-          ref={trunkRef}
-          args={[undefined, undefined, trunks.length]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[0.42, 0.52, 0.42]} />
-          <meshStandardMaterial roughness={0.9} />
-        </instancedMesh>
-      )}
+      <instancedMesh
+        ref={trunkRef}
+        args={[undefined, undefined, MAX_TRUNKS]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[0.42, 0.52, 0.42]} />
+        <meshStandardMaterial roughness={0.9} />
+      </instancedMesh>
 
       {/* Tree Leaves */}
-      {leaves.length > 0 && (
-        <instancedMesh
-          key={`leaves-${leaves.length}`}
-          ref={leavesRef}
-          args={[undefined, undefined, leaves.length]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[0.48, 0.48, 0.48]} />
-          <meshStandardMaterial roughness={0.8} />
-        </instancedMesh>
-      )}
+      <instancedMesh
+        ref={leavesRef}
+        args={[undefined, undefined, MAX_LEAVES]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[0.48, 0.48, 0.48]} />
+        <meshStandardMaterial roughness={0.8} />
+      </instancedMesh>
 
       {/* Rocks */}
-      {rocks.length > 0 && (
-        <instancedMesh
-          key={`rocks-${rocks.length}`}
-          ref={rocksRef}
-          args={[undefined, undefined, rocks.length]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[0.7, 0.6, 0.7]} />
-          <meshStandardMaterial roughness={0.95} />
-        </instancedMesh>
-      )}
+      <instancedMesh
+        ref={rocksRef}
+        args={[undefined, undefined, MAX_ROCKS]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[0.7, 0.6, 0.7]} />
+        <meshStandardMaterial roughness={0.95} />
+      </instancedMesh>
 
       {/* Grass Tufts */}
-      {grass.length > 0 && (
-        <instancedMesh
-          key={`grass-${grass.length}`}
-          ref={grassRef}
-          args={[undefined, undefined, grass.length]}
-          receiveShadow
-        >
-          <boxGeometry args={[0.15, 0.3, 0.15]} />
-          <meshStandardMaterial color="#4d8544" roughness={0.9} />
-        </instancedMesh>
-      )}
+      <instancedMesh
+        ref={grassRef}
+        args={[undefined, undefined, MAX_GRASS]}
+        receiveShadow
+      >
+        <boxGeometry args={[0.15, 0.3, 0.15]} />
+        <meshStandardMaterial color="#4d8544" roughness={0.9} />
+      </instancedMesh>
 
       {/* Wildflowers */}
-      {flowers.length > 0 && (
-        <instancedMesh
-          key={`flowers-${flowers.length}`}
-          ref={flowerRef}
-          args={[undefined, undefined, flowers.length]}
-          receiveShadow
-        >
-          <boxGeometry args={[0.2, 0.35, 0.2]} />
-          <meshStandardMaterial roughness={0.7} />
-        </instancedMesh>
-      )}
+      <instancedMesh
+        ref={flowerRef}
+        args={[undefined, undefined, MAX_FLOWERS]}
+        receiveShadow
+      >
+        <boxGeometry args={[0.2, 0.35, 0.2]} />
+        <meshStandardMaterial roughness={0.7} />
+      </instancedMesh>
 
-      {/* Lily pads */}
-      {lilypads.map((lp, i) => (
-        <mesh
-          key={`lp-${i}`}
-          position={[lp.x, lp.y, lp.z]}
-          rotation={[-Math.PI / 2, 0, lp.rotation]}
-          receiveShadow
-        >
-          <circleGeometry args={[0.3, 7]} />
-          <meshStandardMaterial color="#2E7D32" roughness={0.9} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
+      {/* Lily pads (Instanced) */}
+      <instancedMesh
+        ref={lilyRef}
+        args={[undefined, undefined, MAX_LILYPADS]}
+        receiveShadow
+      >
+        <circleGeometry args={[0.3, 7]} />
+        <meshStandardMaterial color="#2E7D32" roughness={0.9} side={THREE.FrontSide} depthWrite={false} />
+      </instancedMesh>
 
-      {/* Reeds on shore */}
-      {reeds.map((rd, i) => (
-        <mesh key={`rd-${i}`} position={[rd.x, rd.y, rd.z]} castShadow receiveShadow>
-          <boxGeometry args={[0.08, rd.height, 0.08]} />
-          <meshStandardMaterial color="#8BC34A" roughness={0.9} />
-        </mesh>
-      ))}
-    </>
+      {/* Reeds on shore (Instanced) */}
+      <instancedMesh
+        ref={reedRef}
+        args={[undefined, undefined, MAX_REEDS]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[0.08, 1.0, 0.08]} />
+        <meshStandardMaterial color="#8BC34A" roughness={0.9} />
+      </instancedMesh>
+    </group>
   );
-};
+});
 
 /**
- * 3D Component: Infinite drifting clouds that follow the player overhead
+ * 3D Component: Infinite drifting clouds that follow the player chunk overhead
  */
-export const VoxelClouds: React.FC<{
-  playerPos: Position;
+export const VoxelClouds = React.memo<{
+  playerChunk: { cx: number; cz: number };
   visible?: boolean;
-}> = ({ playerPos, visible = true }) => {
+}>(({ playerChunk, visible = true }) => {
   const groupRef = useRef<THREE.Group>(null);
-  const px = playerPos.x * WORLD_SCALE;
-  const pz = playerPos.y * WORLD_SCALE;
+  const px = playerChunk.cx * CHUNK_SIZE;
+  const pz = playerChunk.cz * CHUNK_SIZE;
 
   const clouds = useMemo(() => {
     return [
@@ -900,9 +939,10 @@ export const VoxelClouds: React.FC<{
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      // Gentle drift + follow player chunk
-      groupRef.current.position.x = px + ((Date.now() * 0.0008) % 120) - 60;
-      groupRef.current.position.z = pz;
+      groupRef.current.position.x += delta * 1.5;
+      if (groupRef.current.position.x > px + 60) {
+        groupRef.current.position.x = px - 60;
+      }
     }
   });
 
@@ -918,9 +958,10 @@ export const VoxelClouds: React.FC<{
             transparent
             opacity={0.82}
             side={THREE.DoubleSide}
+            depthWrite={false}
           />
         </mesh>
       ))}
     </group>
   );
-};
+});

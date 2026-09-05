@@ -257,10 +257,11 @@ export const WorldFeaturesManager: React.FC<WorldObjectsProps> = ({
 }) => {
   return (
     <group>
-      {/* World Objects */}
+      {/* World Objects with distance culling */}
       {features.map((feature) => {
         const dx = feature.x - playerPos.x;
         const dz = feature.y - playerPos.y;
+        if (Math.abs(dx) > 65 || Math.abs(dz) > 65) return null; // Cull distant features outside view
         const dist = Math.sqrt(dx * dx + dz * dz);
         const isNearby = dist < 2.5;
 

@@ -410,6 +410,8 @@ export const App: React.FC = () => {
 
   // Player Navigation & Movement
   const [charPos, setCharPos] = useState<Position>({ x: 0, y: 0 });
+  const [playerChunk, setPlayerChunk] = useState<{ cx: number; cz: number }>({ cx: 0, cz: 0 });
+  const playerChunkRef = useRef<{ cx: number; cz: number }>({ cx: 0, cz: 0 });
   const [targetPos, setTargetPos] = useState<Position>({ x: 0, y: 0 });
   const [cameraZoom, setCameraZoom] = useState<number>(ZOOM_DEFAULT);
   const [cameraPan, setCameraPan] = useState<Position>({ x: 0, y: 0 });
@@ -448,6 +450,12 @@ export const App: React.FC = () => {
           setCharPos(parsed.charPos);
           charPosRef.current = parsed.charPos;
           targetPosRef.current = parsed.charPos;
+          const initialChunk = {
+            cx: Math.floor(parsed.charPos.x / 24),
+            cz: Math.floor(parsed.charPos.y / 24),
+          };
+          setPlayerChunk(initialChunk);
+          playerChunkRef.current = initialChunk;
         }
       }
     } catch (e) {
@@ -481,10 +489,10 @@ export const App: React.FC = () => {
     sounds.enabled = settings.soundEnabled ?? true;
   }, [settings.soundEnabled]);
 
-  // Dynamic Chunk Features Generator
+  // Dynamic Chunk Features Generator - Only runs when entering a new chunk!
   useEffect(() => {
-    const currentChunkX = Math.floor(charPos.x / 24);
-    const currentChunkZ = Math.floor(charPos.y / 24);
+    const currentChunkX = playerChunk.cx;
+    const currentChunkZ = playerChunk.cz;
     const renderDist = settings.renderDistance ?? 2;
 
     const newFeatures: WorldFeature[] = [];
@@ -505,15 +513,16 @@ export const App: React.FC = () => {
     if (newFeatures.length > 0) {
       setFeatures(prev => [...prev, ...newFeatures]);
     }
-  }, [charPos, settings]);
+  }, [playerChunk.cx, playerChunk.cz, settings.renderDistance, settings.seed]);
 
   // Check Nearby Features for Companion and Compass
   const nearbyFeature = useMemo(() => {
     let closest: WorldFeature | null = null;
     let minDist = Infinity;
 
-    features.forEach(f => {
-      if (f.active) return; // already solved
+    for (let i = 0; i < features.length; i++) {
+      const f = features[i];
+      if (f.active) continue; // already solved
       const dx = f.x - charPos.x;
       const dz = f.y - charPos.y;
       const d = Math.hypot(dx, dz);
@@ -521,27 +530,25 @@ export const App: React.FC = () => {
         minDist = d;
         closest = f;
       }
-    });
+    }
 
     return { feature: closest, dist: minDist };
-  }, [features, charPos]);
+  }, [features, Math.round(charPos.x * 2) / 2, Math.round(charPos.y * 2) / 2]);
 
-  // Update Companion Alert
+  // Update Companion Alert only when entering or leaving vicinity
   useEffect(() => {
-    if (nearbyFeature.feature && nearbyFeature.dist < 18) {
-      setCompanion(prev => ({
+    const hasNearby = nearbyFeature.feature && nearbyFeature.dist < 18;
+    const detectedId = hasNearby ? nearbyFeature.feature!.id : undefined;
+
+    setCompanion(prev => {
+      if (prev.detectedFeatureId === detectedId) return prev;
+      return {
         ...prev,
-        mood: 'excited',
-        detectedFeatureId: nearbyFeature.feature!.id,
-      }));
-    } else {
-      setCompanion(prev => ({
-        ...prev,
-        mood: 'happy',
-        detectedFeatureId: undefined,
-      }));
-    }
-  }, [nearbyFeature]);
+        mood: detectedId ? 'excited' : 'happy',
+        detectedFeatureId: detectedId,
+      };
+    });
+  }, [nearbyFeature.feature?.id, nearbyFeature.dist < 18]);
 
   // Main Movement Loop - Smooth, 60+ FPS, Zero Lag
   useEffect(() => {
@@ -614,8 +621,17 @@ export const App: React.FC = () => {
 
       if (hasMoved) {
         distWalkedAcc.current += stepDistance;
-        // Throttle React state updates to ~15fps so 3D renders at full 60+ FPS smoothly without React re-rendering every frame
-        if (time - lastStateUpdateTime.current > 65) {
+
+        // Check if player walked into a new chunk
+        const chunkX = Math.floor(nextX / 24);
+        const chunkZ = Math.floor(nextY / 24);
+        if (chunkX !== playerChunkRef.current.cx || chunkZ !== playerChunkRef.current.cz) {
+          playerChunkRef.current = { cx: chunkX, cz: chunkZ };
+          setPlayerChunk({ cx: chunkX, cz: chunkZ });
+        }
+
+        // Throttle React state updates to ~20fps so 3D renders at full 60+ FPS smoothly
+        if (time - lastStateUpdateTime.current > 50) {
           lastStateUpdateTime.current = time;
           setCharPos({ x: nextX, y: nextY });
 
@@ -978,44 +994,45 @@ export const App: React.FC = () => {
           ]}
         />
 
-        {/* Dynamic Sun & Moon Lighting */}
-        <ambientLight intensity={isNight ? 0.25 : 0.75} />
+        {/* Dynamic Sun & Moon Lighting with optimized shadow camera */}
+        <ambientLight intensity={isNight ? 0.35 : 0.8} />
         <directionalLight
-          position={isNight ? [-40, 60, -40] : [50, 80, 50]}
-          intensity={isNight ? 0.4 : 1.3}
-          color={isNight ? '#8bb4e8' : '#fff5eb'}
+          position={isNight ? [-35, 55, -35] : [45, 65, 45]}
+          intensity={isNight ? 0.45 : 1.25}
+          color={isNight ? '#8bb4e8' : '#fff8ee'}
           castShadow
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-60}
-          shadow-camera-right={60}
-          shadow-camera-top={60}
-          shadow-camera-bottom={-60}
+          shadow-mapSize={[1024, 1024]}
+          shadow-camera-left={-40}
+          shadow-camera-right={40}
+          shadow-camera-top={40}
+          shadow-camera-bottom={-40}
+          shadow-camera-near={10}
+          shadow-camera-far={150}
+          shadow-bias={-0.0008}
         />
 
         <Suspense fallback={null}>
           <CameraRig target={charPos} zoom={cameraZoom} pan={cameraPan} settings={settings} />
 
-          {/* Infinite Voxel Terrain with Solid Watertight Normals */}
+          {/* Infinite Voxel Terrain - Only re-evaluates when crossing chunk boundaries */}
           <VoxelTerrainMesh
             settings={settings}
-            playerPos={charPos}
+            playerChunk={playerChunk}
             onPointerDown={handleFloorPointerDown}
             onPointerUp={handleFloorPointerUp}
-            onPointerMove={handleFloorPointerMove}
           />
 
-          {/* Infinite Procedural Water */}
+          {/* Infinite Procedural Water - Zero Z-fighting */}
           <WaterMesh
-            playerPos={charPos}
+            playerChunk={playerChunk}
             settings={settings}
             visible={settings.hasWater !== false && settings.terrainType !== 'flat'}
           />
 
-          {/* Instanced Nature (Trees, Rocks, Wildflowers, Reeds) */}
+          {/* Instanced Nature (Trees, Rocks, Wildflowers, Reeds) - Static GPU Buffers, Zero Flicker */}
           <NatureInstances
             settings={settings}
-            blackboards={[]}
-            playerPos={charPos}
+            playerChunk={playerChunk}
           />
 
           {/* Animated Voxel Player */}
@@ -1050,8 +1067,8 @@ export const App: React.FC = () => {
             pulseRadius={pulseRadius}
           />
 
-          {/* Minecraft Clouds */}
-          <VoxelClouds playerPos={charPos} visible={settings.hasClouds !== false} />
+          {/* Minecraft Clouds - Static GPU mesh */}
+          <VoxelClouds playerChunk={playerChunk} visible={settings.hasClouds !== false} />
         </Suspense>
       </Canvas>
 
