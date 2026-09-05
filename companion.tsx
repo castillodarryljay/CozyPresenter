@@ -22,7 +22,7 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
   getElevation
 }) => {
   const groupRef = useRef<THREE.Group>(null);
-  const posRef = useRef<THREE.Vector3>(new THREE.Vector3(playerPos.x + 1.2, playerElevation, playerPos.y + 1.2));
+  const posRef = useRef<THREE.Vector3>(new THREE.Vector3(playerPos.x - 1.2, playerElevation, playerPos.y - 1.2));
   const rotRef = useRef<number>(0);
 
   // Body parts refs for walking & tail wag
@@ -32,6 +32,18 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
   const legBRRef = useRef<THREE.Mesh>(null);
   const tailRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
+
+  // Snap companion if too far on mount or player teleports
+  React.useEffect(() => {
+    const currentPos = posRef.current;
+    const dx = playerPos.x - currentPos.x;
+    const dz = playerPos.y - currentPos.z;
+    if (Math.hypot(dx, dz) > 10) {
+      currentPos.x = playerPos.x - 1.2;
+      currentPos.z = playerPos.y - 1.2;
+      currentPos.y = getElevation(currentPos.x, currentPos.z);
+    }
+  }, [playerPos.x, playerPos.y, getElevation]);
 
   // Colors based on pet type
   const isFox = type === 'fox';
@@ -46,7 +58,7 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
     if (!groupRef.current) return;
 
     // Determine target location:
-    // If companion sniffs nearby treasure, it moves slightly ahead toward the treasure!
+    // Follow slightly behind player, or lead towards detected feature
     let targetX = playerPos.x - 1.2;
     let targetZ = playerPos.y - 1.2;
 
@@ -56,8 +68,8 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
       const dirZ = nearbyFeaturePos.y - playerPos.y;
       const dist = Math.sqrt(dirX * dirX + dirZ * dirZ);
       if (dist > 0.5) {
-        targetX = playerPos.x + (dirX / dist) * Math.min(dist * 0.7, 3.5);
-        targetZ = playerPos.y + (dirZ / dist) * Math.min(dist * 0.7, 3.5);
+        targetX = playerPos.x + (dirX / dist) * Math.min(dist * 0.7, 3.2);
+        targetZ = playerPos.y + (dirZ / dist) * Math.min(dist * 0.7, 3.2);
       }
     }
 
@@ -66,26 +78,35 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
     const dz = targetZ - currentPos.z;
     const distToTarget = Math.sqrt(dx * dx + dz * dz);
 
-    const speed = Math.min(distToTarget * 4.5, 9.0);
-    const isMoving = distToTarget > 0.3;
+    // Leash recovery: if pet gets too far behind, snap close so it never disappears
+    if (distToTarget > 14) {
+      currentPos.x = targetX + (Math.random() - 0.5) * 0.4;
+      currentPos.z = targetZ + (Math.random() - 0.5) * 0.4;
+      currentPos.y = getElevation(currentPos.x, currentPos.z);
+    }
+
+    // Dynamic speed: catches up smoothly with higher speed when further away
+    const speed = Math.min(Math.max(distToTarget * 4.5, 5.0), 16.0);
+    const isMoving = distToTarget > 0.45;
 
     if (isMoving) {
-      currentPos.x += (dx / distToTarget) * speed * delta;
-      currentPos.z += (dz / distToTarget) * speed * delta;
+      const step = Math.min(distToTarget, speed * delta);
+      currentPos.x += (dx / distToTarget) * step;
+      currentPos.z += (dz / distToTarget) * step;
       const targetAngle = Math.atan2(dx, dz);
       
       // Smooth rotation
       let diff = targetAngle - rotRef.current;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      rotRef.current += diff * 8 * delta;
+      rotRef.current += diff * Math.min(1, 12 * delta);
     }
 
     // Elevation on stepped terrain
     const groundY = getElevation(currentPos.x, currentPos.z);
-    currentPos.y += (groundY - currentPos.y) * 10 * delta;
+    currentPos.y += (groundY - currentPos.y) * Math.min(1, 15 * delta);
 
-    groupRef.current.position.copy(currentPos);
+    groupRef.current.position.set(currentPos.x, currentPos.y, currentPos.z);
     groupRef.current.rotation.y = rotRef.current;
 
     // Leg walking cycle

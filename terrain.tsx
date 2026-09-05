@@ -7,7 +7,7 @@ export const WATER_LEVEL = -0.15;
 export const BLOCK_STEP = 0.5;
 export const CHUNK_SIZE = 24; // 24 units wide per chunk
 export const GRID_PER_CHUNK = 16; // 16x16 grid per chunk = 1.5 unit block size
-export const WORLD_SCALE = 0.05;
+export const WORLD_SCALE = 1.0;
 
 // Deterministic pseudo-random number generator
 export function pseudoRandom(ix: number, iy: number, seed: number = 42): number {

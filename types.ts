@@ -4,6 +4,12 @@ export interface Position {
   y: number;
 }
 
+export interface Blackboard {
+  id?: string;
+  x: number;
+  y: number;
+}
+
 export type TerrainType = 'hills' | 'mountains' | 'plains' | 'desert' | 'flat';
 
 export type RelicRarity = 'common' | 'rare' | 'epic' | 'legendary';

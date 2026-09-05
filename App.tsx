@@ -101,19 +101,19 @@ const Player3D: React.FC<{
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
 
-  const initY = getTerrainHeight(position.x * WORLD_SCALE, position.y * WORLD_SCALE, settings);
-  const prevPos = useRef(new THREE.Vector3(position.x * WORLD_SCALE, initY, position.y * WORLD_SCALE));
+  const initY = getTerrainHeight(position.x, position.y, settings);
+  const prevPos = useRef(new THREE.Vector3(position.x, initY, position.y));
 
   useFrame((state, delta) => {
     if (group.current) {
-      const targetX = position.x * WORLD_SCALE;
-      const targetZ = position.y * WORLD_SCALE;
+      const targetX = position.x;
+      const targetZ = position.y;
 
-      const x = THREE.MathUtils.lerp(group.current.position.x, targetX, delta * 12);
-      const z = THREE.MathUtils.lerp(group.current.position.z, targetZ, delta * 12);
+      const x = THREE.MathUtils.lerp(group.current.position.x, targetX, Math.min(1, delta * 15));
+      const z = THREE.MathUtils.lerp(group.current.position.z, targetZ, Math.min(1, delta * 15));
       const groundY = getTerrainHeight(x, z, settings);
       const targetY = groundY + 0.75;
-      const y = THREE.MathUtils.lerp(group.current.position.y, targetY, delta * 14);
+      const y = THREE.MathUtils.lerp(group.current.position.y, targetY, Math.min(1, delta * 15));
 
       group.current.position.x = x;
       group.current.position.y = y;
@@ -153,7 +153,7 @@ const Player3D: React.FC<{
   });
 
   return (
-    <group ref={group} position={[position.x * WORLD_SCALE, initY + 0.75, position.y * WORLD_SCALE]}>
+    <group ref={group} position={[position.x, initY + 0.75, position.y]}>
       {/* Head */}
       <group position={[0, 0.75, 0]}>
         <Box args={[0.5, 0.5, 0.5]} castShadow>
@@ -251,16 +251,16 @@ const CameraRig: React.FC<{
   useFrame((state, delta) => {
     if (isNaN(target.x) || isNaN(target.y) || isNaN(pan.x) || isNaN(pan.y)) return;
 
-    const tX = target.x * WORLD_SCALE + pan.x;
-    const tZ = target.y * WORLD_SCALE + pan.y;
+    const tX = target.x + pan.x;
+    const tZ = target.y + pan.y;
     const tY = getTerrainHeight(tX, tZ, settings);
 
     const offsetH = zoom;
     const offsetV = zoom * 0.85;
 
     const desiredPos = new THREE.Vector3(tX, tY + offsetV, tZ + offsetH);
-    state.camera.position.lerp(desiredPos, delta * 5);
-    state.camera.lookAt(tX, tY, tZ);
+    state.camera.position.lerp(desiredPos, Math.min(1, delta * 6));
+    state.camera.lookAt(tX, tY + 0.75, tZ);
   });
   return null;
 };
@@ -419,6 +419,10 @@ export const App: React.FC = () => {
   const inputVector = useRef({ x: 0, y: 0 });
   const keysPressed = useRef<Set<string>>(new Set());
 
+  // Step distance accumulator & throttled UI state
+  const distWalkedAcc = useRef<number>(0);
+  const lastStateUpdateTime = useRef<number>(0);
+
   // Touch & Pointer interaction
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const pointerDownWorld = useRef<{ x: number; y: number } | null>(null);
@@ -451,22 +455,25 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Auto-Save
+  // Debounced Auto-Save to localStorage (eliminates disk lag on movement)
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          stats,
-          inventory,
-          quests,
-          settings,
-          charPos,
-        })
-      );
-    } catch (e) {
-      // Ignore
-    }
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            stats,
+            inventory,
+            quests,
+            settings,
+            charPos,
+          })
+        );
+      } catch (e) {
+        // Ignore
+      }
+    }, 1500);
+    return () => clearTimeout(handler);
   }, [stats, inventory, quests, settings, charPos]);
 
   // Sync Audio Setting
@@ -474,71 +481,10 @@ export const App: React.FC = () => {
     sounds.enabled = settings.soundEnabled ?? true;
   }, [settings.soundEnabled]);
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current.add(e.key.toLowerCase());
-
-      if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        triggerSonarPulse();
-      } else if (e.key.toLowerCase() === 'e') {
-        interactContextAction();
-      } else if (e.key.toLowerCase() === 'f') {
-        toggleCampfire();
-      } else if (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 'c') {
-        petCompanion();
-      } else if (e.key.toLowerCase() === 'j') {
-        setIsJournalOpen(prev => !prev);
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current.delete(e.key.toLowerCase());
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [charPos, features]);
-
-  // Day/Night Cycle Timer
-  useEffect(() => {
-    if (settings.dayNightCycle === false) return;
-    const interval = setInterval(() => {
-      setTimeOfDay(prev => (prev + 0.001) % 1.0);
-    }, 400);
-    return () => clearInterval(interval);
-  }, [settings.dayNightCycle]);
-
-  // Sonar Pulse Animation loop
-  useEffect(() => {
-    if (!pulseActive) return;
-    let animId: number;
-    const startTime = performance.now();
-
-    const step = (time: number) => {
-      const elapsed = (time - startTime) / 1000;
-      const rad = elapsed * 32; // Expands outward
-      if (rad <= 50) {
-        setPulseRadius(rad);
-        animId = requestAnimationFrame(step);
-      } else {
-        setPulseRadius(0);
-        setPulseActive(false);
-      }
-    };
-    animId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(animId);
-  }, [pulseActive]);
-
   // Dynamic Chunk Features Generator
   useEffect(() => {
-    const currentChunkX = Math.floor((charPos.x * WORLD_SCALE) / 24);
-    const currentChunkZ = Math.floor((charPos.y * WORLD_SCALE) / 24);
+    const currentChunkX = Math.floor(charPos.x / 24);
+    const currentChunkZ = Math.floor(charPos.y / 24);
     const renderDist = settings.renderDistance ?? 2;
 
     const newFeatures: WorldFeature[] = [];
@@ -570,7 +516,7 @@ export const App: React.FC = () => {
       if (f.active) return; // already solved
       const dx = f.x - charPos.x;
       const dz = f.y - charPos.y;
-      const d = Math.sqrt(dx * dx + dz * dz);
+      const d = Math.hypot(dx, dz);
       if (d < minDist) {
         minDist = d;
         closest = f;
@@ -597,11 +543,11 @@ export const App: React.FC = () => {
     }
   }, [nearbyFeature]);
 
-  // Main Movement Loop
+  // Main Movement Loop - Smooth, 60+ FPS, Zero Lag
   useEffect(() => {
     let frameId: number;
     let lastTime = performance.now();
-    const moveSpeed = 4.2;
+    const moveSpeed = 5.2; // Natural 5.2 blocks per second running speed
 
     const update = (time: number) => {
       const dt = Math.min((time - lastTime) / 1000, 0.1);
@@ -622,52 +568,63 @@ export const App: React.FC = () => {
 
       let dx = kx + inputVector.current.x;
       let dy = ky + inputVector.current.y;
-      const mag = Math.sqrt(dx * dx + dy * dy);
+      const mag = Math.hypot(dx, dy);
       if (mag > 1) {
         dx /= mag;
         dy /= mag;
       }
 
-      const hasInput = mag > 0.1;
+      const hasInput = mag > 0.08;
       const currentPos = charPosRef.current;
       const currentTarget = targetPosRef.current;
 
       let nextX = currentPos.x;
       let nextY = currentPos.y;
+      let hasMoved = false;
+      let stepDistance = 0;
 
       if (hasInput) {
         if (Math.abs(cameraPan.x) > 0.1 || Math.abs(cameraPan.y) > 0.1) {
           setCameraPan(p => ({ x: p.x * 0.9, y: p.y * 0.9 }));
         }
 
-        const step = moveSpeed * dt * 50;
+        const step = moveSpeed * dt;
         nextX += dx * step;
         nextY += dy * step;
+        stepDistance = step;
+        hasMoved = true;
 
         charPosRef.current = { x: nextX, y: nextY };
         targetPosRef.current = { x: nextX, y: nextY };
-
-        setCharPos({ x: nextX, y: nextY });
-        setTargetPos({ x: nextX, y: nextY });
-
-        // Update steps walked
-        setStats(s => ({ ...s, stepsWalked: s.stepsWalked + 1 }));
-        updateQuestProgress('quest_wanderlust', 1);
       } else {
         const distToTargetX = currentTarget.x - currentPos.x;
         const distToTargetY = currentTarget.y - currentPos.y;
-        const dist = Math.sqrt(distToTargetX * distToTargetX + distToTargetY * distToTargetY);
+        const dist = Math.hypot(distToTargetX, distToTargetY);
 
-        if (dist > 0.5) {
-          const step = Math.min(dist, moveSpeed * dt * 50);
+        if (dist > 0.15) {
+          const step = Math.min(dist, moveSpeed * dt);
           nextX = currentPos.x + (distToTargetX / dist) * step;
           nextY = currentPos.y + (distToTargetY / dist) * step;
+          stepDistance = step;
+          hasMoved = true;
 
           charPosRef.current = { x: nextX, y: nextY };
+        }
+      }
+
+      if (hasMoved) {
+        distWalkedAcc.current += stepDistance;
+        // Throttle React state updates to ~15fps so 3D renders at full 60+ FPS smoothly without React re-rendering every frame
+        if (time - lastStateUpdateTime.current > 65) {
+          lastStateUpdateTime.current = time;
           setCharPos({ x: nextX, y: nextY });
 
-          setStats(s => ({ ...s, stepsWalked: s.stepsWalked + 1 }));
-          updateQuestProgress('quest_wanderlust', 1);
+          if (distWalkedAcc.current >= 1.0) {
+            const steps = Math.floor(distWalkedAcc.current);
+            distWalkedAcc.current -= steps;
+            setStats(s => ({ ...s, stepsWalked: s.stepsWalked + steps }));
+            updateQuestProgress('quest_wanderlust', steps);
+          }
         }
       }
 
@@ -685,6 +642,70 @@ export const App: React.FC = () => {
       setNotification(null);
     }, 4000);
   };
+
+  // Keyboard controls with stable refs (no tearing down listener on movement)
+  const nearbyFeatureRef = useRef(nearbyFeature);
+  nearbyFeatureRef.current = nearbyFeature;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current.add(e.key.toLowerCase());
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        triggerSonarPulse();
+      } else if (e.key.toLowerCase() === 'e') {
+        interactContextAction();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleCampfire();
+      } else if (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 'c') {
+        petCompanion();
+      } else if (e.key.toLowerCase() === 'j') {
+        setIsJournalOpen(prev => !prev);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key.toLowerCase());
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Day/Night Cycle Timer
+  useEffect(() => {
+    if (settings.dayNightCycle === false) return;
+    const interval = setInterval(() => {
+      setTimeOfDay(prev => (prev + 0.001) % 1.0);
+    }, 400);
+    return () => clearInterval(interval);
+  }, [settings.dayNightCycle]);
+
+  // Sonar Pulse Animation loop
+  useEffect(() => {
+    if (!pulseActive) return;
+    let animId: number;
+    const startTime = performance.now();
+
+    const step = (time: number) => {
+      const elapsed = (time - startTime) / 1000;
+      const rad = elapsed * 32; // Expands outward
+      if (rad <= 50) {
+        setPulseRadius(rad);
+        animId = requestAnimationFrame(step);
+      } else {
+        setPulseRadius(0);
+        setPulseActive(false);
+      }
+    };
+    animId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animId);
+  }, [pulseActive]);
 
   // Add XP and level up if threshold crossed
   const addXP = (amount: number) => {
@@ -857,7 +878,7 @@ export const App: React.FC = () => {
 
     if (pointers.current.size === 1) {
       pointerDownPos.current = { x: e.clientX, y: e.clientY };
-      pointerDownWorld.current = { x: e.point.x / WORLD_SCALE, y: e.point.z / WORLD_SCALE };
+      pointerDownWorld.current = { x: e.point.x, y: e.point.z };
       isDraggingMap.current = false;
       lastCursorPos.current = { x: e.clientX, y: e.clientY };
     }
@@ -1008,7 +1029,7 @@ export const App: React.FC = () => {
           {/* Voxel Faithful Companion */}
           <VoxelCompanion
             playerPos={charPos}
-            playerElevation={getTerrainHeight(charPos.x * WORLD_SCALE, charPos.y * WORLD_SCALE, settings)}
+            playerElevation={getTerrainHeight(charPos.x, charPos.y, settings)}
             type={settings.companionType ?? 'fox'}
             mood={companion.mood}
             nearbyFeaturePos={
@@ -1041,60 +1062,84 @@ export const App: React.FC = () => {
           <Joystick onMove={(x, y) => { inputVector.current = { x, y }; }} />
         )}
 
-        {/* Top Responsive Navigation & Compass Bar */}
-        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-center pointer-events-none z-30 gap-2">
-          {/* Coordinates & Level Badge */}
-          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-shrink min-w-0">
-            {/* Level Pill */}
-            <div className="mc-panel px-2 sm:px-3 py-1 bg-[#d4af37] text-black font-bold text-xs sm:text-base flex items-center gap-1 shadow-md border-2 border-[#fff8a0] whitespace-nowrap">
-              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black flex-shrink-0" />
-              <span>Lv.{stats.level} Nomad</span>
-            </div>
-
-            {/* Coordinates */}
-            <div className="mc-panel px-2 sm:px-2.5 py-1 bg-[#c6c6c6] text-black font-bold text-xs sm:text-base flex items-center gap-1 sm:gap-1.5 shadow-md whitespace-nowrap">
-              <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#2d5a27] flex-shrink-0" />
-              <span className="font-mono">X:{Math.round(charPos.x)} Z:{Math.round(charPos.y)}</span>
-            </div>
-
-            {/* Nearest Secret Compass Radar */}
-            {nearbyFeature.feature && (
-              <div
-                className={`mc-panel px-2 py-0.5 sm:py-1 text-xs sm:text-sm flex items-center gap-1 shadow-md whitespace-nowrap ${
-                  nearbyFeature.dist < 8
-                    ? 'bg-[#ffe066] text-black border-[#ffff99] animate-pulse font-bold'
-                    : 'bg-[#555] text-white border-[#777]'
-                }`}
-                title="Nearest ancient structure or buried relic"
-              >
-                <Radio className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-                <span>
-                  {nearbyFeature.feature.type === 'obelisk'
-                    ? 'Spire'
-                    : nearbyFeature.feature.type === 'chest'
-                    ? 'Chest'
-                    : 'Relic'}{' '}
-                  {Math.round(nearbyFeature.dist)}m
-                </span>
+        {/* Top Responsive Navigation & Status Bar */}
+        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start pointer-events-none z-30 gap-2">
+          {/* Left: Player Level, Coords & Companion Status */}
+          <div className="pointer-events-auto flex flex-col items-start gap-1.5 flex-shrink min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              {/* Level Pill */}
+              <div className="mc-panel px-2 sm:px-2.5 py-0.5 sm:py-1 bg-[#d4af37] text-black font-bold text-xs sm:text-sm flex items-center gap-1 shadow-md border-2 border-[#fff8a0] whitespace-nowrap">
+                <Trophy className="w-3.5 h-3.5 text-black flex-shrink-0" />
+                <span>Lv.{stats.level}</span>
               </div>
-            )}
 
-            <PWAInstallButton variant="hud" />
+              {/* Coordinates */}
+              <div className="mc-panel px-2 py-0.5 sm:py-1 bg-[#c6c6c6] text-black font-bold text-xs sm:text-sm flex items-center gap-1 shadow-md whitespace-nowrap">
+                <Compass className="w-3.5 h-3.5 text-[#2d5a27] flex-shrink-0" />
+                <span className="font-mono">{Math.round(charPos.x)}, {Math.round(charPos.y)}</span>
+              </div>
+            </div>
+
+            {/* Companion Status Pill */}
+            <button
+              onClick={petCompanion}
+              className="mc-panel px-2 py-0.5 sm:py-1 bg-[#1e293b]/90 hover:bg-[#334155] text-white flex items-center gap-1.5 text-xs shadow-md border border-[#475569] active:scale-95 transition-all"
+              title={`Click to pet ${companion.name}! (R)`}
+            >
+              <span className="text-sm">
+                {settings.companionType === 'fox' ? '🦊' : settings.companionType === 'dog' ? '🐕' : '🦫'}
+              </span>
+              <span className="font-bold text-[#ffd700]">{companion.name}</span>
+              <span className="text-rose-400 font-mono text-[11px]">
+                {'❤️'.repeat(Math.max(1, Math.min(3, Math.ceil(companion.happiness / 34))))}
+              </span>
+              {nearbyFeature.feature && nearbyFeature.dist < 18 && (
+                <span className="bg-amber-400 text-black px-1 rounded text-[10px] font-bold animate-pulse">
+                  Sniffing!
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Top Right: Day/Night, Journal, Settings */}
+          {/* Top Center: Ancient Radar Compass (When feature detected) */}
+          {nearbyFeature.feature && (
+            <div className="pointer-events-auto absolute top-1 sm:top-2 left-1/2 -translate-x-1/2 z-30">
+              <div
+                className={`mc-panel px-3 py-1 sm:py-1.5 flex items-center gap-1.5 shadow-xl border-2 whitespace-nowrap transition-all ${
+                  nearbyFeature.dist < 3.5
+                    ? 'bg-[#16a34a] text-white border-[#86efac] animate-bounce font-bold shadow-[0_0_12px_rgba(34,197,94,0.7)]'
+                    : nearbyFeature.dist < 14
+                    ? 'bg-[#f59e0b] text-black border-[#fde047] animate-pulse font-bold'
+                    : 'bg-[#1e293b]/95 text-gray-200 border-[#475569]'
+                }`}
+                title="Nearest secret"
+              >
+                <Radio className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${nearbyFeature.dist < 14 ? 'animate-ping' : ''}`} />
+                <span className="text-xs sm:text-sm font-mono font-bold tracking-wide">
+                  {nearbyFeature.feature.type === 'obelisk'
+                    ? 'SPIRE'
+                    : nearbyFeature.feature.type === 'chest'
+                    ? 'CHEST'
+                    : 'RELIC'}{' '}
+                  • {Math.round(nearbyFeature.dist)}m
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Top Right: Time of Day, Journal, Settings */}
           <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            {/* Time of Day Indicator */}
-            <div className="mc-panel px-2 py-1 bg-[#444] text-white flex items-center gap-1 text-xs sm:text-sm border-2">
+            {/* Time of Day */}
+            <div className="mc-panel px-2 py-0.5 sm:py-1 bg-[#444] text-white flex items-center gap-1 text-xs sm:text-sm border-2">
               {isNight ? (
                 <>
                   <Moon className="w-3.5 h-3.5 text-[#9ec7e8]" />
-                  <span className="hidden sm:inline">Night</span>
+                  <span className="hidden sm:inline font-mono">Night</span>
                 </>
               ) : (
                 <>
                   <Sun className="w-3.5 h-3.5 text-[#ffd700]" />
-                  <span className="hidden sm:inline">Day</span>
+                  <span className="hidden sm:inline font-mono">Day</span>
                 </>
               )}
             </div>
@@ -1102,7 +1147,7 @@ export const App: React.FC = () => {
             {/* Journal / Compendium Button */}
             <McButton
               onClick={() => setIsJournalOpen(true)}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-base bg-[#4f46e5]! border-[#818cf8]! text-white flex items-center gap-1 sm:gap-1.5 shadow-md"
+              className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-[#4f46e5]! border-[#818cf8]! text-white flex items-center gap-1 shadow-md"
               title="Open Explorer Journal (J)"
             >
               <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -1115,11 +1160,13 @@ export const App: React.FC = () => {
             {/* Game Settings */}
             <McButton
               onClick={() => setIsSettingsOpen(true)}
-              className="px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-base flex items-center gap-1"
+              className="px-2 py-1 text-xs sm:text-sm flex items-center gap-1"
               title="Settings"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
             </McButton>
+
+            <PWAInstallButton variant="hud" />
           </div>
         </header>
 
@@ -1135,63 +1182,65 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Action Hotbar (Bottom Center / Right) */}
-        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 pointer-events-auto flex items-center gap-1.5 sm:gap-2">
-          {/* Sonar Scan Button */}
-          <McButton
-            onClick={triggerSonarPulse}
-            className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-lg bg-[#0ea5e9]! border-[#38bdf8]! text-white flex items-center gap-1 shadow-lg"
-            title="Send Sonar Pulse Echo (Space)"
-          >
-            <Radio className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Pulse</span>
-          </McButton>
+        {/* Action Controls (Bottom Right) */}
+        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 pointer-events-auto flex flex-col items-end gap-2">
+          {/* Secondary Action Row: Pulse, Camp, Pet */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <McButton
+              onClick={triggerSonarPulse}
+              className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm bg-[#0ea5e9]! border-[#38bdf8]! text-white flex items-center gap-1 shadow-md"
+              title="Send Sonar Pulse Echo (Space)"
+            >
+              <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Pulse</span>
+            </McButton>
 
-          {/* Dig / Interact Button */}
+            <McButton
+              onClick={toggleCampfire}
+              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-sm text-white flex items-center gap-1 shadow-md ${
+                activeCampfirePos ? 'bg-[#ea580c]! border-[#fdba74]!' : 'bg-[#4b5563]!'
+              }`}
+              title="Pitch or pack Campfire (F)"
+            >
+              <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffedd5]" />
+              <span className="hidden sm:inline">Camp</span>
+            </McButton>
+
+            <McButton
+              onClick={petCompanion}
+              className="px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-sm bg-[#db2777]! border-[#f472b6]! text-white flex items-center gap-1 shadow-md"
+              title="Whistle & Pet Companion (R)"
+            >
+              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffe4e6]" />
+              <span className="hidden sm:inline">Pet</span>
+            </McButton>
+          </div>
+
+          {/* Primary Action Button: Dig / Open / Awaken */}
           <McButton
             onClick={interactContextAction}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-lg text-white flex items-center gap-1 shadow-lg ${
-              nearbyFeature.dist < 3.0
-                ? 'bg-[#16a34a]! border-[#4ade80]! animate-bounce'
+            className={`w-full sm:w-auto min-w-[125px] sm:min-w-[155px] px-3.5 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-lg text-white font-bold flex items-center justify-center gap-1.5 shadow-xl transition-all ${
+              nearbyFeature.dist < 3.5
+                ? 'bg-[#16a34a]! border-[#4ade80]! animate-bounce scale-105 shadow-[0_0_15px_rgba(34,197,94,0.6)]'
                 : 'bg-[#b45309]! border-[#f59e0b]!'
             }`}
             title="Dig Ground or Open Treasure (E)"
           >
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>
-              {nearbyFeature.dist < 3.0
+              {nearbyFeature.dist < 3.5
                 ? nearbyFeature.feature?.type === 'obelisk'
-                  ? 'Awaken'
-                  : 'Open'
-                : 'Dig'}
+                  ? '⚡ AWAKEN'
+                  : nearbyFeature.feature?.type === 'chest'
+                  ? '✨ OPEN'
+                  : '⛏️ UNEARTH'
+                : '⛏️ DIG'}
             </span>
-          </McButton>
-
-          {/* Campfire Button */}
-          <McButton
-            onClick={toggleCampfire}
-            className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-base text-white flex items-center gap-1 shadow-md ${
-              activeCampfirePos ? 'bg-[#ea580c]! border-[#fdba74]!' : 'bg-[#4b5563]!'
-            }`}
-            title="Pitch or pack Campfire (F)"
-          >
-            <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffedd5]" />
-            <span className="hidden sm:inline">Camp</span>
-          </McButton>
-
-          {/* Pet Whistle Button */}
-          <McButton
-            onClick={petCompanion}
-            className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-base bg-[#db2777]! border-[#f472b6]! text-white flex items-center gap-1 shadow-md"
-            title="Whistle & Pet Companion (R)"
-          >
-            <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffe4e6]" />
-            <span className="hidden sm:inline">Pet</span>
           </McButton>
         </div>
 
         {/* Desktop Controls Hint (Center Bottom) */}
-        <div className="hidden md:flex absolute bottom-5 left-1/2 -translate-x-1/2 mc-panel px-4 py-1 items-center gap-4 pointer-events-auto text-black shadow-lg text-xs sm:text-sm font-bold whitespace-nowrap z-20">
+        <div className="hidden lg:flex absolute bottom-5 left-1/2 -translate-x-1/2 mc-panel px-4 py-1 items-center gap-4 pointer-events-auto text-black shadow-lg text-xs font-bold whitespace-nowrap z-20">
           <div className="flex items-center gap-1.5">
             <Footprints className="w-4 h-4 text-[#2d5a27]" />
             <span>[WASD] MOVE</span>
