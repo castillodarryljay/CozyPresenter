@@ -6,6 +6,7 @@ import { CompanionType, CompanionMood } from './types';
 interface CompanionProps {
   playerPos: { x: number; y: number };
   playerElevation: number;
+  playerPosRef?: React.MutableRefObject<{ x: number; y: number; elevation: number }>;
   type?: CompanionType;
   mood?: CompanionMood;
   nearbyFeaturePos?: { x: number; y: number } | null;
@@ -16,6 +17,7 @@ interface CompanionProps {
 export const VoxelCompanion: React.FC<CompanionProps> = ({
   playerPos,
   playerElevation,
+  playerPosRef,
   type = 'fox',
   mood = 'happy',
   nearbyFeaturePos = null,
@@ -36,11 +38,13 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
   // Snap companion if too far on mount or player teleports
   React.useEffect(() => {
     const currentPos = posRef.current;
-    const dx = playerPos.x - currentPos.x;
-    const dz = playerPos.y - currentPos.z;
+    const px = playerPosRef ? playerPosRef.current.x : playerPos.x;
+    const pz = playerPosRef ? playerPosRef.current.y : playerPos.y;
+    const dx = px - currentPos.x;
+    const dz = pz - currentPos.z;
     if (Math.hypot(dx, dz) > 10) {
-      currentPos.x = playerPos.x - 1.2;
-      currentPos.z = playerPos.y - 1.2;
+      currentPos.x = px - 1.2;
+      currentPos.z = pz - 1.2;
       currentPos.y = getElevation(currentPos.x, currentPos.z);
     }
   }, [playerPos.x, playerPos.y, getElevation]);
@@ -57,19 +61,22 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
+    const px = playerPosRef ? playerPosRef.current.x : playerPos.x;
+    const pz = playerPosRef ? playerPosRef.current.y : playerPos.y;
+
     // Determine target location:
     // Follow slightly behind player, or lead towards detected feature
-    let targetX = playerPos.x - 1.2;
-    let targetZ = playerPos.y - 1.2;
+    let targetX = px - 1.2;
+    let targetZ = pz - 1.2;
 
     if (nearbyFeaturePos) {
       // Guide player toward feature
-      const dirX = nearbyFeaturePos.x - playerPos.x;
-      const dirZ = nearbyFeaturePos.y - playerPos.y;
+      const dirX = nearbyFeaturePos.x - px;
+      const dirZ = nearbyFeaturePos.y - pz;
       const dist = Math.sqrt(dirX * dirX + dirZ * dirZ);
       if (dist > 0.5) {
-        targetX = playerPos.x + (dirX / dist) * Math.min(dist * 0.7, 3.2);
-        targetZ = playerPos.y + (dirZ / dist) * Math.min(dist * 0.7, 3.2);
+        targetX = px + (dirX / dist) * Math.min(dist * 0.7, 3.2);
+        targetZ = pz + (dirZ / dist) * Math.min(dist * 0.7, 3.2);
       }
     }
 
@@ -145,8 +152,14 @@ export const VoxelCompanion: React.FC<CompanionProps> = ({
 
   return (
     <group ref={groupRef}>
+      {/* Soft circular ground contact shadow */}
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.3, 16]} />
+        <meshBasicMaterial color="#1a2e12" transparent opacity={0.32} depthWrite={false} />
+      </mesh>
+
       {/* Companion Body */}
-      <mesh position={[0, 0.3, 0]} castShadow>
+      <mesh position={[0, 0.3, 0]}>
         <boxGeometry args={[0.4, 0.32, 0.6]} />
         <meshStandardMaterial color={mainColor} roughness={0.8} />
       </mesh>

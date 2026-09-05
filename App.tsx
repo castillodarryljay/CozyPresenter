@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import {
   Compass,
   Radio,
@@ -26,7 +26,17 @@ import {
   Copy,
   Layers,
   HelpCircle,
-  Footprints
+  Footprints,
+  Sword,
+  Swords,
+  Shield,
+  Crosshair,
+  Skull,
+  Coins,
+  Package,
+  Hammer,
+  Home,
+  Wrench,
 } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Box } from '@react-three/drei';
@@ -35,6 +45,7 @@ import confetti from 'canvas-confetti';
 
 import {
   Position,
+  PlayerMotionState,
   TerrainType,
   Relic,
   WorldFeature,
@@ -43,6 +54,14 @@ import {
   PlayerStats,
   MapSettings,
   CompanionType,
+  Weapon,
+  Monster,
+  Projectile,
+  LootDrop,
+  PlacedStructure,
+  BuildableStructureBlueprint,
+  ResourceType,
+  WeaponRecipe,
 } from './types';
 import {
   getTerrainHeight,
@@ -53,10 +72,21 @@ import {
   WORLD_SCALE,
 } from './terrain';
 import { sounds } from './audio';
-import { ALL_RELICS, INITIAL_QUESTS, generateChunkFeatures } from './gameData';
+import {
+  ALL_RELICS,
+  INITIAL_QUESTS,
+  ALL_WEAPONS,
+  BUILDABLE_BLUEPRINTS,
+  WEAPON_RECIPES,
+  generateChunkFeatures,
+  generateChunkMonsters,
+} from './gameData';
 import { VoxelCompanion } from './companion';
 import { WorldFeaturesManager } from './gameWorld';
+import { MonstersWorld, ProjectilesWorld, LootDropsWorld } from './monsters';
 import { PWAInstallButton } from './PWAInstallUI';
+import { BuildCraftDrawer } from './BuildCraftDrawer';
+import { BuildPlacementHUD } from './BuildPlacementHUD';
 
 // Game Constants
 const STORAGE_KEY = 'voxel_nomad_save_v1';
@@ -80,58 +110,56 @@ const INITIAL_SETTINGS: MapSettings = {
 const INITIAL_STATS: PlayerStats = {
   level: 1,
   xp: 0,
+  hp: 100,
+  maxHp: 100,
+  stamina: 100,
+  maxStamina: 100,
+  potions: 0,
+  monstersDefeated: 0,
+  gold: 0,
   relicsFound: 0,
   obelisksLit: 0,
   stepsWalked: 0,
   secretsDug: 0,
+  resources: {
+    wood: 0,
+    stone: 0,
+    iron: 0,
+    bone: 0,
+    silk: 0,
+    crystal: 0,
+  },
+  unlockedWeapons: ['starter_club'],
+  structuresBuilt: 0,
 };
 
 // --- 3D Scene Components ---
 
-// 3D Player Character with Minecraft Swing & Handheld Lantern
+// 3D Player Character with Minecraft Swing, Ground Contact Shadow, Handheld Lantern & Weapons
 const Player3D: React.FC<{
-  position: Position;
+  playerPosRef: React.MutableRefObject<PlayerMotionState>;
   color: string;
   settings: MapSettings;
   isNight: boolean;
-}> = ({ position, color, settings, isNight }) => {
+  activeWeapon?: Weapon;
+  attackAnimRef: React.MutableRefObject<{ isAttacking: boolean; startTime: number; duration: number }>;
+  isHurtFlash?: boolean;
+}> = ({ playerPosRef, color, settings, isNight, activeWeapon, attackAnimRef, isHurtFlash }) => {
   const group = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Group>(null);
   const rightLeg = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
 
-  const initY = getTerrainHeight(position.x, position.y, settings);
-  const prevPos = useRef(new THREE.Vector3(position.x, initY, position.y));
-
   useFrame((state, delta) => {
     if (group.current) {
-      const targetX = position.x;
-      const targetZ = position.y;
+      const p = playerPosRef.current;
+      group.current.position.set(p.x, p.elevation + 0.75, p.y);
+      group.current.rotation.y = p.rotation;
 
-      const x = THREE.MathUtils.lerp(group.current.position.x, targetX, Math.min(1, delta * 15));
-      const z = THREE.MathUtils.lerp(group.current.position.z, targetZ, Math.min(1, delta * 15));
-      const groundY = getTerrainHeight(x, z, settings);
-      const targetY = groundY + 0.75;
-      const y = THREE.MathUtils.lerp(group.current.position.y, targetY, Math.min(1, delta * 15));
-
-      group.current.position.x = x;
-      group.current.position.y = y;
-      group.current.position.z = z;
-
-      const vx = x - prevPos.current.x;
-      const vz = z - prevPos.current.z;
-      const speed = Math.sqrt(vx * vx + vz * vz);
-
-      if (speed > 0.0001) {
-        group.current.lookAt(x + vx, y, z + vz);
-      }
-
-      const isMoving = speed > 0.001;
-
-      // Walking cycle
+      // Walking cycle & Attack Swing Animation
       if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
-        if (isMoving) {
+        if (p.isMoving) {
           const t = state.clock.elapsedTime * 15;
           const swing = Math.sin(t);
 
@@ -139,31 +167,57 @@ const Player3D: React.FC<{
           rightLeg.current.rotation.x = -swing * 0.6;
 
           leftArm.current.rotation.x = -swing * 0.6;
-          rightArm.current.rotation.x = swing * 0.6;
+          if (!attackAnimRef.current.isAttacking) {
+            rightArm.current.rotation.x = swing * 0.6;
+            rightArm.current.rotation.z = 0;
+          }
         } else {
           leftLeg.current.rotation.x = THREE.MathUtils.lerp(leftLeg.current.rotation.x, 0, delta * 10);
           rightLeg.current.rotation.x = THREE.MathUtils.lerp(rightLeg.current.rotation.x, 0, delta * 10);
           leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, delta * 10);
-          rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
+          if (!attackAnimRef.current.isAttacking) {
+            rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
+            rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, delta * 10);
+          }
+        }
+
+        // Combat Attack Swing Override
+        if (attackAnimRef.current.isAttacking) {
+          const elapsed = (performance.now() - attackAnimRef.current.startTime) / attackAnimRef.current.duration;
+          if (elapsed < 1.0) {
+            // Forward dynamic slash or draw animation
+            const swingProgress = Math.sin(elapsed * Math.PI);
+            rightArm.current.rotation.x = -Math.PI * 0.75 * swingProgress;
+            rightArm.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.35;
+          } else {
+            attackAnimRef.current.isAttacking = false;
+          }
         }
       }
-
-      prevPos.current.set(x, y, z);
     }
   });
 
+  const initP = playerPosRef.current;
+  const torsoColor = isHurtFlash ? '#ef4444' : color;
+
   return (
-    <group ref={group} position={[position.x, initY + 0.75, position.y]}>
+    <group ref={group} position={[initP.x, initP.elevation + 0.75, initP.y]}>
+      {/* Soft circular ground contact shadow */}
+      <mesh position={[0, -0.73, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.38, 16]} />
+        <meshBasicMaterial color="#1a2e12" transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+
       {/* Head */}
       <group position={[0, 0.75, 0]}>
-        <Box args={[0.5, 0.5, 0.5]} castShadow>
-          <meshStandardMaterial color="#FACC9A" roughness={1} />
+        <Box args={[0.5, 0.5, 0.5]}>
+          <meshStandardMaterial color={isHurtFlash ? '#fca5a5' : '#FACC9A'} roughness={1} />
         </Box>
         {/* Explorer Hat */}
-        <Box position={[0, 0.28, 0]} args={[0.56, 0.1, 0.56]} castShadow>
+        <Box position={[0, 0.28, 0]} args={[0.56, 0.1, 0.56]}>
           <meshStandardMaterial color="#5d4037" roughness={0.9} />
         </Box>
-        <Box position={[0, 0.38, 0]} args={[0.38, 0.16, 0.38]} castShadow>
+        <Box position={[0, 0.38, 0]} args={[0.38, 0.16, 0.38]}>
           <meshStandardMaterial color="#6d4c41" roughness={0.9} />
         </Box>
         {/* Eyes */}
@@ -182,37 +236,27 @@ const Player3D: React.FC<{
       </group>
 
       {/* Torso */}
-      <Box position={[0, 0.15, 0]} args={[0.5, 0.7, 0.25]} castShadow>
-        <meshStandardMaterial color={color} roughness={1} />
+      <Box position={[0, 0.15, 0]} args={[0.5, 0.7, 0.25]}>
+        <meshStandardMaterial color={torsoColor} roughness={1} />
       </Box>
 
-      {/* Left Arm */}
+      {/* Left Arm (Holds Explorer Lantern) */}
       <group ref={leftArm} position={[-0.38, 0.45, 0]}>
-        <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]} castShadow>
-          <meshStandardMaterial color={color} roughness={1} />
-        </Box>
-        <Box position={[0, -0.7, 0]} args={[0.2, 0.2, 0.25]}>
-          <meshStandardMaterial color="#FACC9A" roughness={1} />
-        </Box>
-      </group>
-
-      {/* Right Arm (Holds Nomad Lantern) */}
-      <group ref={rightArm} position={[0.38, 0.45, 0]}>
-        <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]} castShadow>
-          <meshStandardMaterial color={color} roughness={1} />
+        <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]}>
+          <meshStandardMaterial color={torsoColor} roughness={1} />
         </Box>
         <Box position={[0, -0.7, 0]} args={[0.2, 0.2, 0.25]}>
           <meshStandardMaterial color="#FACC9A" roughness={1} />
         </Box>
 
         {/* Handheld Voxel Lantern */}
-        <group position={[0, -0.95, 0.2]}>
-          <mesh position={[0, 0.15, 0]}>
-            <boxGeometry args={[0.04, 0.15, 0.04]} />
+        <group position={[0, -0.85, 0.15]}>
+          <mesh position={[0, 0.12, 0]}>
+            <boxGeometry args={[0.04, 0.12, 0.04]} />
             <meshStandardMaterial color="#333" />
           </mesh>
           <mesh position={[0, 0, 0]}>
-            <boxGeometry args={[0.18, 0.24, 0.18]} />
+            <boxGeometry args={[0.16, 0.22, 0.16]} />
             <meshStandardMaterial
               color={isNight ? '#ffea70' : '#444'}
               emissive={isNight ? '#ffea70' : '#000'}
@@ -221,19 +265,104 @@ const Player3D: React.FC<{
             />
           </mesh>
           {isNight && (
-            <pointLight position={[0, 0, 0]} color="#ffe890" intensity={3.5} distance={10} castShadow />
+            <pointLight position={[0, 0, 0]} color="#ffe890" intensity={3.5} distance={10} />
           )}
         </group>
       </group>
 
+      {/* Right Arm (Wields Active Weapon) */}
+      <group ref={rightArm} position={[0.38, 0.45, 0]}>
+        <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]}>
+          <meshStandardMaterial color={torsoColor} roughness={1} />
+        </Box>
+        <Box position={[0, -0.7, 0]} args={[0.2, 0.2, 0.25]}>
+          <meshStandardMaterial color="#FACC9A" roughness={1} />
+        </Box>
+
+        {/* Equipped 3D Weapon Model */}
+        {activeWeapon && (
+          <group position={[0, -0.75, 0.2]} rotation={[-Math.PI / 4, 0, 0]}>
+            {/* Sword */}
+            {activeWeapon.type === 'sword' && (
+              <group position={[0, 0.2, 0]}>
+                <mesh position={[0, -0.15, 0]}>
+                  <boxGeometry args={[0.06, 0.16, 0.06]} />
+                  <meshStandardMaterial color="#475569" roughness={0.8} />
+                </mesh>
+                <mesh position={[0, -0.04, 0]}>
+                  <boxGeometry args={[0.22, 0.05, 0.08]} />
+                  <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
+                </mesh>
+                <mesh position={[0, 0.35, 0]}>
+                  <boxGeometry args={[0.1, 0.7, 0.04]} />
+                  <meshStandardMaterial color="#f1f5f9" roughness={0.2} metalness={0.9} />
+                </mesh>
+              </group>
+            )}
+
+            {/* Bow */}
+            {activeWeapon.type === 'bow' && (
+              <group position={[0, 0.1, 0]} rotation={[0, 0, 0.15]}>
+                <mesh>
+                  <boxGeometry args={[0.06, 0.85, 0.06]} />
+                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+                </mesh>
+                <mesh position={[-0.08, 0, 0]}>
+                  <boxGeometry args={[0.02, 0.8, 0.02]} />
+                  <meshBasicMaterial color="#fef08a" />
+                </mesh>
+              </group>
+            )}
+
+            {/* Magic Staff */}
+            {activeWeapon.type === 'staff' && (
+              <group position={[0, 0.25, 0]}>
+                <mesh>
+                  <boxGeometry args={[0.06, 1.15, 0.06]} />
+                  <meshStandardMaterial color="#334155" roughness={0.8} />
+                </mesh>
+                <mesh position={[0, 0.62, 0]}>
+                  <sphereGeometry args={[0.13, 12, 12]} />
+                  <meshStandardMaterial
+                    color="#22d3ee"
+                    emissive="#06b6d4"
+                    emissiveIntensity={3}
+                    roughness={0.1}
+                  />
+                </mesh>
+              </group>
+            )}
+
+            {/* War Glaive / Halberd */}
+            {activeWeapon.type === 'halberd' && (
+              <group position={[0, 0.3, 0]}>
+                <mesh>
+                  <boxGeometry args={[0.06, 1.35, 0.06]} />
+                  <meshStandardMaterial color="#57534e" roughness={0.9} />
+                </mesh>
+                <mesh position={[0.1, 0.6, 0]}>
+                  <boxGeometry args={[0.26, 0.35, 0.04]} />
+                  <meshStandardMaterial
+                    color="#f97316"
+                    emissive="#c2410c"
+                    emissiveIntensity={1.5}
+                    roughness={0.3}
+                  />
+                </mesh>
+              </group>
+            )}
+          </group>
+        )}
+      </group>
+
       {/* Legs */}
       <group ref={leftLeg} position={[-0.13, -0.2, 0]}>
-        <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]} castShadow>
+        <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]}>
           <meshStandardMaterial color="#37305C" roughness={1} />
         </Box>
       </group>
       <group ref={rightLeg} position={[0.13, -0.2, 0]}>
-        <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]} castShadow>
+        <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]}>
           <meshStandardMaterial color="#37305C" roughness={1} />
         </Box>
       </group>
@@ -241,27 +370,427 @@ const Player3D: React.FC<{
   );
 };
 
-// Isometric Camera Rig
+// Isometric Camera Rig with Synchronized Smooth Follow
 const CameraRig: React.FC<{
-  target: Position;
+  playerPosRef: React.MutableRefObject<PlayerMotionState>;
   zoom: number;
   pan: { x: number; y: number };
   settings: MapSettings;
-}> = ({ target, zoom, pan, settings }) => {
+}> = ({ playerPosRef, zoom, pan, settings }) => {
   useFrame((state, delta) => {
-    if (isNaN(target.x) || isNaN(target.y) || isNaN(pan.x) || isNaN(pan.y)) return;
+    const p = playerPosRef.current;
+    if (isNaN(p.x) || isNaN(p.y) || isNaN(pan.x) || isNaN(pan.y)) return;
 
-    const tX = target.x + pan.x;
-    const tZ = target.y + pan.y;
-    const tY = getTerrainHeight(tX, tZ, settings);
+    const tX = p.x + pan.x;
+    const tZ = p.y + pan.y;
+    const tY = p.elevation;
 
     const offsetH = zoom;
     const offsetV = zoom * 0.85;
 
     const desiredPos = new THREE.Vector3(tX, tY + offsetV, tZ + offsetH);
-    state.camera.position.lerp(desiredPos, Math.min(1, delta * 6));
+    state.camera.position.lerp(desiredPos, Math.min(1, delta * 8));
     state.camera.lookAt(tX, tY + 0.75, tZ);
   });
+  return null;
+};
+
+// Game Loop Controller - Native 60 FPS update with Combat Physics & AI inside WebGL render pipeline
+const GameLoopController: React.FC<{
+  playerPosRef: React.MutableRefObject<PlayerMotionState>;
+  inputVectorRef: React.MutableRefObject<{ x: number; y: number }>;
+  keysPressedRef: React.MutableRefObject<Set<string>>;
+  cameraPanRef: React.MutableRefObject<{ x: number; y: number }>;
+  setCameraPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  settings: MapSettings;
+  isPaused: boolean;
+  monstersRef: React.MutableRefObject<Monster[]>;
+  projectilesRef: React.MutableRefObject<Projectile[]>;
+  lootDropsRef: React.MutableRefObject<LootDrop[]>;
+  playerCombatRef: React.MutableRefObject<{
+    hp: number;
+    maxHp: number;
+    stamina: number;
+    maxStamina: number;
+    isDodging: boolean;
+    dodgeEndTime: number;
+    lastAttackTime: number;
+  }>;
+  activeCampfirePos: Position | null;
+  activePerks?: {
+    maxHpBonus: number;
+    campfireHealMultiplier: number;
+    sonarRangeMultiplier: number;
+    lanternBoost: boolean;
+    maxStaminaBonus: number;
+    staminaRegenMultiplier: number;
+    speedMultiplier: number;
+    dashCostMultiplier: number;
+    chimeSecrets: boolean;
+    goldMultiplier: number;
+    potionHealBonus: number;
+    cooldownMultiplier: number;
+    critChanceBonus: number;
+    xpMultiplier: number;
+    companionVacuum: boolean;
+  };
+  awakenedObelisks?: WorldFeature[];
+  placedStructuresRef?: React.MutableRefObject<PlacedStructure[]>;
+  onPlayerHurt: (dmg: number, newHp: number) => void;
+  onMonsterDefeated: (m: Monster) => void;
+  onCollectLoot: (l: LootDrop) => void;
+  onCombatTick: (hp: number, stamina: number) => void;
+  onSyncUI: (pos: { x: number; y: number }, steps: number) => void;
+  onChunkChange: (chunk: { cx: number; cz: number }) => void;
+}> = ({
+  playerPosRef,
+  inputVectorRef,
+  keysPressedRef,
+  cameraPanRef,
+  setCameraPan,
+  settings,
+  isPaused,
+  monstersRef,
+  projectilesRef,
+  lootDropsRef,
+  playerCombatRef,
+  activeCampfirePos,
+  activePerks,
+  awakenedObelisks,
+  placedStructuresRef,
+  onPlayerHurt,
+  onMonsterDefeated,
+  onCollectLoot,
+  onCombatTick,
+  onSyncUI,
+  onChunkChange,
+}) => {
+  const distWalkedAcc = useRef(0);
+  const lastSyncTime = useRef(0);
+
+  useFrame((_, delta) => {
+    if (isPaused) return;
+
+    const dt = Math.min(delta, 0.05);
+    const now = performance.now();
+    const p = playerPosRef.current;
+    const isDodging = now < playerCombatRef.current.dodgeEndTime;
+
+    // Dynamically synchronize stats with active relic perks
+    playerCombatRef.current.maxHp = 100 + (activePerks?.maxHpBonus || 0);
+    playerCombatRef.current.maxStamina = 100 + (activePerks?.maxStaminaBonus || 0);
+
+    // Movement speed (with dodge roll burst multiplier and Zephyr Stride perk)
+    const speedBonus = activePerks?.speedMultiplier || 1.0;
+    const baseMoveSpeed = isDodging ? 11.5 * speedBonus : 5.2 * speedBonus;
+
+    // Stamina Natural Regeneration (boosted by Enduring Vigor perk)
+    const stamRegenRate = 20 * (activePerks?.staminaRegenMultiplier || 1.0);
+    playerCombatRef.current.stamina = Math.min(
+      playerCombatRef.current.maxStamina,
+      playerCombatRef.current.stamina + stamRegenRate * dt
+    );
+
+    // Campfire Warmth Health Regeneration (+7 HP / sec boosted by Verdant Vitality)
+    if (activeCampfirePos) {
+      const dCamp = Math.hypot(p.x - activeCampfirePos.x, p.y - activeCampfirePos.y);
+      if (dCamp < 4.5) {
+        const campHealRate = 7 * (activePerks?.campfireHealMultiplier || 1.0);
+        playerCombatRef.current.hp = Math.min(
+          playerCombatRef.current.maxHp,
+          playerCombatRef.current.hp + campHealRate * dt
+        );
+      }
+    }
+
+    // Awakened Obelisk Celestial Sanctuary (+5 HP/s, +10 Stamina/s, monsters cannot attack)
+    let inSanctuary = false;
+    if (awakenedObelisks && awakenedObelisks.length > 0) {
+      for (const ob of awakenedObelisks) {
+        const dOb = Math.hypot(p.x - ob.x, p.y - ob.y);
+        if (dOb < 18) {
+          inSanctuary = true;
+          playerCombatRef.current.hp = Math.min(
+            playerCombatRef.current.maxHp,
+            playerCombatRef.current.hp + 5 * dt
+          );
+          playerCombatRef.current.stamina = Math.min(
+            playerCombatRef.current.maxStamina,
+            playerCombatRef.current.stamina + 10 * dt
+          );
+          break;
+        }
+      }
+    }
+
+    // Built Structures Field Effects (Homestead sanctuary, Turret automated ballista)
+    if (placedStructuresRef?.current) {
+      for (const struct of placedStructuresRef.current) {
+        const dStruct = Math.hypot(p.x - struct.x, p.y - struct.y);
+        if (struct.type === 'house' && dStruct < 5.5) {
+          inSanctuary = true;
+          playerCombatRef.current.hp = Math.min(
+            playerCombatRef.current.maxHp,
+            playerCombatRef.current.hp + 18 * dt
+          );
+          playerCombatRef.current.stamina = Math.min(
+            playerCombatRef.current.maxStamina,
+            playerCombatRef.current.stamina + 25 * dt
+          );
+        } else if (struct.type === 'watchtower' && dStruct < 24.0) {
+          inSanctuary = true;
+        } else if (struct.type === 'tent' && dStruct < 4.0) {
+          playerCombatRef.current.hp = Math.min(
+            playerCombatRef.current.maxHp,
+            playerCombatRef.current.hp + 8 * dt
+          );
+          playerCombatRef.current.stamina = Math.min(
+            playerCombatRef.current.maxStamina,
+            playerCombatRef.current.stamina + 15 * dt
+          );
+        } else if (struct.type === 'turret') {
+          const lastFire = struct.lastActionTime || 0;
+          if (now - lastFire > 2200) {
+            let closestMob: Monster | null = null;
+            let closestDist = 16.0;
+            for (const mob of monstersRef.current) {
+              if (mob.state === 'dead') continue;
+              const dm = Math.hypot(mob.x - struct.x, mob.y - struct.y);
+              if (dm < closestDist) {
+                closestDist = dm;
+                closestMob = mob;
+              }
+            }
+            if (closestMob) {
+              struct.lastActionTime = now;
+              const angle = Math.atan2(closestMob.x - struct.x, closestMob.y - struct.y);
+              projectilesRef.current.push({
+                id: `turret_arrow_${now}`,
+                type: 'arrow',
+                x: struct.x,
+                y: struct.y,
+                z: struct.elevation + 1.2,
+                vx: Math.sin(angle) * 24,
+                vy: Math.cos(angle) * 24,
+                vz: 0,
+                damage: 32,
+                color: '#facc15',
+                distanceTraveled: 0,
+                maxDistance: 18,
+              });
+              sounds.playBowShoot();
+            }
+          }
+        }
+      }
+    }
+
+    let kx = 0;
+    let ky = 0;
+    const k = keysPressedRef.current;
+    if (k.has('w') || k.has('arrowup')) ky -= 1;
+    if (k.has('s') || k.has('arrowdown')) ky += 1;
+    if (k.has('a') || k.has('arrowleft')) kx -= 1;
+    if (k.has('d') || k.has('arrowright')) kx += 1;
+
+    let dx = kx + inputVectorRef.current.x;
+    let dy = ky + inputVectorRef.current.y;
+    const mag = Math.hypot(dx, dy);
+    if (mag > 1) {
+      dx /= mag;
+      dy /= mag;
+    }
+
+    const hasInput = mag > 0.08;
+    let nextX = p.x;
+    let nextY = p.y;
+    let hasMoved = false;
+    let stepDistance = 0;
+
+    if (hasInput) {
+      if (Math.abs(cameraPanRef.current.x) > 0.1 || Math.abs(cameraPanRef.current.y) > 0.1) {
+        setCameraPan(cp => ({ x: cp.x * 0.9, y: cp.y * 0.9 }));
+      }
+
+      const step = baseMoveSpeed * dt;
+      nextX += dx * step;
+      nextY += dy * step;
+      stepDistance = step;
+      hasMoved = true;
+      p.targetX = nextX;
+      p.targetY = nextY;
+      p.rotation = Math.atan2(dx, dy);
+    } else {
+      const distToTargetX = p.targetX - p.x;
+      const distToTargetY = p.targetY - p.y;
+      const dist = Math.hypot(distToTargetX, distToTargetY);
+
+      if (dist > 0.15) {
+        const step = Math.min(dist, baseMoveSpeed * dt);
+        const dirX = distToTargetX / dist;
+        const dirY = distToTargetY / dist;
+        nextX += dirX * step;
+        nextY += dirY * step;
+        stepDistance = step;
+        hasMoved = true;
+        p.rotation = Math.atan2(dirX, dirY);
+      }
+    }
+
+    p.x = nextX;
+    p.y = nextY;
+    p.elevation = getTerrainHeight(nextX, nextY, settings);
+    p.isMoving = hasMoved;
+
+    if (hasMoved) {
+      distWalkedAcc.current += stepDistance;
+
+      // Check chunk change - Only triggers when crossing 24-block chunk boundaries
+      const newCx = Math.floor(nextX / 24);
+      const newCz = Math.floor(nextY / 24);
+      if (newCx !== p.chunk.cx || newCz !== p.chunk.cz) {
+        p.chunk = { cx: newCx, cz: newCz };
+        onChunkChange({ cx: newCx, cz: newCz });
+      }
+    }
+
+    // --- PROJECTILES SIMULATION ---
+    const projs = projectilesRef.current;
+    for (let i = projs.length - 1; i >= 0; i--) {
+      const proj = projs[i];
+      proj.x += proj.vx * dt;
+      proj.y += proj.vy * dt;
+      proj.z += proj.vz * dt;
+      proj.distanceTraveled += Math.hypot(proj.vx * dt, proj.vy * dt);
+
+      let hitMonster = false;
+      for (const m of monstersRef.current) {
+        if (m.state === 'dead') continue;
+        const distSq = (m.x - proj.x) ** 2 + (m.y - proj.y) ** 2;
+        if (distSq < 1.8 && Math.abs(m.elevation + 0.6 - proj.z) < 1.8) {
+          hitMonster = true;
+          m.hp -= proj.damage;
+          m.hurtUntilTime = now + 240;
+
+          // Knockback along projectile line
+          const pMag = Math.hypot(proj.vx, proj.vy) || 1;
+          m.x += (proj.vx / pMag) * 1.4;
+          m.y += (proj.vy / pMag) * 1.4;
+          sounds.playMonsterHit();
+
+          if (m.hp <= 0) {
+            m.state = 'dead';
+            sounds.playMonsterDeath();
+            onMonsterDefeated(m);
+          }
+          break;
+        }
+      }
+
+      const floorElev = getTerrainHeight(proj.x, proj.y, settings);
+      if (hitMonster || proj.z < floorElev || proj.distanceTraveled >= proj.maxDistance) {
+        projs.splice(i, 1);
+      }
+    }
+
+    // --- MONSTERS AI & COMBAT ---
+    const px = p.x;
+    const py = p.y;
+    for (const m of monstersRef.current) {
+      if (m.state === 'dead') continue;
+
+      const dist = Math.hypot(px - m.x, py - m.y);
+
+      if (dist < m.aggroRange && !inSanctuary) {
+        m.state = 'chase';
+        m.rotation = Math.atan2(px - m.x, py - m.y);
+
+        if (dist > m.attackRange) {
+          const dirX = (px - m.x) / dist;
+          const dirY = (py - m.y) / dist;
+          m.x += dirX * m.speed * dt;
+          m.y += dirY * m.speed * dt;
+          m.elevation = getTerrainHeight(m.x, m.y, settings);
+        } else {
+          // In Attack Range: Strike Player
+          if (now - m.lastAttackTime > 1300) {
+            m.lastAttackTime = now;
+            if (!isDodging) {
+              const newHp = Math.max(0, playerCombatRef.current.hp - m.damage);
+              playerCombatRef.current.hp = newHp;
+              onPlayerHurt(m.damage, newHp);
+              sounds.playPlayerHurt();
+
+              // Knockback push away from monster
+              const kbDirX = (px - m.x) / (dist || 1);
+              const kbDirY = (py - m.y) / (dist || 1);
+              p.x += kbDirX * 1.5;
+              p.y += kbDirY * 1.5;
+              p.targetX = p.x;
+              p.targetY = p.y;
+            }
+          }
+        }
+      } else {
+        // Patrol near original spawn center (or retreat if player is in holy sanctuary)
+        const distPatrol = Math.hypot(m.patrolCenter.x - m.x, m.patrolCenter.y - m.y);
+        if (distPatrol > 4) {
+          const dirX = (m.patrolCenter.x - m.x) / distPatrol;
+          const dirY = (m.patrolCenter.y - m.y) / distPatrol;
+          m.x += dirX * (m.speed * 0.45) * dt;
+          m.y += dirY * (m.speed * 0.45) * dt;
+          m.elevation = getTerrainHeight(m.x, m.y, settings);
+          m.rotation = Math.atan2(dirX, dirY);
+        }
+      }
+
+      // Ward off monsters from placed house & watchtower safe zones
+      if (placedStructuresRef?.current) {
+        for (const struct of placedStructuresRef.current) {
+          if (struct.type === 'house' || struct.type === 'watchtower') {
+            const wardRadius = struct.type === 'watchtower' ? 22.0 : 10.0;
+            const ds = Math.hypot(m.x - struct.x, m.y - struct.y);
+            if (ds < wardRadius && ds > 0.1) {
+              const repelX = (m.x - struct.x) / ds;
+              const repelY = (m.y - struct.y) / ds;
+              m.x += repelX * 5.0 * dt;
+              m.y += repelY * 5.0 * dt;
+              m.elevation = getTerrainHeight(m.x, m.y, settings);
+            }
+          }
+        }
+      }
+    }
+
+    // --- LOOT DROPS VACUUM ATTRACTION (Enhanced by Pack Harmony / Bone Flute perk) ---
+    const drops = lootDropsRef.current;
+    const vacuumDist = activePerks?.companionVacuum ? 9.5 : 4.0;
+    const vacuumSpeed = activePerks?.companionVacuum ? 11.0 : 7.5;
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const drop = drops[i];
+      const dist = Math.hypot(px - drop.x, py - drop.y);
+      if (dist < vacuumDist) {
+        drop.x += (px - drop.x) * vacuumSpeed * dt;
+        drop.y += (py - drop.y) * vacuumSpeed * dt;
+        drop.z = getTerrainHeight(drop.x, drop.y, settings);
+        if (dist < 0.9) {
+          onCollectLoot(drop);
+          sounds.playLootPickup();
+          drops.splice(i, 1);
+        }
+      }
+    }
+
+    // --- SYNC REACT UI OVERLAY AT 10 FPS ---
+    if (now - lastSyncTime.current > 100) {
+      lastSyncTime.current = now;
+      const steps = Math.floor(distWalkedAcc.current);
+      if (steps > 0) distWalkedAcc.current -= steps;
+      onSyncUI({ x: p.x, y: p.y }, steps);
+      onCombatTick(playerCombatRef.current.hp, playerCombatRef.current.stamina);
+    }
+  });
+
   return null;
 };
 
@@ -402,28 +931,67 @@ export const App: React.FC = () => {
   // Modals & Panels
   const [isJournalOpen, setIsJournalOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'relics' | 'quests' | 'stats'>('relics');
+  const [settingsTab, setSettingsTab] = useState<'options' | 'tutorial'>('options');
+  const [activeTab, setActiveTab] = useState<'relics' | 'armory' | 'waystones' | 'camp' | 'quests' | 'stats'>('relics');
   const [selectedRelicDetail, setSelectedRelicDetail] = useState<Relic | null>(null);
+
+  // Permanent campfire forge upgrade bonus
+  const [weaponBonusDmg, setWeaponBonusDmg] = useState<number>(0);
 
   // Floating Banner notification
   const [notification, setNotification] = useState<{ text: string; sub?: string } | null>(null);
 
+  // Active Relic Blessings Calculation (Interconnected game passives)
+  const activePerks = useMemo(() => {
+    const has = (id: string) => inventory.some(r => r.id === id);
+    return {
+      maxHpBonus: has('oak_heart_seed') ? 25 : 0,
+      campfireHealMultiplier: has('oak_heart_seed') ? 1.5 : 1.0,
+      sonarRangeMultiplier: has('verdant_compass') ? 1.5 : 1.0,
+      lanternBoost: has('lunar_moth_amber'),
+      maxStaminaBonus: has('frost_quartz_core') ? 30 : 0,
+      staminaRegenMultiplier: has('frost_quartz_core') ? 1.35 : 1.0,
+      speedMultiplier: has('cloud_feather_talisman') ? 1.2 : 1.0,
+      dashCostMultiplier: has('cloud_feather_talisman') ? 0.6 : 1.0,
+      chimeSecrets: has('echoing_geode'),
+      goldMultiplier: has('sunstone_scarab') ? 1.6 : 1.0,
+      potionHealBonus: has('oasis_teardrop_vial') ? 30 : 0,
+      cooldownMultiplier: has('chronos_hourglass') ? 0.75 : 1.0,
+      critChanceBonus: has('fallen_star_shard') ? 0.25 : 0.0,
+      xpMultiplier: has('celestial_astrolabe') ? 1.5 : 1.0,
+      companionVacuum: has('petrified_bone_flute') || companion.happiness >= 60,
+    };
+  }, [inventory, companion.happiness]);
+
+  // Awakened Obelisks (Waystones for Fast Travel & Sanctuary)
+  const awakenedObelisks = useMemo(() => {
+    return features.filter(f => f.type === 'obelisk' && f.active);
+  }, [features]);
+
   // Player Navigation & Movement
   const [charPos, setCharPos] = useState<Position>({ x: 0, y: 0 });
   const [playerChunk, setPlayerChunk] = useState<{ cx: number; cz: number }>({ cx: 0, cz: 0 });
-  const playerChunkRef = useRef<{ cx: number; cz: number }>({ cx: 0, cz: 0 });
   const [targetPos, setTargetPos] = useState<Position>({ x: 0, y: 0 });
   const [cameraZoom, setCameraZoom] = useState<number>(ZOOM_DEFAULT);
   const [cameraPan, setCameraPan] = useState<Position>({ x: 0, y: 0 });
+
+  const playerMotionRef = useRef<PlayerMotionState>({
+    x: 0,
+    y: 0,
+    elevation: 0,
+    targetX: 0,
+    targetY: 0,
+    rotation: 0,
+    isMoving: false,
+    chunk: { cx: 0, cz: 0 },
+  });
+  const cameraPanRef = useRef<Position>({ x: 0, y: 0 });
+  cameraPanRef.current = cameraPan;
 
   const charPosRef = useRef<Position>({ x: 0, y: 0 });
   const targetPosRef = useRef<Position>({ x: 0, y: 0 });
   const inputVector = useRef({ x: 0, y: 0 });
   const keysPressed = useRef<Set<string>>(new Set());
-
-  // Step distance accumulator & throttled UI state
-  const distWalkedAcc = useRef<number>(0);
-  const lastStateUpdateTime = useRef<number>(0);
 
   // Touch & Pointer interaction
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
@@ -433,13 +1001,153 @@ export const App: React.FC = () => {
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const lastPinchDist = useRef<number | null>(null);
 
+  // Combat State & Weapons
+  const [activeWeaponIndex, setActiveWeaponIndex] = useState<number>(0);
+  const activeWeapon = ALL_WEAPONS[activeWeaponIndex] || ALL_WEAPONS[0];
+
+  // Progressive Structures & Building State
+  const [placedStructures, setPlacedStructures] = useState<PlacedStructure[]>([]);
+  const placedStructuresRef = useRef<PlacedStructure[]>([]);
+  placedStructuresRef.current = placedStructures;
+
+  const [isBuildDrawerOpen, setIsBuildDrawerOpen] = useState<boolean>(false);
+  const [activeBuildTab, setActiveBuildTab] = useState<'structures' | 'forge' | 'resources'>('structures');
+  const [selectedBlueprint, setSelectedBlueprint] = useState<BuildableStructureBlueprint | null>(null);
+  const [buildMode, setBuildMode] = useState<boolean>(false);
+  const [buildRotation, setBuildRotation] = useState<number>(0);
+
+  // Check if player has required materials for a structure blueprint
+  const canAffordBlueprint = useCallback((bp: BuildableStructureBlueprint | null) => {
+    if (!bp) return false;
+    const res = stats.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 };
+    const cost = bp.cost || (bp as any).requirements || {};
+    if (cost.wood && (res.wood || 0) < cost.wood) return false;
+    if (cost.stone && (res.stone || 0) < cost.stone) return false;
+    if (cost.iron && (res.iron || 0) < cost.iron) return false;
+    if (cost.bone && (res.bone || 0) < cost.bone) return false;
+    if (cost.silk && (res.silk || 0) < cost.silk) return false;
+    if (cost.crystal && (res.crystal || 0) < cost.crystal) return false;
+    if (cost.gold && stats.gold < cost.gold) return false;
+    return true;
+  }, [stats.resources, stats.gold]);
+
+  // Check if player has required materials for weapon recipe
+  const canAffordRecipe = useCallback((recipe: WeaponRecipe) => {
+    const res = stats.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 };
+    if (recipe.cost.wood && (res.wood || 0) < recipe.cost.wood) return false;
+    if (recipe.cost.stone && (res.stone || 0) < recipe.cost.stone) return false;
+    if (recipe.cost.iron && (res.iron || 0) < recipe.cost.iron) return false;
+    if (recipe.cost.bone && (res.bone || 0) < recipe.cost.bone) return false;
+    if (recipe.cost.silk && (res.silk || 0) < recipe.cost.silk) return false;
+    if (recipe.cost.crystal && (res.crystal || 0) < recipe.cost.crystal) return false;
+    if (recipe.cost.gold && stats.gold < recipe.cost.gold) return false;
+    return true;
+  }, [stats.resources, stats.gold]);
+
+  // Check if player is near any placed structure (for interactive prompts)
+  const nearbyPlacedStructure = useMemo(() => {
+    let closest: PlacedStructure | null = null;
+    let minDist = Infinity;
+    for (const struct of placedStructures) {
+      const dist = Math.hypot(struct.x - charPos.x, struct.y - charPos.y);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = struct;
+      }
+    }
+    return { structure: closest, dist: minDist };
+  }, [placedStructures, Math.round(charPos.x * 2) / 2, Math.round(charPos.y * 2) / 2]);
+
+  // Build Preview Calculation for holographic placement in WorldFeaturesManager
+  const buildPreview = useMemo(() => {
+    if (!buildMode || !selectedBlueprint) return null;
+    const p = playerMotionRef.current;
+    const forwardX = Math.sin(p.rotation);
+    const forwardY = Math.cos(p.rotation);
+    const placeDist = 3.5;
+    const px = Math.round((p.x + forwardX * placeDist) * 2) / 2;
+    const py = Math.round((p.y + forwardY * placeDist) * 2) / 2;
+    const pelev = getTerrainHeight(px, py, settings);
+    return {
+      type: selectedBlueprint.type,
+      x: px,
+      y: py,
+      elevation: pelev,
+      rotation: buildRotation,
+      canAfford: canAffordBlueprint(selectedBlueprint),
+    };
+  }, [buildMode, selectedBlueprint, Math.round(charPos.x), Math.round(charPos.y), buildRotation, canAffordBlueprint, settings]);
+
+  // Equip weapon checking unlock state
+  const selectWeaponByIndex = (idx: number) => {
+    const targetWeapon = ALL_WEAPONS[idx];
+    if (!targetWeapon) return;
+    const unlocked = stats.unlockedWeapons || ['starter_club'];
+    if (!unlocked.includes(targetWeapon.id)) {
+      showToast(`🔒 ${targetWeapon.name} is Locked!`, 'Forge it at a Workbench using looted monster drops');
+      setIsBuildDrawerOpen(true);
+      setActiveBuildTab('forge');
+      return;
+    }
+    setActiveWeaponIndex(idx);
+    showToast(`⚔️ Equipped: ${targetWeapon.name}`);
+  };
+
+  // Procedural Monsters & Bosses
+  const [monsters, setMonsters] = useState<Monster[]>([]);
+  const monstersRef = useRef<Monster[]>([]);
+  const chunkMonstersMap = useRef<Map<string, Monster[]>>(new Map());
+
+  // Projectiles & Combat FX
+  const [projectiles, setProjectiles] = useState<Projectile[]>([]);
+  const projectilesRef = useRef<Projectile[]>([]);
+
+  // Loot Drops (XP Crystals, Gold Coins, Health Potions)
+  const [lootDrops, setLootDrops] = useState<LootDrop[]>([]);
+  const lootDropsRef = useRef<LootDrop[]>([]);
+
+  // Player Real-time Combat Status (Runs lockstep at 60 FPS in Three.js)
+  const playerCombatRef = useRef({
+    hp: 100,
+    maxHp: 100,
+    stamina: 100,
+    maxStamina: 100,
+    isDodging: false,
+    dodgeEndTime: 0,
+    lastAttackTime: 0,
+  });
+
+  // Weapon Attack Swing Animation Ref
+  const attackAnimRef = useRef({
+    isAttacking: false,
+    startTime: 0,
+    duration: 250,
+  });
+  const lastAttackTimeRef = useRef(0);
+
+  // Screen Hurt Flash Vignette
+  const [isHurtFlash, setIsHurtFlash] = useState<boolean>(false);
+
   // Load Saved Game
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.stats) setStats(parsed.stats);
+        if (parsed.stats) {
+          const loadedStats = { ...INITIAL_STATS, ...parsed.stats };
+          loadedStats.resources = {
+            ...INITIAL_STATS.resources,
+            ...(parsed.stats.resources || {}),
+          };
+          loadedStats.unlockedWeapons = parsed.stats.unlockedWeapons || ['starter_club'];
+          setStats(loadedStats);
+          playerCombatRef.current.hp = loadedStats.hp ?? 100;
+          playerCombatRef.current.maxHp = loadedStats.maxHp ?? 100;
+          playerCombatRef.current.stamina = loadedStats.stamina ?? 100;
+          playerCombatRef.current.maxStamina = loadedStats.maxStamina ?? 100;
+        }
+        if (parsed.placedStructures) setPlacedStructures(parsed.placedStructures);
         if (parsed.inventory) setInventory(parsed.inventory);
         if (parsed.quests) setQuests(parsed.quests);
         if (parsed.settings) {
@@ -455,7 +1163,16 @@ export const App: React.FC = () => {
             cz: Math.floor(parsed.charPos.y / 24),
           };
           setPlayerChunk(initialChunk);
-          playerChunkRef.current = initialChunk;
+          playerMotionRef.current = {
+            x: parsed.charPos.x,
+            y: parsed.charPos.y,
+            elevation: getTerrainHeight(parsed.charPos.x, parsed.charPos.y, settings),
+            targetX: parsed.charPos.x,
+            targetY: parsed.charPos.y,
+            rotation: 0,
+            isMoving: false,
+            chunk: initialChunk,
+          };
         }
       }
     } catch (e) {
@@ -463,18 +1180,23 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Debounced Auto-Save to localStorage (eliminates disk lag on movement)
+  // Debounced Auto-Save to localStorage
   useEffect(() => {
     const handler = setTimeout(() => {
       try {
         localStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({
-            stats,
+            stats: {
+              ...stats,
+              hp: Math.round(playerCombatRef.current.hp),
+              stamina: Math.round(playerCombatRef.current.stamina),
+            },
             inventory,
             quests,
             settings,
             charPos,
+            placedStructures,
           })
         );
       } catch (e) {
@@ -482,14 +1204,14 @@ export const App: React.FC = () => {
       }
     }, 1500);
     return () => clearTimeout(handler);
-  }, [stats, inventory, quests, settings, charPos]);
+  }, [stats, inventory, quests, settings, charPos, placedStructures]);
 
   // Sync Audio Setting
   useEffect(() => {
     sounds.enabled = settings.soundEnabled ?? true;
   }, [settings.soundEnabled]);
 
-  // Dynamic Chunk Features Generator - Only runs when entering a new chunk!
+  // Dynamic Chunk Features & Monsters Generator - Runs when entering a new chunk!
   useEffect(() => {
     const currentChunkX = playerChunk.cx;
     const currentChunkZ = playerChunk.cz;
@@ -506,6 +1228,16 @@ export const App: React.FC = () => {
             getTerrainHeight(wx, wz, settings)
           );
           newFeatures.push(...chunkFeats);
+
+          // Generate Mobs & Monsters for this chunk
+          const chunkMobs = generateChunkMonsters(
+            cx,
+            cz,
+            settings.seed,
+            (wx, wz) => getTerrainHeight(wx, wz, settings),
+            isNight
+          );
+          chunkMonstersMap.current.set(key, chunkMobs);
         }
       }
     }
@@ -513,7 +1245,21 @@ export const App: React.FC = () => {
     if (newFeatures.length > 0) {
       setFeatures(prev => [...prev, ...newFeatures]);
     }
-  }, [playerChunk.cx, playerChunk.cz, settings.renderDistance, settings.seed]);
+
+    // Refresh active live monsters in player chunk horizon
+    const activeMobs: Monster[] = [];
+    for (let cx = currentChunkX - renderDist; cx <= currentChunkX + renderDist; cx++) {
+      for (let cz = currentChunkZ - renderDist; cz <= currentChunkZ + renderDist; cz++) {
+        const key = `${cx}_${cz}`;
+        const cached = chunkMonstersMap.current.get(key);
+        if (cached) {
+          activeMobs.push(...cached.filter(m => m.state !== 'dead'));
+        }
+      }
+    }
+    monstersRef.current = activeMobs;
+    setMonsters([...activeMobs]);
+  }, [playerChunk.cx, playerChunk.cz, settings.renderDistance, settings.seed, isNight]);
 
   // Check Nearby Features for Companion and Compass
   const nearbyFeature = useMemo(() => {
@@ -550,106 +1296,32 @@ export const App: React.FC = () => {
     });
   }, [nearbyFeature.feature?.id, nearbyFeature.dist < 18]);
 
-  // Main Movement Loop - Smooth, 60+ FPS, Zero Lag
-  useEffect(() => {
-    let frameId: number;
-    let lastTime = performance.now();
-    const moveSpeed = 5.2; // Natural 5.2 blocks per second running speed
+  // Stable UI and Chunk synchronization callbacks for GameLoopController
+  const handleSyncUI = useCallback((pos: { x: number; y: number }, steps: number) => {
+    setCharPos({ x: pos.x, y: pos.y });
+    if (steps > 0) {
+      setStats(s => ({
+        ...s,
+        stepsWalked: s.stepsWalked + steps,
+        xp: s.xp + steps,
+        level: Math.floor((s.xp + steps) / 100) + 1,
+      }));
+      updateQuestProgress('quest_wanderlust', steps);
+    }
+  }, []);
 
-    const update = (time: number) => {
-      const dt = Math.min((time - lastTime) / 1000, 0.1);
-      lastTime = time;
-
-      if (isJournalOpen || isSettingsOpen || unlockedRelicModal) {
-        frameId = requestAnimationFrame(update);
-        return;
+  const handleCombatTick = useCallback((hp: number, stamina: number) => {
+    setStats(prev => {
+      if (Math.abs(prev.hp - hp) > 0.5 || Math.abs(prev.stamina - stamina) > 1) {
+        return { ...prev, hp: Math.round(hp), stamina: Math.round(stamina) };
       }
+      return prev;
+    });
+  }, []);
 
-      let kx = 0;
-      let ky = 0;
-      const k = keysPressed.current;
-      if (k.has('w') || k.has('arrowup')) ky -= 1;
-      if (k.has('s') || k.has('arrowdown')) ky += 1;
-      if (k.has('a') || k.has('arrowleft')) kx -= 1;
-      if (k.has('d') || k.has('arrowright')) kx += 1;
-
-      let dx = kx + inputVector.current.x;
-      let dy = ky + inputVector.current.y;
-      const mag = Math.hypot(dx, dy);
-      if (mag > 1) {
-        dx /= mag;
-        dy /= mag;
-      }
-
-      const hasInput = mag > 0.08;
-      const currentPos = charPosRef.current;
-      const currentTarget = targetPosRef.current;
-
-      let nextX = currentPos.x;
-      let nextY = currentPos.y;
-      let hasMoved = false;
-      let stepDistance = 0;
-
-      if (hasInput) {
-        if (Math.abs(cameraPan.x) > 0.1 || Math.abs(cameraPan.y) > 0.1) {
-          setCameraPan(p => ({ x: p.x * 0.9, y: p.y * 0.9 }));
-        }
-
-        const step = moveSpeed * dt;
-        nextX += dx * step;
-        nextY += dy * step;
-        stepDistance = step;
-        hasMoved = true;
-
-        charPosRef.current = { x: nextX, y: nextY };
-        targetPosRef.current = { x: nextX, y: nextY };
-      } else {
-        const distToTargetX = currentTarget.x - currentPos.x;
-        const distToTargetY = currentTarget.y - currentPos.y;
-        const dist = Math.hypot(distToTargetX, distToTargetY);
-
-        if (dist > 0.15) {
-          const step = Math.min(dist, moveSpeed * dt);
-          nextX = currentPos.x + (distToTargetX / dist) * step;
-          nextY = currentPos.y + (distToTargetY / dist) * step;
-          stepDistance = step;
-          hasMoved = true;
-
-          charPosRef.current = { x: nextX, y: nextY };
-        }
-      }
-
-      if (hasMoved) {
-        distWalkedAcc.current += stepDistance;
-
-        // Check if player walked into a new chunk
-        const chunkX = Math.floor(nextX / 24);
-        const chunkZ = Math.floor(nextY / 24);
-        if (chunkX !== playerChunkRef.current.cx || chunkZ !== playerChunkRef.current.cz) {
-          playerChunkRef.current = { cx: chunkX, cz: chunkZ };
-          setPlayerChunk({ cx: chunkX, cz: chunkZ });
-        }
-
-        // Throttle React state updates to ~20fps so 3D renders at full 60+ FPS smoothly
-        if (time - lastStateUpdateTime.current > 50) {
-          lastStateUpdateTime.current = time;
-          setCharPos({ x: nextX, y: nextY });
-
-          if (distWalkedAcc.current >= 1.0) {
-            const steps = Math.floor(distWalkedAcc.current);
-            distWalkedAcc.current -= steps;
-            setStats(s => ({ ...s, stepsWalked: s.stepsWalked + steps }));
-            updateQuestProgress('quest_wanderlust', steps);
-          }
-        }
-      }
-
-      frameId = requestAnimationFrame(update);
-    };
-
-    frameId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(frameId);
-  }, [isJournalOpen, isSettingsOpen, unlockedRelicModal, cameraPan]);
+  const handleChunkChange = useCallback((chunk: { cx: number; cz: number }) => {
+    setPlayerChunk(chunk);
+  }, []);
 
   // Show Toast Notification
   const showToast = (text: string, sub?: string) => {
@@ -659,25 +1331,524 @@ export const App: React.FC = () => {
     }, 4000);
   };
 
-  // Keyboard controls with stable refs (no tearing down listener on movement)
-  const nearbyFeatureRef = useRef(nearbyFeature);
-  nearbyFeatureRef.current = nearbyFeature;
+  // --- COMBAT ACTIONS ---
+
+  // 1. Primary Weapon Attack Action
+  const handlePlayerAttack = useCallback(() => {
+    const weapon = ALL_WEAPONS[activeWeaponIndex] || ALL_WEAPONS[0];
+    const now = performance.now();
+    const effectiveCooldown = weapon.cooldown * (activePerks.cooldownMultiplier || 1.0);
+    if (now - lastAttackTimeRef.current < effectiveCooldown) return;
+
+    const stamCost = weapon.type === 'sword' ? 8 : weapon.type === 'halberd' ? 14 : 12;
+    if (playerCombatRef.current.stamina < stamCost) {
+      showToast('⚠️ Out of Stamina! Rest a moment.');
+      return;
+    }
+
+    // Deduct stamina & record attack time
+    playerCombatRef.current.stamina -= stamCost;
+    lastAttackTimeRef.current = now;
+
+    // Trigger arm swing animation
+    attackAnimRef.current = {
+      isAttacking: true,
+      startTime: now,
+      duration: Math.min(300, effectiveCooldown * 0.8),
+    };
+
+    const p = playerMotionRef.current;
+    const rot = p.rotation;
+    const forwardX = Math.sin(rot);
+    const forwardY = Math.cos(rot);
+    const totalWeaponDmg = weapon.damage + weaponBonusDmg;
+
+    if (weapon.type === 'sword' || weapon.type === 'halberd') {
+      sounds.playSwordSwing();
+
+      // Spawn brief visual slash arc
+      projectilesRef.current.push({
+        id: `slash_${now}`,
+        type: 'slash',
+        x: p.x + forwardX * 1.0,
+        y: p.y + forwardY * 1.0,
+        z: p.elevation + 0.6,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        damage: 0,
+        color: weapon.type === 'halberd' ? '#f97316' : '#f8fafc',
+        distanceTraveled: 0,
+        maxDistance: 0.1,
+      });
+
+      // Hit detection in front cone
+      let hitCount = 0;
+      for (const m of monstersRef.current) {
+        if (m.state === 'dead') continue;
+        const dx = m.x - p.x;
+        const dy = m.y - p.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist <= weapon.range) {
+          const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
+          if (dot > -0.25 || dist < 1.4) {
+            hitCount++;
+            const isCrit = Math.random() < (0.22 + (activePerks.critChanceBonus || 0));
+            const dmg = Math.round(
+              (totalWeaponDmg + (Math.random() * 8 - 4)) * (isCrit ? 2.0 : 1.0)
+            );
+            m.hp -= dmg;
+            m.hurtUntilTime = now + 250;
+
+            // Knockback push away from player
+            const kbDist = dist || 1;
+            m.x += (dx / kbDist) * 1.5;
+            m.y += (dy / kbDist) * 1.5;
+            sounds.playMonsterHit();
+
+            if (m.hp <= 0) {
+              m.state = 'dead';
+              sounds.playMonsterDeath();
+              handleMonsterDefeated(m);
+            }
+          }
+        }
+      }
+
+      if (hitCount > 0) {
+        setMonsters([...monstersRef.current]);
+      }
+    } else if (weapon.type === 'bow') {
+      sounds.playBowShoot();
+      projectilesRef.current.push({
+        id: `arrow_${now}`,
+        type: 'arrow',
+        x: p.x + forwardX * 0.7,
+        y: p.y + forwardY * 0.7,
+        z: p.elevation + 0.8,
+        vx: forwardX * (weapon.projectileSpeed || 25),
+        vy: forwardY * (weapon.projectileSpeed || 25),
+        vz: 0,
+        damage: totalWeaponDmg,
+        color: weapon.projectileColor || '#facc15',
+        distanceTraveled: 0,
+        maxDistance: weapon.range,
+      });
+      setProjectiles([...projectilesRef.current]);
+    } else if (weapon.type === 'staff') {
+      sounds.playMagicCast();
+      projectilesRef.current.push({
+        id: `magic_${now}`,
+        type: 'magic',
+        x: p.x + forwardX * 0.7,
+        y: p.y + forwardY * 0.7,
+        z: p.elevation + 0.8,
+        vx: forwardX * (weapon.projectileSpeed || 16),
+        vy: forwardY * (weapon.projectileSpeed || 16),
+        vz: 0,
+        damage: totalWeaponDmg,
+        color: weapon.projectileColor || '#38bdf8',
+        distanceTraveled: 0,
+        maxDistance: weapon.range,
+      });
+      setProjectiles([...projectilesRef.current]);
+    }
+  }, [activeWeaponIndex, weaponBonusDmg, activePerks]);
+
+  // 2. Dodge Roll / Dash Evade
+  const handleDodgeRoll = useCallback(() => {
+    const now = performance.now();
+    const dashCost = Math.round(20 * (activePerks.dashCostMultiplier || 1.0));
+    if (playerCombatRef.current.stamina < dashCost) {
+      showToast('⚠️ Not enough Stamina to Dash!');
+      return;
+    }
+    if (now < playerCombatRef.current.dodgeEndTime) return;
+
+    playerCombatRef.current.stamina -= dashCost;
+    playerCombatRef.current.dodgeEndTime = now + 350;
+    sounds.playDodgeRoll();
+  }, [activePerks.dashCostMultiplier]);
+
+  // 3. Drink Health Potion
+  const handleDrinkPotion = useCallback(() => {
+    if (stats.potions <= 0) {
+      showToast('⚠️ Out of Healing Flasks! Defeat monsters or brew at Campfire.');
+      return;
+    }
+    if (playerCombatRef.current.hp >= playerCombatRef.current.maxHp) {
+      showToast('✨ Health is already full!');
+      return;
+    }
+
+    const healAmount = 55 + (activePerks.potionHealBonus || 0);
+    const restoredHp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + healAmount);
+    playerCombatRef.current.hp = restoredHp;
+    if (activePerks.potionHealBonus > 0) {
+      playerCombatRef.current.stamina = Math.min(
+        playerCombatRef.current.maxStamina,
+        playerCombatRef.current.stamina + 50
+      );
+    }
+    setStats(prev => ({
+      ...prev,
+      hp: Math.round(restoredHp),
+      potions: Math.max(0, prev.potions - 1),
+    }));
+    sounds.playPotionDrink();
+    showToast(
+      `🧪 Drank Healing Flask! Restored +${healAmount} HP${activePerks.potionHealBonus > 0 ? ' & +50 STM' : ''}`
+    );
+  }, [stats.potions, activePerks.potionHealBonus]);
+
+  // 4. Monster Defeated Callback
+  const handleMonsterDefeated = useCallback((m: Monster) => {
+    const xpBonusMult = activePerks.xpMultiplier || 1.0;
+    const goldBonusMult = activePerks.goldMultiplier || 1.0;
+
+    setStats(prev => {
+      const newMonstersDefeated = prev.monstersDefeated + 1;
+      const baseGold = Math.floor(Math.random() * 10) + 5;
+      const newGold = prev.gold + Math.round(baseGold * goldBonusMult);
+      const earnedXp = Math.round(m.xpReward * xpBonusMult);
+      const newXp = prev.xp + earnedXp;
+      const xpNeeded = prev.level * 150;
+      let newLevel = prev.level;
+      let finalXp = newXp;
+
+      if (newXp >= xpNeeded) {
+        newLevel += 1;
+        finalXp = newXp - xpNeeded;
+        sounds.playLevelUp();
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+        showToast(`⭐ LEVEL UP! You reached Level ${newLevel}!`);
+      }
+
+      return {
+        ...prev,
+        monstersDefeated: newMonstersDefeated,
+        xp: finalXp,
+        gold: newGold,
+        level: newLevel,
+      };
+    });
+
+    // Drop physical progressive loot tailored to monster type
+    const newDrops: LootDrop[] = [];
+
+    // Experience Crystal
+    newDrops.push({
+      id: `loot_xp_${Date.now()}_${Math.random()}`,
+      type: 'xp',
+      name: 'Experience Crystal',
+      icon: '💎',
+      x: m.x + (Math.random() - 0.5) * 0.8,
+      y: m.y + (Math.random() - 0.5) * 0.8,
+      z: m.elevation,
+      value: Math.round(m.xpReward * xpBonusMult),
+      color: '#22c55e',
+      createdAt: performance.now(),
+    });
+
+    // Gold Coins (60% chance)
+    if (Math.random() > 0.4) {
+      newDrops.push({
+        id: `loot_gold_${Date.now()}_${Math.random()}`,
+        type: 'gold',
+        name: 'Gold Coins',
+        icon: '🪙',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.round((Math.floor(Math.random() * 8) + 4) * goldBonusMult),
+        color: '#eab308',
+        createdAt: performance.now(),
+      });
+    }
+
+    // Differentiated Progressive Monster Resource Drops
+    if (m.type === 'slime') {
+      // Slimes drop Wood (digested timber debris) and Healing Flasks
+      newDrops.push({
+        id: `loot_wood_${Date.now()}_${Math.random()}`,
+        type: 'wood',
+        name: 'Timber Log',
+        icon: '🪵',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 2, // 2-3 Wood
+        color: '#854d0e',
+        createdAt: performance.now(),
+      });
+      if (Math.random() > 0.55) {
+        newDrops.push({
+          id: `loot_pot_${Date.now()}_${Math.random()}`,
+          type: 'potion',
+          name: 'Healing Flask',
+          icon: '🧪',
+          x: m.x + (Math.random() - 0.5) * 0.8,
+          y: m.y + (Math.random() - 0.5) * 0.8,
+          z: m.elevation,
+          value: 1,
+          color: '#ef4444',
+          createdAt: performance.now(),
+        });
+      }
+    } else if (m.type === 'skeleton') {
+      // Skeletons drop Sturdy Bone, Quarried Stone, and Iron Ore
+      newDrops.push({
+        id: `loot_bone_${Date.now()}_${Math.random()}`,
+        type: 'bone',
+        name: 'Sturdy Bone',
+        icon: '🦴',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 2, // 2-3 Bone
+        color: '#e2e8f0',
+        createdAt: performance.now(),
+      });
+      newDrops.push({
+        id: `loot_iron_${Date.now()}_${Math.random()}`,
+        type: 'iron',
+        name: 'Iron Ore',
+        icon: '⛓️',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 1, // 1-2 Iron
+        color: '#94a3b8',
+        createdAt: performance.now(),
+      });
+      if (Math.random() > 0.4) {
+        newDrops.push({
+          id: `loot_stone_${Date.now()}_${Math.random()}`,
+          type: 'stone',
+          name: 'Quarried Stone',
+          icon: '🪨',
+          x: m.x + (Math.random() - 0.5) * 0.8,
+          y: m.y + (Math.random() - 0.5) * 0.8,
+          z: m.elevation,
+          value: 2,
+          color: '#64748b',
+          createdAt: performance.now(),
+        });
+      }
+    } else if (m.type === 'spider') {
+      // Spiders drop Arachnid Silk and Timber
+      newDrops.push({
+        id: `loot_silk_${Date.now()}_${Math.random()}`,
+        type: 'silk',
+        name: 'Arachnid Silk',
+        icon: '🕸️',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 2, // 2-3 Silk
+        color: '#f8fafc',
+        createdAt: performance.now(),
+      });
+      newDrops.push({
+        id: `loot_wood_${Date.now()}_${Math.random()}`,
+        type: 'wood',
+        name: 'Timber Log',
+        icon: '🪵',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: 1,
+        color: '#854d0e',
+        createdAt: performance.now(),
+      });
+    } else if (m.type === 'golem') {
+      // Ancient Stone Golems drop Iron, Stone, and Arcane Crystal
+      newDrops.push({
+        id: `loot_iron_${Date.now()}_${Math.random()}`,
+        type: 'iron',
+        name: 'Iron Ingot',
+        icon: '⛓️',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 3, // 3-4 Iron
+        color: '#94a3b8',
+        createdAt: performance.now(),
+      });
+      newDrops.push({
+        id: `loot_stone_${Date.now()}_${Math.random()}`,
+        type: 'stone',
+        name: 'Quarried Stone',
+        icon: '🪨',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 3) + 4, // 4-6 Stone
+        color: '#64748b',
+        createdAt: performance.now(),
+      });
+      newDrops.push({
+        id: `loot_crystal_${Date.now()}_${Math.random()}`,
+        type: 'crystal',
+        name: 'Arcane Crystal',
+        icon: '🔮',
+        x: m.x + (Math.random() - 0.5) * 0.8,
+        y: m.y + (Math.random() - 0.5) * 0.8,
+        z: m.elevation,
+        value: Math.floor(Math.random() * 2) + 2, // 2-3 Crystal
+        color: '#c084fc',
+        createdAt: performance.now(),
+      });
+    }
+
+    lootDropsRef.current.push(...newDrops);
+    setLootDrops([...lootDropsRef.current]);
+
+    // Update Quests
+    setQuests(prev =>
+      prev.map(q => {
+        if (q.id === 'quest_monster_hunter' && !q.completed) {
+          const p = q.progress + 1;
+          const done = p >= q.target;
+          if (done) {
+            sounds.playChestOpen();
+            showToast(`🏆 Quest Complete: ${q.title}!`, `+${q.xpReward} XP awarded`);
+          }
+          return { ...q, progress: p, completed: done };
+        }
+        if (q.id === 'quest_golem_slayer' && m.type === 'golem' && !q.completed) {
+          sounds.playChestOpen();
+          showToast(`🏆 Quest Complete: ${q.title}!`, `+${q.xpReward} XP awarded`);
+          return { ...q, progress: 1, completed: true };
+        }
+        return q;
+      })
+    );
+
+    showToast(`⚔️ Vanquished ${m.name}!`, `+${m.xpReward} XP gained`);
+  }, []);
+
+  // 5. Player Hurt Feedback & Respawn
+  const handlePlayerHurt = useCallback((amount: number, newHp: number) => {
+    setIsHurtFlash(true);
+    setTimeout(() => setIsHurtFlash(false), 240);
+
+    if (newHp <= 0) {
+      // Fallen in battle: Respawn at origin with full vitality
+      playerCombatRef.current.hp = playerCombatRef.current.maxHp;
+      playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
+      playerMotionRef.current.x = 0;
+      playerMotionRef.current.y = 0;
+      playerMotionRef.current.targetX = 0;
+      playerMotionRef.current.targetY = 0;
+      setCharPos({ x: 0, y: 0 });
+      showToast('☠️ Fallen in battle!', 'The Ancient Monolith restored your spirit at Origin.');
+    }
+  }, []);
+
+  // 6. Collect Loot Vacuum
+  const handleCollectLoot = useCallback((loot: LootDrop) => {
+    if (loot.type === 'xp') {
+      setStats(prev => {
+        const newXp = prev.xp + loot.value;
+        const xpNeeded = prev.level * 150;
+        if (newXp >= xpNeeded) {
+          sounds.playLevelUp();
+          confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+          showToast(`⭐ LEVEL UP! You reached Level ${prev.level + 1}!`);
+          return { ...prev, level: prev.level + 1, xp: newXp - xpNeeded };
+        }
+        return { ...prev, xp: newXp };
+      });
+    } else if (loot.type === 'gold') {
+      setStats(prev => ({ ...prev, gold: prev.gold + loot.value }));
+      showToast(`🪙 Picked up +${loot.value} Gold!`);
+    } else if (loot.type === 'potion') {
+      setStats(prev => ({ ...prev, potions: prev.potions + 1 }));
+      showToast(`🧪 Picked up a Healing Flask!`);
+    } else if (
+      loot.type === 'wood' ||
+      loot.type === 'stone' ||
+      loot.type === 'iron' ||
+      loot.type === 'bone' ||
+      loot.type === 'silk' ||
+      loot.type === 'crystal'
+    ) {
+      const resType = loot.type as ResourceType;
+      setStats(prev => {
+        const curRes = prev.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 };
+        return {
+          ...prev,
+          resources: {
+            ...curRes,
+            [resType]: (curRes[resType] || 0) + loot.value,
+          },
+        };
+      });
+      showToast(`${loot.icon} Collected +${loot.value} ${loot.name}!`, 'Resource stored for building & crafting');
+      updateQuestProgress('quest_gather_loot', loot.value);
+    }
+  }, []);
+
+  // Keyboard controls with fresh ref pattern to avoid any stale closures
+  const actionHandlersRef = useRef<{ [key: string]: any }>({});
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when inside input/textarea
+      if (['input', 'textarea'].includes((e.target as HTMLElement)?.tagName?.toLowerCase())) return;
+
       keysPressed.current.add(e.key.toLowerCase());
 
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        triggerSonarPulse();
+        if (actionHandlersRef.current.isBuildMode?.()) {
+          actionHandlersRef.current.confirmBuild?.();
+        } else {
+          actionHandlersRef.current.attack();
+        }
+      } else if (e.key === 'Escape') {
+        if (actionHandlersRef.current.isBuildMode?.()) {
+          actionHandlersRef.current.cancelBuild?.();
+        } else {
+          actionHandlersRef.current.closeModals?.();
+        }
+      } else if (e.key.toLowerCase() === 'b') {
+        actionHandlersRef.current.toggleBuild?.();
+      } else if (e.key.toLowerCase() === 'r') {
+        if (actionHandlersRef.current.isBuildMode?.()) {
+          actionHandlersRef.current.rotateBuild?.(1);
+        } else {
+          actionHandlersRef.current.pet();
+        }
+      } else if (e.key.toLowerCase() === 'q') {
+        if (actionHandlersRef.current.isBuildMode?.()) {
+          actionHandlersRef.current.rotateBuild?.(-1);
+        } else {
+          actionHandlersRef.current.potion();
+        }
+      } else if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        e.preventDefault();
+        actionHandlersRef.current.dodge();
+      } else if (e.key === '1') {
+        actionHandlersRef.current.setWeapon(0);
+      } else if (e.key === '2') {
+        actionHandlersRef.current.setWeapon(1);
+      } else if (e.key === '3') {
+        actionHandlersRef.current.setWeapon(2);
+      } else if (e.key === '4') {
+        actionHandlersRef.current.setWeapon(3);
       } else if (e.key.toLowerCase() === 'e') {
-        interactContextAction();
+        actionHandlersRef.current.interact();
+      } else if (e.key.toLowerCase() === 'c') {
+        actionHandlersRef.current.sonar();
       } else if (e.key.toLowerCase() === 'f') {
-        toggleCampfire();
-      } else if (e.key.toLowerCase() === 'r' || e.key.toLowerCase() === 'c') {
-        petCompanion();
+        actionHandlersRef.current.camp();
       } else if (e.key.toLowerCase() === 'j') {
-        setIsJournalOpen(prev => !prev);
+        actionHandlersRef.current.toggleJournal();
+      } else if (e.key.toLowerCase() === 'h' || e.key === '?') {
+        actionHandlersRef.current.openTutorial();
       }
     };
 
@@ -767,14 +1938,15 @@ export const App: React.FC = () => {
     setPulseActive(true);
     updateQuestProgress('quest_sonar', 1);
 
-    // Reveal nearby hidden features within 45m
+    // Reveal nearby hidden features within enhanced range
+    const maxSonarDist = 45 * (activePerks.sonarRangeMultiplier || 1.0);
     let foundCount = 0;
     setFeatures(prev =>
       prev.map(f => {
         const dx = f.x - charPos.x;
         const dz = f.y - charPos.y;
         const d = Math.sqrt(dx * dx + dz * dz);
-        if (d < 45 && !f.discovered) {
+        if (d < maxSonarDist && !f.discovered) {
           foundCount++;
           return { ...f, discovered: true };
         }
@@ -783,7 +1955,8 @@ export const App: React.FC = () => {
     );
 
     if (foundCount > 0) {
-      showToast(`📡 Sonar echo pinged ${foundCount} ancient signal(s)!`);
+      sounds.playObeliskIgnite();
+      showToast(`📡 Sonar echo pinged ${foundCount} ancient signal(s)!`, `Leyline resonance reached ${Math.round(maxSonarDist)}m`);
     } else {
       showToast('📡 Sonar pulse sent... no new echoes in immediate range.');
     }
@@ -824,25 +1997,310 @@ export const App: React.FC = () => {
     if (feature.type === 'obelisk') {
       sounds.playObeliskIgnite();
       setFeatures(prev => prev.map(f => (f.id === feature.id ? { ...f, active: true, discovered: true } : f)));
-      setStats(s => ({ ...s, obelisksLit: s.obelisksLit + 1 }));
+      playerCombatRef.current.hp = playerCombatRef.current.maxHp;
+      playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
+      setStats(s => ({
+        ...s,
+        hp: playerCombatRef.current.maxHp,
+        stamina: playerCombatRef.current.maxStamina,
+        obelisksLit: s.obelisksLit + 1,
+      }));
       addXP(150);
       updateQuestProgress('quest_awaken_obelisk', 1);
-      showToast('⚡ Ancient Monolith Awakened!', 'Ley lines reconnected with the stars');
+      showToast('⚡ Ancient Monolith Awakened!', 'Celestial Sanctuary activated & Leyline Fast Travel unlocked!');
       if (feature.relicId) awardRelic(feature.relicId);
     } else if (feature.type === 'chest') {
       sounds.playChestOpen();
       setFeatures(prev => prev.map(f => (f.id === feature.id ? { ...f, active: true, discovered: true } : f)));
-      awardRelic(feature.relicId);
+      // Award progressive building materials from chest
+      setStats(prev => {
+        const r = { ...(prev.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }) };
+        r.wood = (r.wood || 0) + 6;
+        r.stone = (r.stone || 0) + 4;
+        r.iron = (r.iron || 0) + 2;
+        r.crystal = (r.crystal || 0) + 1;
+        return {
+          ...prev,
+          gold: prev.gold + 25,
+          resources: r,
+        };
+      });
+      showToast('📦 Opened Treasure Cache!', '+6 Wood, +4 Stone, +2 Iron, +1 Crystal, +25 Gold');
+      updateQuestProgress('quest_gather_loot', 13);
+      if (feature.relicId) awardRelic(feature.relicId);
     } else if (feature.type === 'buried_mound') {
       sounds.playDig();
       setFeatures(prev => prev.map(f => (f.id === feature.id ? { ...f, active: true, discovered: true } : f)));
-      setStats(s => ({ ...s, secretsDug: s.secretsDug + 1 }));
-      awardRelic(feature.relicId);
+      setStats(s => {
+        const r = { ...(s.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }) };
+        r.stone = (r.stone || 0) + 4;
+        r.bone = (r.bone || 0) + 3;
+        r.iron = (r.iron || 0) + 1;
+        return {
+          ...s,
+          secretsDug: s.secretsDug + 1,
+          gold: s.gold + 12,
+          resources: r,
+        };
+      });
+      showToast('⛏️ Excavated Ancient Mound!', '+4 Stone, +3 Bone, +1 Iron, +12 Gold');
+      updateQuestProgress('quest_gather_loot', 8);
+      if (feature.relicId) awardRelic(feature.relicId);
     }
+  };
+
+  // Start building structure from blueprint
+  const handleStartBuilding = (blueprint: BuildableStructureBlueprint) => {
+    if (!canAffordBlueprint(blueprint)) {
+      showToast(`⚠️ Insufficient resources for ${blueprint.name}!`, 'Defeat monsters to loot missing materials');
+      return;
+    }
+    setSelectedBlueprint(blueprint);
+    setBuildMode(true);
+    setBuildRotation(0);
+    setIsBuildDrawerOpen(false);
+    showToast(`🏗️ Placement Mode: ${blueprint.name}`, 'Move to position. Press SPACE to build, R to rotate, ESC to cancel.');
+  };
+
+  // Confirm building placement
+  const handleConfirmPlacement = () => {
+    if (!selectedBlueprint || !buildPreview) return;
+    if (!canAffordBlueprint(selectedBlueprint)) {
+      showToast(`⚠️ Missing materials for ${selectedBlueprint.name}!`);
+      return;
+    }
+
+    // Deduct resources
+    setStats(prev => {
+      const curRes = { ...(prev.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }) };
+      const req = selectedBlueprint.cost;
+      if (req.wood) curRes.wood = Math.max(0, (curRes.wood || 0) - req.wood);
+      if (req.stone) curRes.stone = Math.max(0, (curRes.stone || 0) - req.stone);
+      if (req.iron) curRes.iron = Math.max(0, (curRes.iron || 0) - req.iron);
+      if (req.bone) curRes.bone = Math.max(0, (curRes.bone || 0) - req.bone);
+      if (req.silk) curRes.silk = Math.max(0, (curRes.silk || 0) - req.silk);
+      if (req.crystal) curRes.crystal = Math.max(0, (curRes.crystal || 0) - req.crystal);
+      const newGold = Math.max(0, prev.gold - (req.gold || 0));
+      return {
+        ...prev,
+        resources: curRes,
+        gold: newGold,
+        structuresBuilt: (prev.structuresBuilt || 0) + 1,
+      };
+    });
+
+    const newStruct: PlacedStructure = {
+      id: `struct_${selectedBlueprint.type}_${Date.now()}`,
+      type: selectedBlueprint.type,
+      x: buildPreview.x,
+      y: buildPreview.y,
+      elevation: buildPreview.elevation,
+      rotation: buildPreview.rotation,
+      createdAt: Date.now(),
+      customName: selectedBlueprint.name,
+    };
+
+    setPlacedStructures(prev => [...prev, newStruct]);
+    sounds.playBuildPlace();
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+    showToast(`🏗️ Constructed: ${selectedBlueprint.name}!`, selectedBlueprint.description);
+
+    // Update Quests
+    if (selectedBlueprint.type === 'house') {
+      updateQuestProgress('quest_first_house', 1);
+    } else if (selectedBlueprint.type === 'workbench') {
+      updateQuestProgress('quest_build_workbench', 1);
+    }
+    addXP(100);
+
+    setBuildMode(false);
+    setSelectedBlueprint(null);
+  };
+
+  // Demolish a placed structure (refunds 50% materials)
+  const handleDemolishStructure = (structId: string) => {
+    const struct = placedStructures.find(s => s.id === structId);
+    if (!struct) return;
+    const blueprint = BUILDABLE_BLUEPRINTS.find(b => b.type === struct.type);
+    if (blueprint) {
+      setStats(prev => {
+        const r = { ...(prev.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }) };
+        const req = blueprint.cost;
+        if (req.wood) r.wood = (r.wood || 0) + Math.ceil(req.wood * 0.5);
+        if (req.stone) r.stone = (r.stone || 0) + Math.ceil(req.stone * 0.5);
+        if (req.iron) r.iron = (r.iron || 0) + Math.ceil(req.iron * 0.5);
+        if (req.bone) r.bone = (r.bone || 0) + Math.ceil(req.bone * 0.5);
+        if (req.silk) r.silk = (r.silk || 0) + Math.ceil(req.silk * 0.5);
+        if (req.crystal) r.crystal = (r.crystal || 0) + Math.ceil(req.crystal * 0.5);
+        return { ...prev, resources: r };
+      });
+      showToast(`🔨 Salvaged ${struct.customName || struct.type}`, 'Recovered 50% construction materials');
+    }
+    setPlacedStructures(prev => prev.filter(s => s.id !== structId));
+    sounds.playDig();
+  };
+
+  // Forge weapon from monster loot recipe
+  const handleForgeWeapon = (recipe: WeaponRecipe) => {
+    if (!canAffordRecipe(recipe)) {
+      showToast('⚠️ Missing required materials!', 'Loot monsters across the realm to gather components');
+      return;
+    }
+    const alreadyUnlocked = (stats.unlockedWeapons || ['starter_club']).includes(recipe.weaponId);
+    if (alreadyUnlocked) {
+      showToast('Already forged this weapon!');
+      return;
+    }
+
+    setStats(prev => {
+      const curRes = { ...(prev.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }) };
+      const req = recipe.cost;
+      if (req.wood) curRes.wood = Math.max(0, (curRes.wood || 0) - req.wood);
+      if (req.stone) curRes.stone = Math.max(0, (curRes.stone || 0) - req.stone);
+      if (req.iron) curRes.iron = Math.max(0, (curRes.iron || 0) - req.iron);
+      if (req.bone) curRes.bone = Math.max(0, (curRes.bone || 0) - req.bone);
+      if (req.silk) curRes.silk = Math.max(0, (curRes.silk || 0) - req.silk);
+      if (req.crystal) curRes.crystal = Math.max(0, (curRes.crystal || 0) - req.crystal);
+      const newGold = Math.max(0, prev.gold - (req.gold || 0));
+      const newUnlocked = [...(prev.unlockedWeapons || ['starter_club']), recipe.weaponId];
+      return {
+        ...prev,
+        resources: curRes,
+        gold: newGold,
+        unlockedWeapons: newUnlocked,
+      };
+    });
+
+    sounds.playCraftSuccess();
+    confetti({ particleCount: 70, spread: 80, origin: { y: 0.5 } });
+    showToast(`⚔️ Forged: ${recipe.name}!`, 'Equipped and added to your Armory!');
+    updateQuestProgress('quest_forge_weapon', 1);
+    addXP(150);
+
+    const weaponIdx = ALL_WEAPONS.findIndex(w => w.id === recipe.weaponId);
+    if (weaponIdx >= 0) {
+      setActiveWeaponIndex(weaponIdx);
+    }
+  };
+
+  // Fast Travel via Awakened Obelisk Waystones
+  const handleFastTravel = (targetX: number, targetY: number) => {
+    charPosRef.current = { x: targetX, y: targetY };
+    targetPosRef.current = { x: targetX, y: targetY };
+    setCharPos({ x: targetX, y: targetY });
+    setTargetPos({ x: targetX, y: targetY });
+    setCameraPan({ x: 0, y: 0 });
+    const chunk = { cx: Math.floor(targetX / 24), cz: Math.floor(targetY / 24) };
+    setPlayerChunk(chunk);
+    playerMotionRef.current = {
+      x: targetX,
+      y: targetY,
+      elevation: getTerrainHeight(targetX, targetY, settings),
+      targetX,
+      targetY,
+      rotation: 0,
+      isMoving: false,
+      chunk,
+    };
+    sounds.playObeliskIgnite();
+    showToast('⚡ Leyline Fast Travel!', `Warped to Awakened Monolith at (${Math.round(targetX)}, ${Math.round(targetY)})`);
+    setIsJournalOpen(false);
+  };
+
+  // Campfire Rest & Alchemy actions
+  const handleSleepUntilDawn = () => {
+    setTimeOfDay(0.2); // Morning dawn
+    playerCombatRef.current.hp = playerCombatRef.current.maxHp;
+    playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
+    setStats(prev => ({
+      ...prev,
+      hp: playerCombatRef.current.maxHp,
+      stamina: playerCombatRef.current.maxStamina,
+    }));
+    sounds.playCampfireIgnite();
+    showToast('🌅 Slept until Dawn!', 'Awoke fully rested with complete vitality.');
+  };
+
+  const handleBrewPotion = () => {
+    if (stats.gold < 15) {
+      showToast('⚠️ Need 15 Gold to brew a Healing Flask!');
+      return;
+    }
+    setStats(prev => ({
+      ...prev,
+      gold: prev.gold - 15,
+      potions: prev.potions + 1,
+    }));
+    sounds.playPotionDrink();
+    showToast('🧪 Brewed 1 Healing Flask!', '-15 Gold');
+  };
+
+  const handleFeedCompanionTreat = () => {
+    if (stats.gold < 10) {
+      showToast('⚠️ Need 10 Gold to roast a Companion Treat!');
+      return;
+    }
+    setStats(prev => ({
+      ...prev,
+      gold: prev.gold - 10,
+    }));
+    setCompanion(c => ({
+      ...c,
+      happiness: 100,
+      mood: 'excited',
+    }));
+    sounds.playPetWhistle();
+    addXP(25);
+    showToast(`🍖 Fed ${companion.name} a delicious roast!`, 'Happiness 100%! +25 XP');
+  };
+
+  const handleHoneWeapons = () => {
+    const cost = 35 + weaponBonusDmg * 20;
+    if (stats.gold < cost) {
+      showToast(`⚠️ Need ${cost} Gold to hone weapons!`);
+      return;
+    }
+    setStats(prev => ({
+      ...prev,
+      gold: prev.gold - cost,
+    }));
+    setWeaponBonusDmg(prev => prev + 4);
+    sounds.playLevelUp();
+    showToast('⚔️ Weapons Honed at Campfire Forge!', `+4 Base Damage permanently across all weapons! (-${cost} Gold)`);
   };
 
   // Contextual Dig / Interact Button
   const interactContextAction = () => {
+    // 1. Placed structure interaction
+    if (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) {
+      const st = nearbyPlacedStructure.structure;
+      if (st.type === 'workbench') {
+        setIsBuildDrawerOpen(true);
+        setActiveBuildTab('forge');
+        sounds.playBuildPlace();
+        showToast('⚒️ Anvil & Workbench', 'Craft and upgrade weapons using monster loot');
+        return;
+      } else if (st.type === 'storage_chest') {
+        setIsBuildDrawerOpen(true);
+        setActiveBuildTab('resources');
+        sounds.playChestOpen();
+        showToast('📦 Storage Cache', 'Review gathered looted materials and construction supplies');
+        return;
+      } else if (st.type === 'house' || st.type === 'tent') {
+        playerCombatRef.current.hp = playerCombatRef.current.maxHp;
+        playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
+        setStats(prev => ({
+          ...prev,
+          hp: playerCombatRef.current.maxHp,
+          stamina: playerCombatRef.current.maxStamina,
+        }));
+        sounds.playCampfireRest();
+        showToast(`🏡 Rested in ${st.customName || 'Shelter'}!`, 'HP and Stamina fully restored');
+        return;
+      }
+    }
+
+    // 2. World feature interaction (Chest, Obelisk, Buried Mound)
     if (nearbyFeature.feature && nearbyFeature.dist < 3.0) {
       handleInteractFeature(nearbyFeature.feature);
     } else {
@@ -883,6 +2341,37 @@ export const App: React.FC = () => {
     }));
     updateQuestProgress('quest_pet_love', 1);
     showToast(`❤️ Petted ${companion.name}!`, 'Companion loves your company!');
+  };
+
+  // Keep action handlers ref updated with latest closures
+  actionHandlersRef.current = {
+    attack: handlePlayerAttack,
+    dodge: handleDodgeRoll,
+    potion: handleDrinkPotion,
+    interact: interactContextAction,
+    sonar: triggerSonarPulse,
+    camp: toggleCampfire,
+    pet: petCompanion,
+    setWeapon: (idx: number) => selectWeaponByIndex(idx),
+    toggleJournal: () => setIsJournalOpen(prev => !prev),
+    toggleBuild: () => setIsBuildDrawerOpen(prev => !prev),
+    isBuildMode: () => buildMode,
+    rotateBuild: (dir: number) => setBuildRotation(r => r + dir * (Math.PI / 4)),
+    confirmBuild: () => handleConfirmPlacement(),
+    cancelBuild: () => {
+      setBuildMode(false);
+      setSelectedBlueprint(null);
+      showToast('Build placement cancelled');
+    },
+    closeModals: () => {
+      setIsJournalOpen(false);
+      setIsSettingsOpen(false);
+      setIsBuildDrawerOpen(false);
+    },
+    openTutorial: () => {
+      setSettingsTab('tutorial');
+      setIsSettingsOpen(true);
+    },
   };
 
   // Floor Pointer handlers for tap-to-move & drag-to-pan
@@ -952,6 +2441,8 @@ export const App: React.FC = () => {
         const { x, y } = pointerDownWorld.current;
         targetPosRef.current = { x, y };
         setTargetPos({ x, y });
+        playerMotionRef.current.targetX = x;
+        playerMotionRef.current.targetY = y;
       }
 
       pointerDownPos.current = null;
@@ -983,7 +2474,7 @@ export const App: React.FC = () => {
       onWheel={handleWheel}
     >
       {/* 3D Exploration World */}
-      <Canvas shadows camera={{ fov: 40, far: 1000 }}>
+      <Canvas camera={{ fov: 40, far: 1000 }}>
         <color attach="background" args={[skyColor]} />
         <fog
           attach="fog"
@@ -994,25 +2485,40 @@ export const App: React.FC = () => {
           ]}
         />
 
-        {/* Dynamic Sun & Moon Lighting with optimized shadow camera */}
+        {/* Dynamic Sun & Moon Lighting */}
         <ambientLight intensity={isNight ? 0.35 : 0.8} />
         <directionalLight
           position={isNight ? [-35, 55, -35] : [45, 65, 45]}
           intensity={isNight ? 0.45 : 1.25}
           color={isNight ? '#8bb4e8' : '#fff8ee'}
-          castShadow
-          shadow-mapSize={[1024, 1024]}
-          shadow-camera-left={-40}
-          shadow-camera-right={40}
-          shadow-camera-top={40}
-          shadow-camera-bottom={-40}
-          shadow-camera-near={10}
-          shadow-camera-far={150}
-          shadow-bias={-0.0008}
         />
 
         <Suspense fallback={null}>
-          <CameraRig target={charPos} zoom={cameraZoom} pan={cameraPan} settings={settings} />
+          <GameLoopController
+            playerPosRef={playerMotionRef}
+            inputVectorRef={inputVector}
+            keysPressedRef={keysPressed}
+            cameraPanRef={cameraPanRef}
+            setCameraPan={setCameraPan}
+            settings={settings}
+            isPaused={isJournalOpen || isSettingsOpen || Boolean(unlockedRelicModal)}
+            monstersRef={monstersRef}
+            projectilesRef={projectilesRef}
+            lootDropsRef={lootDropsRef}
+            playerCombatRef={playerCombatRef}
+            activeCampfirePos={activeCampfirePos}
+            activePerks={activePerks}
+            awakenedObelisks={awakenedObelisks}
+            placedStructuresRef={placedStructuresRef}
+            onPlayerHurt={handlePlayerHurt}
+            onMonsterDefeated={handleMonsterDefeated}
+            onCollectLoot={handleCollectLoot}
+            onCombatTick={handleCombatTick}
+            onSyncUI={handleSyncUI}
+            onChunkChange={handleChunkChange}
+          />
+
+          <CameraRig playerPosRef={playerMotionRef} zoom={cameraZoom} pan={cameraPan} settings={settings} />
 
           {/* Infinite Voxel Terrain - Only re-evaluates when crossing chunk boundaries */}
           <VoxelTerrainMesh
@@ -1035,18 +2541,31 @@ export const App: React.FC = () => {
             playerChunk={playerChunk}
           />
 
+          {/* Active Procedural Monsters & Bosses */}
+          <MonstersWorld monsters={monsters} />
+
+          {/* Active Projectiles (Arrows, Spells, Slashing Waves) */}
+          <ProjectilesWorld projectiles={projectiles} />
+
+          {/* Physical Loot Drops (XP Crystals, Gold Coins, Potions) */}
+          <LootDropsWorld lootDrops={lootDrops} />
+
           {/* Animated Voxel Player */}
           <Player3D
-            position={charPos}
+            playerPosRef={playerMotionRef}
             color={settings.characterColor}
             settings={settings}
             isNight={isNight}
+            activeWeapon={activeWeapon}
+            attackAnimRef={attackAnimRef}
+            isHurtFlash={isHurtFlash}
           />
 
           {/* Voxel Faithful Companion */}
           <VoxelCompanion
             playerPos={charPos}
-            playerElevation={getTerrainHeight(charPos.x, charPos.y, settings)}
+            playerPosRef={playerMotionRef}
+            playerElevation={playerMotionRef.current.elevation}
             type={settings.companionType ?? 'fox'}
             mood={companion.mood}
             nearbyFeaturePos={
@@ -1057,7 +2576,7 @@ export const App: React.FC = () => {
             getElevation={(wx, wz) => getTerrainHeight(wx, wz, settings)}
           />
 
-          {/* World Objects: Obelisks, Chests, Relic Mounds, Campfire, Sonar Pulse */}
+          {/* World Objects: Obelisks, Chests, Relic Mounds, Campfire, Sonar Pulse & Built Structures */}
           <WorldFeaturesManager
             features={features}
             onInteractFeature={handleInteractFeature}
@@ -1065,12 +2584,28 @@ export const App: React.FC = () => {
             activeCampfirePos={activeCampfirePos}
             getElevation={(wx, wz) => getTerrainHeight(wx, wz, settings)}
             pulseRadius={pulseRadius}
+            placedStructures={placedStructures}
+            buildPreview={buildPreview}
+            onInteractStructure={(s) => {
+              if (s.type === 'workbench') {
+                setIsBuildDrawerOpen(true);
+                setActiveBuildTab('forge');
+              } else if (s.type === 'storage_chest') {
+                setIsBuildDrawerOpen(true);
+                setActiveBuildTab('resources');
+              }
+            }}
           />
 
           {/* Minecraft Clouds - Static GPU mesh */}
           <VoxelClouds playerChunk={playerChunk} visible={settings.hasClouds !== false} />
         </Suspense>
       </Canvas>
+
+      {/* Screen Hurt Vignette Flash */}
+      {isHurtFlash && (
+        <div className="fixed inset-0 pointer-events-none z-50 border-8 border-red-600/70 bg-red-950/20 animate-pulse transition-opacity duration-75" />
+      )}
 
       {/* --- UI HUD LAYER --- */}
       <div className="absolute inset-0 pointer-events-none">
@@ -1080,91 +2615,201 @@ export const App: React.FC = () => {
         )}
 
         {/* Top Responsive Navigation & Status Bar */}
-        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start pointer-events-none z-30 gap-2">
-          {/* Left: Player Level, Coords & Companion Status */}
-          <div className="pointer-events-auto flex flex-col items-start gap-1.5 flex-shrink min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start pointer-events-none z-30 gap-1.5 sm:gap-2">
+          {/* Left: Player Combat Status, Level, Coords & Companion */}
+          <div className="pointer-events-auto flex flex-col items-start gap-1 flex-shrink min-w-0">
+            {/* Level, Coordinates, Gold & Flasks Chips Row */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
               {/* Level Pill */}
-              <div className="mc-panel px-2 sm:px-2.5 py-0.5 sm:py-1 bg-[#d4af37] text-black font-bold text-xs sm:text-sm flex items-center gap-1 shadow-md border-2 border-[#fff8a0] whitespace-nowrap">
-                <Trophy className="w-3.5 h-3.5 text-black flex-shrink-0" />
+              <div className="mc-panel px-1.5 sm:px-2.5 py-0.5 bg-[#d4af37] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md border-2 border-[#fff8a0] whitespace-nowrap">
+                <Trophy className="w-3 h-3 text-black flex-shrink-0" />
                 <span>Lv.{stats.level}</span>
               </div>
 
               {/* Coordinates */}
-              <div className="mc-panel px-2 py-0.5 sm:py-1 bg-[#c6c6c6] text-black font-bold text-xs sm:text-sm flex items-center gap-1 shadow-md whitespace-nowrap">
-                <Compass className="w-3.5 h-3.5 text-[#2d5a27] flex-shrink-0" />
+              <div className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#c6c6c6] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md whitespace-nowrap">
+                <Compass className="w-3 h-3 text-[#2d5a27] flex-shrink-0" />
                 <span className="font-mono">{Math.round(charPos.x)}, {Math.round(charPos.y)}</span>
               </div>
+
+              {/* Gold Coins */}
+              <div className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#ca8a04] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md border border-[#fef08a]" title="Gold coins">
+                <span>🪙</span>
+                <span className="font-mono">{stats.gold}</span>
+              </div>
+
+              {/* Quick Flask pill */}
+              <button
+                onClick={handleDrinkPotion}
+                disabled={stats.potions <= 0}
+                className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#dc2626] hover:bg-[#b91c1c] disabled:opacity-50 text-white font-bold text-[11px] sm:text-xs flex items-center gap-0.5 shadow-md border border-[#fca5a5] active:scale-95 transition-all cursor-pointer"
+                title="Drink Healing Flask (Q)"
+              >
+                <span>🧪</span>
+                <span className="font-mono">{stats.potions}</span>
+              </button>
             </div>
 
-            {/* Companion Status Pill */}
-            <button
-              onClick={petCompanion}
-              className="mc-panel px-2 py-0.5 sm:py-1 bg-[#1e293b]/90 hover:bg-[#334155] text-white flex items-center gap-1.5 text-xs shadow-md border border-[#475569] active:scale-95 transition-all"
-              title={`Click to pet ${companion.name}! (R)`}
-            >
-              <span className="text-sm">
-                {settings.companionType === 'fox' ? '🦊' : settings.companionType === 'dog' ? '🐕' : '🦫'}
-              </span>
-              <span className="font-bold text-[#ffd700]">{companion.name}</span>
-              <span className="text-rose-400 font-mono text-[11px]">
-                {'❤️'.repeat(Math.max(1, Math.min(3, Math.ceil(companion.happiness / 34))))}
-              </span>
-              {nearbyFeature.feature && nearbyFeature.dist < 18 && (
-                <span className="bg-amber-400 text-black px-1 rounded text-[10px] font-bold animate-pulse">
-                  Sniffing!
-                </span>
-              )}
-            </button>
-          </div>
+            {/* Combat Vitals: Compact HP & Stamina Bars */}
+            <div className="flex flex-col gap-0.5 w-36 xs:w-44 sm:w-52">
+              {/* Health Bar */}
+              <div className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/90 text-white flex items-center gap-1 shadow-md border border-[#ef4444]">
+                <Heart className="w-3 h-3 text-red-500 fill-red-500 flex-shrink-0 animate-pulse" />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex justify-between text-[10px] sm:text-xs font-mono font-bold leading-none mb-0.5">
+                    <span className="text-red-300">HP</span>
+                    <span>{Math.round(playerCombatRef.current?.hp ?? stats.hp)}/{stats.maxHp}</span>
+                  </div>
+                  <div className="w-full bg-red-950 h-1.5 sm:h-2 rounded-xs overflow-hidden border border-black/40">
+                    <div
+                      className="bg-gradient-to-r from-red-600 to-rose-400 h-full transition-all duration-150"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, ((playerCombatRef.current?.hp ?? stats.hp) / stats.maxHp) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
 
-          {/* Top Center: Ancient Radar Compass (When feature detected) */}
-          {nearbyFeature.feature && (
-            <div className="pointer-events-auto absolute top-1 sm:top-2 left-1/2 -translate-x-1/2 z-30">
-              <div
-                className={`mc-panel px-3 py-1 sm:py-1.5 flex items-center gap-1.5 shadow-xl border-2 whitespace-nowrap transition-all ${
-                  nearbyFeature.dist < 3.5
-                    ? 'bg-[#16a34a] text-white border-[#86efac] animate-bounce font-bold shadow-[0_0_12px_rgba(34,197,94,0.7)]'
-                    : nearbyFeature.dist < 14
-                    ? 'bg-[#f59e0b] text-black border-[#fde047] animate-pulse font-bold'
-                    : 'bg-[#1e293b]/95 text-gray-200 border-[#475569]'
-                }`}
-                title="Nearest secret"
-              >
-                <Radio className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${nearbyFeature.dist < 14 ? 'animate-ping' : ''}`} />
-                <span className="text-xs sm:text-sm font-mono font-bold tracking-wide">
-                  {nearbyFeature.feature.type === 'obelisk'
-                    ? 'SPIRE'
-                    : nearbyFeature.feature.type === 'chest'
-                    ? 'CHEST'
-                    : 'RELIC'}{' '}
-                  • {Math.round(nearbyFeature.dist)}m
-                </span>
+              {/* Stamina Bar */}
+              <div className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/90 text-white flex items-center gap-1 shadow-md border border-[#eab308]">
+                <Zap className="w-3 h-3 text-yellow-400 fill-yellow-400 flex-shrink-0" />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex justify-between text-[10px] sm:text-xs font-mono font-bold leading-none mb-0.5">
+                    <span className="text-yellow-300">STM</span>
+                    <span>{Math.round(playerCombatRef.current?.stamina ?? stats.stamina)}/{stats.maxStamina}</span>
+                  </div>
+                  <div className="w-full bg-amber-950 h-1.5 sm:h-2 rounded-xs overflow-hidden border border-black/40">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-yellow-300 h-full transition-all duration-75"
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, ((playerCombatRef.current?.stamina ?? stats.stamina) / stats.maxStamina) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Top Right: Time of Day, Journal, Settings */}
-          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {/* Companion & Kills Pill */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={petCompanion}
+                className="mc-panel px-1.5 py-0.5 bg-[#1e293b]/90 hover:bg-[#334155] text-white flex items-center gap-1 text-[11px] sm:text-xs shadow-md border border-[#475569] active:scale-95 transition-all"
+                title={`Click to pet ${companion.name}! (R)`}
+              >
+                <span>{settings.companionType === 'fox' ? '🦊' : settings.companionType === 'dog' ? '🐕' : '🦫'}</span>
+                <span className="font-bold text-[#ffd700] truncate max-w-[60px] sm:max-w-none">{companion.name}</span>
+                {nearbyFeature.feature && nearbyFeature.dist < 18 && (
+                  <span className="bg-amber-400 text-black px-1 rounded text-[9px] font-bold animate-pulse">
+                    Sniffing!
+                  </span>
+                )}
+              </button>
+
+              <div className="mc-panel px-1.5 py-0.5 bg-[#475569] text-white font-bold text-[11px] sm:text-xs flex items-center gap-0.5 shadow-md border border-[#94a3b8]" title="Total monsters vanquished">
+                <span>💀</span>
+                <span className="font-mono">{stats.monstersDefeated}</span>
+              </div>
+            </div>
+
+            {/* Looted Progressive Materials Ribbon */}
+            <div
+              onClick={() => {
+                setActiveBuildTab('resources');
+                setIsBuildDrawerOpen(true);
+              }}
+              className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/95 text-white flex items-center gap-1 text-[10px] sm:text-[11px] font-mono shadow-md border border-[#334155] cursor-pointer hover:border-amber-400 transition-colors"
+              title="Click to view Looted Materials & Crafting Drops (B)"
+            >
+              <span className="flex items-center gap-0.5" title="Wood">
+                <span>🪵</span>
+                <span className="font-bold text-amber-200">{stats.resources?.wood || 0}</span>
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="flex items-center gap-0.5" title="Stone">
+                <span>🪨</span>
+                <span className="font-bold text-stone-300">{stats.resources?.stone || 0}</span>
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="flex items-center gap-0.5" title="Iron">
+                <span>⛓️</span>
+                <span className="font-bold text-slate-300">{stats.resources?.iron || 0}</span>
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="flex items-center gap-0.5" title="Bone">
+                <span>🦴</span>
+                <span className="font-bold text-stone-200">{stats.resources?.bone || 0}</span>
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="flex items-center gap-0.5" title="Silk">
+                <span>🕸️</span>
+                <span className="font-bold text-purple-300">{stats.resources?.silk || 0}</span>
+              </span>
+              <span className="text-gray-600">•</span>
+              <span className="flex items-center gap-0.5" title="Crystal">
+                <span>🔮</span>
+                <span className="font-bold text-cyan-300">{stats.resources?.crystal || 0}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Top Right: Time, Tutorial, Journal, Settings */}
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
             {/* Time of Day */}
-            <div className="mc-panel px-2 py-0.5 sm:py-1 bg-[#444] text-white flex items-center gap-1 text-xs sm:text-sm border-2">
+            <div className="mc-panel px-1.5 sm:px-2 py-0.5 sm:py-1 bg-[#444] text-white flex items-center gap-1 text-xs border-2">
               {isNight ? (
                 <>
                   <Moon className="w-3.5 h-3.5 text-[#9ec7e8]" />
-                  <span className="hidden sm:inline font-mono">Night</span>
+                  <span className="hidden md:inline font-mono">Night</span>
                 </>
               ) : (
                 <>
                   <Sun className="w-3.5 h-3.5 text-[#ffd700]" />
-                  <span className="hidden sm:inline font-mono">Day</span>
+                  <span className="hidden md:inline font-mono">Day</span>
                 </>
               )}
             </div>
 
+            {/* Build & Craft Button */}
+            <McButton
+              onClick={() => {
+                setActiveBuildTab('structures');
+                setIsBuildDrawerOpen(true);
+              }}
+              className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-xs bg-[#15803d]! border-[#86efac]! text-white flex items-center gap-1 shadow-md"
+              title="Open Wilderness Build & Craft Forge (B)"
+            >
+              <Hammer className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Build</span>
+              <span className="bg-black/30 text-white rounded px-1 text-[9px] sm:text-[10px] font-mono">
+                B
+              </span>
+            </McButton>
+
+            {/* Controls & Navigation Tutorial Button */}
+            <McButton
+              onClick={() => {
+                setSettingsTab('tutorial');
+                setIsSettingsOpen(true);
+              }}
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs bg-[#059669]! border-[#34d399]! text-white flex items-center gap-1 shadow-md"
+              title="Controls & Navigation Tutorial (H)"
+            >
+              <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Guide</span>
+            </McButton>
+
             {/* Journal / Compendium Button */}
             <McButton
               onClick={() => setIsJournalOpen(true)}
-              className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-[#4f46e5]! border-[#818cf8]! text-white flex items-center gap-1 shadow-md"
+              className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-xs bg-[#4f46e5]! border-[#818cf8]! text-white flex items-center gap-1 shadow-md"
               title="Open Explorer Journal (J)"
             >
               <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -1176,8 +2821,11 @@ export const App: React.FC = () => {
 
             {/* Game Settings */}
             <McButton
-              onClick={() => setIsSettingsOpen(true)}
-              className="px-2 py-1 text-xs sm:text-sm flex items-center gap-1"
+              onClick={() => {
+                setSettingsTab('options');
+                setIsSettingsOpen(true);
+              }}
+              className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs flex items-center gap-1"
               title="Settings"
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -1187,95 +2835,186 @@ export const App: React.FC = () => {
           </div>
         </header>
 
+        {/* Ancient Radar Compass (Non-overlapping positioning on both portrait & landscape) */}
+        {nearbyFeature.feature && (
+          <div className="pointer-events-auto absolute top-20 sm:top-3 left-1/2 -translate-x-1/2 z-30 animate-in fade-in">
+            <div
+              className={`mc-panel px-2.5 py-0.5 sm:px-3 sm:py-1 flex items-center gap-1.5 shadow-xl border-2 whitespace-nowrap transition-all ${
+                nearbyFeature.dist < 3.5
+                  ? 'bg-[#16a34a] text-white border-[#86efac] animate-bounce font-bold shadow-[0_0_12px_rgba(34,197,94,0.7)]'
+                  : nearbyFeature.dist < 14
+                  ? 'bg-[#f59e0b] text-black border-[#fde047] animate-pulse font-bold'
+                  : 'bg-[#1e293b]/95 text-gray-200 border-[#475569]'
+              }`}
+              title="Nearest secret"
+            >
+              <Radio className={`w-3.5 h-3.5 flex-shrink-0 ${nearbyFeature.dist < 14 ? 'animate-ping' : ''}`} />
+              <span className="text-xs sm:text-sm font-mono font-bold tracking-wide">
+                {nearbyFeature.feature.type === 'obelisk'
+                  ? 'SPIRE'
+                  : nearbyFeature.feature.type === 'chest'
+                  ? 'CHEST'
+                  : 'RELIC'}{' '}
+                • {Math.round(nearbyFeature.dist)}m
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Notification */}
         {notification && (
-          <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[90vw] animate-in fade-in slide-in-from-top-4 duration-200">
-            <div className="mc-panel px-4 py-2 bg-[#2d3748] text-white border-2 border-[#ffd700] shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex flex-col items-center text-center">
-              <span className="text-base sm:text-xl font-bold text-[#ffd700]">{notification.text}</span>
+          <div className="fixed top-28 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] animate-in fade-in slide-in-from-top-4 duration-200">
+            <div className="mc-panel px-3 py-1.5 sm:px-4 sm:py-2 bg-[#2d3748] text-white border-2 border-[#ffd700] shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex flex-col items-center text-center">
+              <span className="text-sm sm:text-xl font-bold text-[#ffd700]">{notification.text}</span>
               {notification.sub && (
-                <span className="text-xs sm:text-sm text-gray-300 font-mono">{notification.sub}</span>
+                <span className="text-[11px] sm:text-sm text-gray-300 font-mono">{notification.sub}</span>
               )}
             </div>
           </div>
         )}
 
-        {/* Action Controls (Bottom Right) */}
-        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 pointer-events-auto flex flex-col items-end gap-2">
-          {/* Secondary Action Row: Pulse, Camp, Pet */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Weapon Hotbar (Bottom Center - Scaled down cleanly on narrow screens to avoid overlap) */}
+        {!isJournalOpen && !isSettingsOpen && !unlockedRelicModal && (
+          <div className="fixed bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-1 sm:gap-2 p-1 mc-panel bg-[#1e293b]/95 border-2 border-[#475569] shadow-2xl">
+            {ALL_WEAPONS.map((w, idx) => {
+              const isActive = activeWeaponIndex === idx;
+              const isUnlocked = (stats.unlockedWeapons || ['starter_club']).includes(w.id);
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => selectWeaponByIndex(idx)}
+                  className={`relative w-9 h-9 sm:w-13 sm:h-13 flex flex-col items-center justify-center rounded-xs transition-all border-2 select-none cursor-pointer ${
+                    isActive
+                      ? 'bg-[#334155] border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.6)] scale-105'
+                      : isUnlocked
+                      ? 'bg-[#0f172a]/80 border-[#334155] hover:bg-[#1e293b]'
+                      : 'bg-black/80 border-[#1f2937] opacity-60'
+                  }`}
+                  title={
+                    isUnlocked
+                      ? `${w.name} - ${w.damage + weaponBonusDmg} Dmg, ${w.range}m Range (${idx + 1})`
+                      : `${w.name} - Locked! Forge at Workbench [B]`
+                  }
+                >
+                  <span className={`text-base sm:text-2xl ${!isUnlocked ? 'grayscale' : ''}`}>{w.icon}</span>
+                  {!isUnlocked && (
+                    <span className="absolute inset-0 bg-black/50 flex items-center justify-center text-[10px]">
+                      🔒
+                    </span>
+                  )}
+                  <span className="absolute top-0 left-0.5 text-[8px] sm:text-[10px] font-mono text-gray-400 font-bold">
+                    {idx + 1}
+                  </span>
+                  <span className="absolute bottom-0 right-0.5 text-[7px] sm:text-[9px] font-mono text-amber-300 font-bold">
+                    {w.damage + weaponBonusDmg}d
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Action Controls (Bottom Right - Responsive compact pads in portrait mode) */}
+        <div className="fixed bottom-2.5 right-2 sm:bottom-5 sm:right-5 z-40 pointer-events-auto flex flex-col items-end gap-1 sm:gap-2">
+          {/* Secondary Action Row: Dash, Heal, Pulse, Camp, Build */}
+          <div className="flex items-center gap-1 sm:gap-1.5 justify-end">
+            <McButton
+              onClick={() => {
+                setActiveBuildTab('structures');
+                setIsBuildDrawerOpen(true);
+              }}
+              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#15803d]! border-[#86efac]! text-white font-bold flex items-center gap-0.5 shadow-md"
+              title="Open Wilderness Build & Craft Forge (B)"
+            >
+              <Hammer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">BUILD [B]</span>
+            </McButton>
+
+            <McButton
+              onClick={handleDodgeRoll}
+              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#eab308]! border-[#fde047]! text-black font-bold flex items-center gap-0.5 shadow-md"
+              title="Dodge Roll / Dash Evade (Shift)"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">DASH [⇧]</span>
+            </McButton>
+
+            <McButton
+              onClick={handleDrinkPotion}
+              disabled={stats.potions <= 0}
+              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#ef4444]! border-[#fca5a5]! text-white flex items-center gap-0.5 shadow-md disabled:opacity-40"
+              title="Drink Healing Flask (Q)"
+            >
+              <span>🧪</span>
+              <span className="text-xs font-mono">{stats.potions}</span>
+              <span className="hidden sm:inline">HEAL</span>
+            </McButton>
+
             <McButton
               onClick={triggerSonarPulse}
-              className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm bg-[#0ea5e9]! border-[#38bdf8]! text-white flex items-center gap-1 shadow-md"
-              title="Send Sonar Pulse Echo (Space)"
+              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#0ea5e9]! border-[#38bdf8]! text-white flex items-center gap-0.5 shadow-md"
+              title="Send Sonar Pulse Echo (C)"
             >
-              <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Pulse</span>
+              <Radio className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">PULSE [C]</span>
             </McButton>
 
             <McButton
               onClick={toggleCampfire}
-              className={`px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-sm text-white flex items-center gap-1 shadow-md ${
+              className={`px-2 sm:px-2.5 py-1 text-xs sm:text-sm text-white flex items-center gap-0.5 shadow-md ${
                 activeCampfirePos ? 'bg-[#ea580c]! border-[#fdba74]!' : 'bg-[#4b5563]!'
               }`}
               title="Pitch or pack Campfire (F)"
             >
-              <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffedd5]" />
-              <span className="hidden sm:inline">Camp</span>
+              <Flame className="w-3.5 h-3.5 text-[#ffedd5]" />
+              <span className="hidden sm:inline">CAMP [F]</span>
+            </McButton>
+          </div>
+
+          {/* Primary Action Buttons: Compact in portrait, expanded on tablet/desktop */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <McButton
+              onClick={handlePlayerAttack}
+              className="px-3 sm:px-5 py-2 sm:py-3 text-sm sm:text-xl text-white font-bold bg-[#dc2626]! border-[#f87171]! shadow-[0_0_15px_rgba(220,38,38,0.5)] active:scale-95 flex items-center gap-1 sm:gap-1.5 transition-all"
+              title="Strike / Fire equipped weapon (Space)"
+            >
+              <span className="text-lg sm:text-2xl">{activeWeapon.icon}</span>
+              <span>ATTACK</span>
+              <span className="hidden sm:inline font-mono text-xs text-red-200">[SPACE]</span>
             </McButton>
 
             <McButton
-              onClick={petCompanion}
-              className="px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs sm:text-sm bg-[#db2777]! border-[#f472b6]! text-white flex items-center gap-1 shadow-md"
-              title="Whistle & Pet Companion (R)"
+              onClick={interactContextAction}
+              className={`px-2.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-lg text-white font-bold flex items-center justify-center gap-1 sm:gap-1.5 shadow-xl transition-all ${
+                nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
+                  ? 'bg-[#2563eb]! border-[#93c5fd]! animate-bounce scale-105 shadow-[0_0_15px_rgba(37,99,235,0.6)]'
+                  : nearbyFeature.dist < 3.5
+                  ? 'bg-[#16a34a]! border-[#4ade80]! animate-bounce scale-105 shadow-[0_0_15px_rgba(34,197,94,0.6)]'
+                  : 'bg-[#b45309]! border-[#f59e0b]!'
+              }`}
+              title="Interact with Structure or World Feature (E)"
             >
-              <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ffe4e6]" />
-              <span className="hidden sm:inline">Pet</span>
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>
+                {nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
+                  ? nearbyPlacedStructure.structure.type === 'workbench'
+                    ? '⚒️ FORGE'
+                    : nearbyPlacedStructure.structure.type === 'storage_chest'
+                    ? '📦 CHEST'
+                    : nearbyPlacedStructure.structure.type === 'house' ||
+                      nearbyPlacedStructure.structure.type === 'tent'
+                    ? '🏡 REST'
+                    : '🛡️ OUTPOST'
+                  : nearbyFeature.dist < 3.5
+                  ? nearbyFeature.feature?.type === 'obelisk'
+                    ? '⚡ AWAKEN'
+                    : nearbyFeature.feature?.type === 'chest'
+                    ? '✨ OPEN'
+                    : '⛏️ UNEARTH'
+                  : '⛏️ DIG'}
+              </span>
+              <span className="hidden sm:inline font-mono text-xs text-amber-200">[E]</span>
             </McButton>
-          </div>
-
-          {/* Primary Action Button: Dig / Open / Awaken */}
-          <McButton
-            onClick={interactContextAction}
-            className={`w-full sm:w-auto min-w-[125px] sm:min-w-[155px] px-3.5 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-lg text-white font-bold flex items-center justify-center gap-1.5 shadow-xl transition-all ${
-              nearbyFeature.dist < 3.5
-                ? 'bg-[#16a34a]! border-[#4ade80]! animate-bounce scale-105 shadow-[0_0_15px_rgba(34,197,94,0.6)]'
-                : 'bg-[#b45309]! border-[#f59e0b]!'
-            }`}
-            title="Dig Ground or Open Treasure (E)"
-          >
-            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>
-              {nearbyFeature.dist < 3.5
-                ? nearbyFeature.feature?.type === 'obelisk'
-                  ? '⚡ AWAKEN'
-                  : nearbyFeature.feature?.type === 'chest'
-                  ? '✨ OPEN'
-                  : '⛏️ UNEARTH'
-                : '⛏️ DIG'}
-            </span>
-          </McButton>
-        </div>
-
-        {/* Desktop Controls Hint (Center Bottom) */}
-        <div className="hidden lg:flex absolute bottom-5 left-1/2 -translate-x-1/2 mc-panel px-4 py-1 items-center gap-4 pointer-events-auto text-black shadow-lg text-xs font-bold whitespace-nowrap z-20">
-          <div className="flex items-center gap-1.5">
-            <Footprints className="w-4 h-4 text-[#2d5a27]" />
-            <span>[WASD] MOVE</span>
-          </div>
-          <div className="w-px h-3 bg-gray-500" />
-          <div className="flex items-center gap-1.5">
-            <Radio className="w-4 h-4 text-[#0284c7]" />
-            <span>[SPACE] SONAR</span>
-          </div>
-          <div className="w-px h-3 bg-gray-500" />
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-[#b45309]" />
-            <span>[E] DIG/ACT</span>
-          </div>
-          <div className="w-px h-3 bg-gray-500" />
-          <div className="flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-[#ea580c]" />
-            <span>[F] CAMP</span>
           </div>
         </div>
       </div>
@@ -1307,16 +3046,19 @@ export const App: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-[#888] pb-1">
+            <div className="flex gap-1.5 sm:gap-2 border-b border-[#888] pb-1 overflow-x-auto text-xs sm:text-base">
               {[
                 { id: 'relics', label: `Relics (${inventory.length}/${ALL_RELICS.length})` },
+                { id: 'armory', label: `Arsenal & Mobs` },
+                { id: 'waystones', label: `⚡ Waystones (${awakenedObelisks.length})` },
+                { id: 'camp', label: `🏕️ Camp Forge` },
                 { id: 'quests', label: 'Quests' },
                 { id: 'stats', label: 'Stats' },
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`mc-btn px-3 py-1 text-base sm:text-xl ${
+                  className={`mc-btn px-2 sm:px-3 py-1 text-sm sm:text-lg whitespace-nowrap ${
                     activeTab === tab.id ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
                   }`}
                 >
@@ -1327,8 +3069,36 @@ export const App: React.FC = () => {
 
             {/* Tab 1: Relics Collection Grid */}
             {activeTab === 'relics' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-4">
-                <p className="text-sm sm:text-base text-[#333]">
+              <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+                {/* Active Perks Banner */}
+                <div className="bg-[#fef9c3] p-2.5 sm:p-3 border-2 border-[#ca8a04] text-black">
+                  <div className="flex items-center gap-1.5 font-bold text-base sm:text-lg text-[#854d0e] mb-1">
+                    <Sparkles className="w-4 h-4 text-[#eab308]" />
+                    <span>Active Relic Blessings ({inventory.length} Relics Unlocked)</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-1.5 text-xs sm:text-sm font-mono">
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      ❤️ Max HP: <span className="font-bold text-red-600">+{activePerks.maxHpBonus}</span>
+                    </div>
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      ⚡ Max Stamina: <span className="font-bold text-yellow-600">+{activePerks.maxStaminaBonus}</span>
+                    </div>
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      👟 Move Speed: <span className="font-bold text-emerald-600">{Math.round(activePerks.speedMultiplier * 100)}%</span>
+                    </div>
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      🪙 Gold Yield: <span className="font-bold text-amber-600">{Math.round(activePerks.goldMultiplier * 100)}%</span>
+                    </div>
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      🧪 Flask Boost: <span className="font-bold text-rose-600">+{activePerks.potionHealBonus} HP</span>
+                    </div>
+                    <div className="bg-white/80 p-1 rounded border border-amber-300">
+                      🎯 Crit Bonus: <span className="font-bold text-indigo-600">+{Math.round(activePerks.critChanceBonus * 100)}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs sm:text-sm text-[#333]">
                   Ancient relics unearthed from ruins, chests, and mountain peaks. Tap a relic to read its forgotten lore.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
@@ -1364,6 +3134,191 @@ export const App: React.FC = () => {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Waystones (Celestial Monolith Fast Travel Network) */}
+            {activeTab === 'waystones' && (
+              <div className="overflow-y-auto flex-1 pr-1 space-y-3 text-black">
+                <div className="bg-[#e0f2fe] p-3 border-2 border-[#0284c7]">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#0369a1] flex items-center gap-1.5">
+                    <Radio className="w-5 h-5 text-[#0284c7]" />
+                    <span>Celestial Obelisk Sanctuary Network</span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#0c4a6e] mt-1">
+                    Awakened monoliths cast a protective aura (+5 HP/s, +10 STM/s, monsters cannot enter) and link to ancient leyline wormholes for instant Fast Travel!
+                  </p>
+                </div>
+
+                {features.filter(f => f.type === 'obelisk').length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 font-mono">
+                    No Monoliths sighted yet. Explore further or use Sonar Pulse [C] to ping ancient signals!
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {features
+                      .filter(f => f.type === 'obelisk')
+                      .map((ob, idx) => {
+                        const dist = Math.hypot(ob.x - charPos.x, ob.y - charPos.y);
+                        return (
+                          <div
+                            key={ob.id}
+                            className={`p-3 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                              ob.active
+                                ? 'bg-[#dcfce7] border-[#22c55e]'
+                                : 'bg-[#f1f5f9] border-[#94a3b8]'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-2xl">{ob.active ? '⚡' : '🗿'}</span>
+                                <div>
+                                  <h4 className="font-bold text-base sm:text-lg">
+                                    Monolith Waystone #{idx + 1}
+                                  </h4>
+                                  <span className="text-xs font-mono text-gray-600">
+                                    Coords: ({Math.round(ob.x)}, {Math.round(ob.y)}) • {Math.round(dist)}m away
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-xs mt-1 font-mono">
+                                Status:{' '}
+                                {ob.active ? (
+                                  <span className="text-emerald-700 font-bold">
+                                    ✓ Awakened Sanctuary (Active Leyline)
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 font-bold">
+                                    ⚠️ Dormant (Approach and Awaken)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {ob.active ? (
+                              <McButton
+                                onClick={() => handleFastTravel(ob.x, ob.y)}
+                                className="px-3 py-1.5 text-sm bg-[#16a34a]! text-white border-[#86efac]! flex items-center justify-center gap-1 shadow-md"
+                              >
+                                <Zap className="w-4 h-4" /> Fast Travel
+                              </McButton>
+                            ) : (
+                              <span className="text-xs italic text-gray-500 px-2 py-1">
+                                Awaken in world to activate
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: Campfire Forge & Alchemy */}
+            {activeTab === 'camp' && (
+              <div className="overflow-y-auto flex-1 pr-1 space-y-3 text-black">
+                <div className="bg-[#ffedd5] p-3 border-2 border-[#ea580c]">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#c2410c] flex items-center gap-1.5">
+                    <Flame className="w-5 h-5 text-[#ea580c]" />
+                    <span>Campfire Forge & Field Alchemy</span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#9a3412] mt-1">
+                    Harness the warm embers of your campfire to brew restorative draughts, roast companion delicacies, or permanently hone your weapon blades!
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Rest Until Dawn */}
+                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-3xl">🌅</span>
+                        <div>
+                          <h4 className="font-bold text-base sm:text-lg">Rest Until Dawn</h4>
+                          <span className="text-xs text-gray-600 font-mono">Free Vitality Refill</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#333] mb-2">
+                        Sleep peacefully through the perilous night. Fully restores both HP and Stamina instantly.
+                      </p>
+                    </div>
+                    <McButton
+                      onClick={handleSleepUntilDawn}
+                      className="w-full py-1.5 text-sm bg-[#3b82f6]! text-white border-[#93c5fd]!"
+                    >
+                      Sleep Until Dawn
+                    </McButton>
+                  </div>
+
+                  {/* Brew Healing Flask */}
+                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-3xl">🧪</span>
+                        <div>
+                          <h4 className="font-bold text-base sm:text-lg">Brew Healing Flask</h4>
+                          <span className="text-xs text-red-600 font-mono font-bold">Cost: 15 Gold</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#333] mb-2">
+                        Concoct a powerful restorative potion from wild herbs and gold reagents (+55 HP).
+                      </p>
+                    </div>
+                    <McButton
+                      onClick={handleBrewPotion}
+                      className="w-full py-1.5 text-sm bg-[#dc2626]! text-white border-[#fca5a5]!"
+                    >
+                      Brew Flask (15 🪙)
+                    </McButton>
+                  </div>
+
+                  {/* Roast Companion Treat */}
+                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-3xl">🍖</span>
+                        <div>
+                          <h4 className="font-bold text-base sm:text-lg">Roast Companion Feast</h4>
+                          <span className="text-xs text-amber-600 font-mono font-bold">Cost: 10 Gold</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#333] mb-2">
+                        Roast a succulent campfire meal for {companion.name}. Maxes out happiness (100%) and grants +25 XP.
+                      </p>
+                    </div>
+                    <McButton
+                      onClick={handleFeedCompanionTreat}
+                      className="w-full py-1.5 text-sm bg-[#f59e0b]! text-black font-bold border-[#fde047]!"
+                    >
+                      Roast Treat (10 🪙)
+                    </McButton>
+                  </div>
+
+                  {/* Forge & Hone Weapons */}
+                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-3xl">⚔️</span>
+                        <div>
+                          <h4 className="font-bold text-base sm:text-lg">Hone Weapons</h4>
+                          <span className="text-xs text-emerald-700 font-mono font-bold">
+                            Cost: {35 + weaponBonusDmg * 20} Gold
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#333] mb-2">
+                        Quench and sharpen all blades on the campfire forge. Adds +4 damage permanently! (Current bonus: +{weaponBonusDmg})
+                      </p>
+                    </div>
+                    <McButton
+                      onClick={handleHoneWeapons}
+                      className="w-full py-1.5 text-sm bg-[#059669]! text-white border-[#6ee7b7]!"
+                    >
+                      Hone Blades ({35 + weaponBonusDmg * 20} 🪙)
+                    </McButton>
+                  </div>
                 </div>
               </div>
             )}
@@ -1448,6 +3403,140 @@ export const App: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Tab 4: Armory & Bestiary */}
+            {activeTab === 'armory' && (
+              <div className="overflow-y-auto flex-1 pr-1 space-y-4 text-black">
+                {/* Weapons Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 border-b-2 border-[#555] pb-1">
+                    <Sword className="w-5 h-5 text-[#dc2626]" />
+                    <h3 className="text-xl font-bold">Explorer's Arsenal</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {ALL_WEAPONS.map((w, idx) => {
+                      const isEquipped = activeWeaponIndex === idx;
+                      return (
+                        <div
+                          key={w.id}
+                          className={`p-3 border-2 flex flex-col justify-between ${
+                            isEquipped ? 'bg-[#fef08a] border-[#ca8a04]' : 'bg-[#dedede] border-[#777]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-3xl">{w.icon}</span>
+                              <div>
+                                <h4 className="font-bold text-lg leading-tight">{w.name}</h4>
+                                <span className="text-xs uppercase px-1.5 py-0.5 bg-black/10 rounded font-mono">
+                                  {w.type} • Key [{idx + 1}]
+                                </span>
+                              </div>
+                            </div>
+                            {isEquipped && (
+                              <span className="text-xs font-bold bg-[#16a34a] text-white px-2 py-0.5 rounded">
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#333] my-2 italic">{w.description}</p>
+                          <div className="grid grid-cols-2 gap-1 text-xs font-mono bg-white/70 p-1.5 border border-black/15 mb-2">
+                            <div>Damage: <span className="font-bold text-red-600">{w.damage}</span></div>
+                            <div>Range: <span className="font-bold text-blue-600">{w.range}m</span></div>
+                            <div>Cooldown: <span className="font-bold">{w.cooldown}s</span></div>
+                            <div>Stamina: <span className="font-bold text-amber-600">{w.staminaCost}</span></div>
+                          </div>
+                          {!isEquipped && (
+                            <McButton
+                              onClick={() => {
+                                setActiveWeaponIndex(idx);
+                                showToast(`⚔️ Equipped: ${w.name}`);
+                              }}
+                              className="w-full py-1 text-sm bg-[#55aa55]! text-white border-[#88ff88]!"
+                            >
+                              Equip Weapon [{idx + 1}]
+                            </McButton>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bestiary Section */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2 border-b-2 border-[#555] pb-1">
+                    <Skull className="w-5 h-5 text-[#475569]" />
+                    <h3 className="text-xl font-bold">Wilderness Bestiary</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      {
+                        name: 'Bouncing Slime',
+                        type: 'slime',
+                        icon: '🟢',
+                        hp: 45,
+                        damage: 10,
+                        speed: 'Medium Leap',
+                        range: 'Melee Bump',
+                        lore: 'Gelatinous organisms roaming the lush grasslands. They leap toward intruders, absorbing light.',
+                        loot: 'Slime Gel, Small Gems, Health Potions',
+                      },
+                      {
+                        name: 'Skeleton Sharpshooter',
+                        type: 'skeleton',
+                        icon: '💀',
+                        hp: 55,
+                        damage: 14,
+                        speed: 'Kiting Distance',
+                        range: '14m Arrow Sniping',
+                        lore: 'Ancient guardians animated by moonlight. They keep distance and volley bone arrows.',
+                        loot: 'Bone Shards, Gold, Stamina Elixirs',
+                      },
+                      {
+                        name: 'Iron Sentinel Golem',
+                        type: 'golem',
+                        icon: '🗿',
+                        hp: 160,
+                        damage: 28,
+                        speed: 'Heavy Stride',
+                        range: 'Shockwave Ground Slam',
+                        lore: 'Ancient stone monolith automatons constructed by forgotten kings. Hits with shattering force.',
+                        loot: 'Ancient Relics, Titan Cores, Huge Gold Stash',
+                      },
+                      {
+                        name: 'Shadow Spider',
+                        type: 'spider',
+                        icon: '🕷️',
+                        hp: 50,
+                        damage: 12,
+                        speed: 'Rapid Skitter',
+                        range: 'Poison Fang Strike',
+                        lore: 'Lurks around shadowed crags and night groves. Fast skittering stride and venomous sting.',
+                        loot: 'Spider Silk, Venom Sacs, Gold',
+                      },
+                    ].map(mob => (
+                      <div key={mob.name} className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-3xl">{mob.icon}</span>
+                          <div>
+                            <h4 className="font-bold text-lg leading-tight">{mob.name}</h4>
+                            <span className="text-xs uppercase px-1.5 py-0.5 bg-black/10 rounded font-mono">
+                              HP: {mob.hp} • Atk: {mob.damage}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#333] my-2">{mob.lore}</p>
+                        <div className="text-xs font-mono bg-white/70 p-1.5 border border-black/15 space-y-0.5">
+                          <div><span className="font-bold">Combat Style:</span> {mob.range} ({mob.speed})</div>
+                          <div><span className="font-bold text-amber-700">Drops:</span> {mob.loot}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1527,161 +3616,359 @@ export const App: React.FC = () => {
           onClick={() => setIsSettingsOpen(false)}
         >
           <div
-            className="w-full max-w-md max-h-[92vh] overflow-y-auto mc-panel p-4 sm:p-6 bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col gap-4 text-black"
+            className="w-full max-w-lg max-h-[92vh] overflow-y-auto mc-panel p-4 sm:p-6 bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col gap-3 text-black"
             onClick={e => e.stopPropagation()}
           >
+            {/* Header with Title & Close */}
             <div className="flex justify-between items-center border-b-2 border-black/20 pb-2">
-              <h2 className="text-2xl sm:text-3xl text-black flex items-center gap-2">
-                <Settings className="w-6 h-6" /> Game Settings
+              <h2 className="text-2xl sm:text-3xl text-black flex items-center gap-2 font-bold">
+                {settingsTab === 'tutorial' ? (
+                  <>
+                    <HelpCircle className="w-6 h-6 text-[#059669]" /> Field Guide & Tutorial
+                  </>
+                ) : (
+                  <>
+                    <Settings className="w-6 h-6" /> Game Settings
+                  </>
+                )}
               </h2>
               <button
                 onClick={() => setIsSettingsOpen(false)}
-                className="mc-btn w-8 h-8 flex items-center justify-center"
+                className="mc-btn w-8 h-8 flex items-center justify-center cursor-pointer"
               >
                 <X />
               </button>
             </div>
 
-            {/* Audio Toggle */}
-            <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
-              <div className="flex items-center gap-2 text-lg sm:text-xl">
-                {settings.soundEnabled ? (
-                  <Volume2 className="w-5 h-5 text-[#2d5a27]" />
-                ) : (
-                  <VolumeX className="w-5 h-5 text-[#c53030]" />
-                )}
-                <span>Sound FX</span>
-              </div>
-              <McButton
-                onClick={() =>
-                  setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))
-                }
-                className={`px-3 py-1 text-base ${
-                  settings.soundEnabled !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
+            {/* Modal Sub-Tabs: Settings Options vs Controls & Navigation Tutorial */}
+            <div className="flex gap-2 border-b border-[#888] pb-1">
+              <button
+                onClick={() => setSettingsTab('options')}
+                className={`mc-btn flex-1 py-1.5 text-base sm:text-lg flex items-center justify-center gap-1.5 ${
+                  settingsTab === 'options' ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
                 }`}
               >
-                {settings.soundEnabled !== false ? 'ENABLED' : 'MUTED'}
-              </McButton>
-            </div>
-
-            {/* Companion Choice */}
-            <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-              <span className="text-lg font-bold block">Nomad Companion</span>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'fox', label: '🦊 Fox' },
-                  { id: 'dog', label: '🐶 Dog' },
-                  { id: 'capybara', label: '🦫 Capybara' },
-                ].map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() =>
-                      setSettings(s => ({ ...s, companionType: p.id as CompanionType }))
-                    }
-                    className={`mc-btn text-base py-1.5 text-center ${
-                      (settings.companionType ?? 'fox') === p.id
-                        ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
-                        : ''
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Biome Presets */}
-            <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-              <span className="text-lg font-bold block">Biome Presets</span>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: 'hills', label: 'Rolling Hills' },
-                  { id: 'mountains', label: 'Mountain Peaks' },
-                  { id: 'plains', label: 'Flat Plains' },
-                  { id: 'desert', label: 'Desert Dunes' },
-                ].map(b => (
-                  <button
-                    key={b.id}
-                    onClick={() =>
-                      setSettings(s => ({ ...s, terrainType: b.id as TerrainType }))
-                    }
-                    className={`mc-btn text-sm py-1.5 ${
-                      settings.terrainType === b.id ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
-                    }`}
-                  >
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Day/Night Cycle Toggle */}
-            <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
-              <span className="text-lg font-bold">Day & Night Cycle</span>
-              <McButton
-                onClick={() =>
-                  setSettings(s => ({ ...s, dayNightCycle: !s.dayNightCycle }))
-                }
-                className={`px-3 py-1 text-base ${
-                  settings.dayNightCycle !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
+                <Settings className="w-4 h-4" /> Preferences
+              </button>
+              <button
+                onClick={() => setSettingsTab('tutorial')}
+                className={`mc-btn flex-1 py-1.5 text-base sm:text-lg flex items-center justify-center gap-1.5 ${
+                  settingsTab === 'tutorial' ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
                 }`}
               >
-                {settings.dayNightCycle !== false ? 'DYNAMIC' : 'FROZEN'}
-              </McButton>
+                <BookOpen className="w-4 h-4" /> Controls & Guide
+              </button>
             </div>
 
-            {/* Render Distance */}
-            <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold">Infinite Render Chunks</span>
-                <span className="text-xs font-mono text-[#444]">
-                  {settings.renderDistance === 1
-                    ? '3x3 (Fast)'
-                    : settings.renderDistance === 3
-                    ? '7x7 (Far)'
-                    : '5x5 (Balanced)'}
-                </span>
+            {/* TAB 1: TUTORIAL VIEW */}
+            {settingsTab === 'tutorial' ? (
+              <div className="space-y-4 overflow-y-auto pr-1 text-black">
+                {/* Mobile Touch & Gesture Controls */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#1e3a8a]">
+                    <span>📱 Mobile Touch Controls</span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm font-mono">
+                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
+                      <span className="font-bold text-black block mb-0.5">🕹️ Virtual Joystick (Bottom Left)</span>
+                      Drag your thumb across the bottom-left disk to smoothly run in any 360° direction.
+                    </div>
+                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
+                      <span className="font-bold text-black block mb-0.5">🖐️ Camera Pan & Pinch Zoom</span>
+                      Drag across the terrain to pan your view. Pinch with two fingers (or scroll wheel) to zoom camera in/out.
+                    </div>
+                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
+                      <span className="font-bold text-black block mb-0.5">⚔️ Action Pads (Bottom Right)</span>
+                      Tap <b className="text-red-700">ATTACK</b> to strike, <b className="text-amber-700">DASH</b> to evade, and <b className="text-emerald-700">DIG / ACT</b> to open chests, unearth relics, or light monoliths.
+                    </div>
+                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
+                      <span className="font-bold text-black block mb-0.5">🎒 Hotbar & Secondary Actions</span>
+                      Tap any weapon slot in the bottom hotbar to equip it. Tap <b className="text-rose-700">HEAL</b>, <b className="text-sky-700">PULSE</b>, or <b className="text-orange-700">CAMP</b> for rapid field survival.
+                    </div>
+                  </div>
+                </div>
+
+                {/* PC Keyboard & Mouse Reference */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#065f46]">
+                    <span>⌨️ Keyboard & Mouse Controls</span>
+                  </h3>
+                  <div className="space-y-1.5 text-xs sm:text-sm font-mono">
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Wanderer Movement</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[W] [A] [S] [D] / Click Ground</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Primary Weapon Strike</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Spacebar]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Dodge Dash (Invulnerable Evade)</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Shift]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Switch Weapons (Blade, Bow, Staff, Glaive)</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[1] [2] [3] [4]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Drink Healing Flask</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Q]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Dig Ground / Loot Chest / Awaken Monolith</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[E]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Sonar Pulse Echo (Detect Nearby Secrets)</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[C]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Pitch / Pack Cozy Campfire</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[F]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Pet Faithful Companion</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[R]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Wilderness Build & Craft Forge</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[B]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Open Explorer Compendium</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[J]</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
+                      <span>Field Guide & Tutorial</span>
+                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[H]</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interconnected Game Mechanics Guide */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#9a3412]">
+                    <span>✨ Interconnected Game Systems</span>
+                  </h3>
+                  <div className="space-y-2 text-xs sm:text-sm">
+                    <div className="bg-white/80 p-2 border border-green-300">
+                      <b className="text-green-800 block text-sm mb-0.5">🏗️ Progressive Monster Looting & Construction</b>
+                      You start with simple survival gear. Vanquish slimes, skeletons, spiders, and ancient golems to harvest Wood, Stone, Iron, Bone, Silk, and Arcane Crystals. Press <kbd className="px-1 bg-gray-200 border rounded font-mono">[B]</kbd> to build houses, watchtowers, workbenches, defense turrets, and forge mighty armaments!
+                    </div>
+                    <div className="bg-white/80 p-2 border border-amber-300">
+                      <b className="text-amber-800 block text-sm mb-0.5">🌟 Relic Perks & Passives</b>
+                      Every discovered relic permanently enchants your character! Relics grant extra Max HP, stamina regeneration, movement speed, critical hit chance, and loot multipliers. Check your Journal to view active passives.
+                    </div>
+                    <div className="bg-white/80 p-2 border border-sky-300">
+                      <b className="text-sky-800 block text-sm mb-0.5">⚡ Monolith Sanctuaries & Fast Travel</b>
+                      Awakening ancient monoliths protects you in a celestial sanctuary (+5 HP/s, +10 STM/s, monsters cannot enter) and connects to the Leyline network for 1-tap Fast Travel via your Journal.
+                    </div>
+                    <div className="bg-white/80 p-2 border border-orange-300">
+                      <b className="text-orange-800 block text-sm mb-0.5">🏕️ Campfire Forge & Field Alchemy</b>
+                      Pitch a campfire to sleep until dawn, brew Healing Flasks, roast feasts for your companion, and permanently hone weapon base damage on the field forge!
+                    </div>
+                    <div className="bg-white/80 p-2 border border-emerald-300">
+                      <b className="text-emerald-800 block text-sm mb-0.5">🦊 Faithful Companion Synergies</b>
+                      Your companion barks and flashes a radar ping whenever buried treasures or monoliths are near. A happy companion vacuums dropped gems and gold coins straight into your pouch!
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { d: 1, l: 'Fast (3x3)' },
-                  { d: 2, l: 'Balanced' },
-                  { d: 3, l: 'Far (7x7)' },
-                ].map(opt => (
-                  <button
-                    key={opt.d}
-                    onClick={() => setSettings(s => ({ ...s, renderDistance: opt.d }))}
-                    className={`mc-btn text-xs py-1 ${
-                      (settings.renderDistance ?? 2) === opt.d
-                        ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
-                        : ''
+            ) : (
+              /* TAB 2: SETTINGS OPTIONS VIEW */
+              <div className="space-y-4 overflow-y-auto pr-1 text-black">
+                {/* Audio Toggle */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-lg sm:text-xl">
+                    {settings.soundEnabled ? (
+                      <Volume2 className="w-5 h-5 text-[#2d5a27]" />
+                    ) : (
+                      <VolumeX className="w-5 h-5 text-[#c53030]" />
+                    )}
+                    <span>Sound FX</span>
+                  </div>
+                  <McButton
+                    onClick={() =>
+                      setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))
+                    }
+                    className={`px-3 py-1 text-base ${
+                      settings.soundEnabled !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
                     }`}
                   >
-                    {opt.l}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    {settings.soundEnabled !== false ? 'ENABLED' : 'MUTED'}
+                  </McButton>
+                </div>
 
-            {/* Reset / Warp to Origin */}
-            <div className="pt-1 flex gap-2">
-              <McButton
-                onClick={() => {
-                  charPosRef.current = { x: 0, y: 0 };
-                  targetPosRef.current = { x: 0, y: 0 };
-                  setCharPos({ x: 0, y: 0 });
-                  setTargetPos({ x: 0, y: 0 });
-                  setCameraPan({ x: 0, y: 0 });
-                  setIsSettingsOpen(false);
-                  showToast('🧭 Teleported back to Origin (0, 0)');
-                }}
-                className="flex-1 py-1.5 bg-[#3b82f6]! text-white border-[#93c5fd]! text-base"
-              >
-                <Compass className="w-4 h-4 inline mr-1" /> Return to Origin (0, 0)
-              </McButton>
-            </div>
+                {/* Companion Choice */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <span className="text-lg font-bold block">Nomad Companion</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'fox', label: '🦊 Fox' },
+                      { id: 'dog', label: '🐶 Dog' },
+                      { id: 'capybara', label: '🦫 Capybara' },
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() =>
+                          setSettings(s => ({ ...s, companionType: p.id as CompanionType }))
+                        }
+                        className={`mc-btn text-base py-1.5 text-center ${
+                          (settings.companionType ?? 'fox') === p.id
+                            ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
+                            : ''
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Biome Presets */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <span className="text-lg font-bold block">Biome Presets</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'hills', label: 'Rolling Hills' },
+                      { id: 'mountains', label: 'Mountain Peaks' },
+                      { id: 'plains', label: 'Flat Plains' },
+                      { id: 'desert', label: 'Desert Dunes' },
+                    ].map(b => (
+                      <button
+                        key={b.id}
+                        onClick={() =>
+                          setSettings(s => ({ ...s, terrainType: b.id as TerrainType }))
+                        }
+                        className={`mc-btn text-sm py-1.5 ${
+                          settings.terrainType === b.id ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Day/Night Cycle Toggle */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
+                  <span className="text-lg font-bold">Day & Night Cycle</span>
+                  <McButton
+                    onClick={() =>
+                      setSettings(s => ({ ...s, dayNightCycle: !s.dayNightCycle }))
+                    }
+                    className={`px-3 py-1 text-base ${
+                      settings.dayNightCycle !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
+                    }`}
+                  >
+                    {settings.dayNightCycle !== false ? 'DYNAMIC' : 'FROZEN'}
+                  </McButton>
+                </div>
+
+                {/* Render Distance */}
+                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold">Infinite Render Chunks</span>
+                    <span className="text-xs font-mono text-[#444]">
+                      {settings.renderDistance === 1
+                        ? '3x3 (Fast)'
+                        : settings.renderDistance === 3
+                        ? '7x7 (Far)'
+                        : '5x5 (Balanced)'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { d: 1, l: 'Fast (3x3)' },
+                      { d: 2, l: 'Balanced' },
+                      { d: 3, l: 'Far (7x7)' },
+                    ].map(opt => (
+                      <button
+                        key={opt.d}
+                        onClick={() => setSettings(s => ({ ...s, renderDistance: opt.d }))}
+                        className={`mc-btn text-xs py-1 ${
+                          (settings.renderDistance ?? 2) === opt.d
+                            ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
+                            : ''
+                        }`}
+                      >
+                        {opt.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reset / Warp to Origin */}
+                <div className="pt-1 flex gap-2">
+                  <McButton
+                    onClick={() => {
+                      charPosRef.current = { x: 0, y: 0 };
+                      targetPosRef.current = { x: 0, y: 0 };
+                      setCharPos({ x: 0, y: 0 });
+                      setTargetPos({ x: 0, y: 0 });
+                      setCameraPan({ x: 0, y: 0 });
+                      setPlayerChunk({ cx: 0, cz: 0 });
+                      playerMotionRef.current = {
+                        x: 0,
+                        y: 0,
+                        elevation: getTerrainHeight(0, 0, settings),
+                        targetX: 0,
+                        targetY: 0,
+                        rotation: 0,
+                        isMoving: false,
+                        chunk: { cx: 0, cz: 0 },
+                      };
+                      setIsSettingsOpen(false);
+                      showToast('🧭 Teleported back to Origin (0, 0)');
+                    }}
+                    className="flex-1 py-1.5 bg-[#3b82f6]! text-white border-[#93c5fd]! text-base"
+                  >
+                    <Compass className="w-4 h-4 inline mr-1" /> Return to Origin (0, 0)
+                  </McButton>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* 5. Wilderness Build & Craft Forge Drawer */}
+      <BuildCraftDrawer
+        isOpen={isBuildDrawerOpen}
+        onClose={() => setIsBuildDrawerOpen(false)}
+        activeTab={activeBuildTab}
+        setActiveTab={setActiveBuildTab}
+        resources={stats.resources || { wood: 0, stone: 0, iron: 0, bone: 0, silk: 0, crystal: 0 }}
+        gold={stats.gold}
+        stats={stats}
+        blueprints={BUILDABLE_BLUEPRINTS}
+        weaponRecipes={WEAPON_RECIPES}
+        allWeapons={ALL_WEAPONS}
+        unlockedWeapons={stats.unlockedWeapons || ['starter_club']}
+        activeWeaponIndex={activeWeaponIndex}
+        placedStructures={placedStructures}
+        charPos={charPos}
+        onStartBuilding={handleStartBuilding}
+        onForgeWeapon={handleForgeWeapon}
+        onDemolishStructure={handleDemolishStructure}
+        onSelectWeapon={selectWeaponByIndex}
+        canAffordBlueprint={canAffordBlueprint}
+        canAffordRecipe={canAffordRecipe}
+      />
+
+      {/* 6. Active Building Placement Mode Banner */}
+      {buildMode && selectedBlueprint && (
+        <BuildPlacementHUD
+          blueprint={selectedBlueprint}
+          buildPreview={buildPreview}
+          onConfirm={handleConfirmPlacement}
+          onCancel={() => {
+            setBuildMode(false);
+            setSelectedBlueprint(null);
+            showToast('Build placement cancelled');
+          }}
+          onRotate={dir => setBuildRotation(r => r + dir * (Math.PI / 4))}
+        />
       )}
     </div>
   );

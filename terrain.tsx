@@ -593,8 +593,6 @@ export const VoxelTerrainMesh = React.memo<{
             key={key}
             geometry={geo}
             material={sharedTerrainMaterial}
-            receiveShadow
-            castShadow
           />
         );
       })}
@@ -841,8 +839,6 @@ export const NatureInstances = React.memo<{
       <instancedMesh
         ref={trunkRef}
         args={[undefined, undefined, MAX_TRUNKS]}
-        castShadow
-        receiveShadow
       >
         <boxGeometry args={[0.42, 0.52, 0.42]} />
         <meshStandardMaterial roughness={0.9} />
@@ -852,8 +848,6 @@ export const NatureInstances = React.memo<{
       <instancedMesh
         ref={leavesRef}
         args={[undefined, undefined, MAX_LEAVES]}
-        castShadow
-        receiveShadow
       >
         <boxGeometry args={[0.48, 0.48, 0.48]} />
         <meshStandardMaterial roughness={0.8} />
@@ -863,8 +857,6 @@ export const NatureInstances = React.memo<{
       <instancedMesh
         ref={rocksRef}
         args={[undefined, undefined, MAX_ROCKS]}
-        castShadow
-        receiveShadow
       >
         <boxGeometry args={[0.7, 0.6, 0.7]} />
         <meshStandardMaterial roughness={0.95} />
