@@ -143,7 +143,8 @@ export function generateChunkGeometry(
   cz: number,
   settings: MapSettings
 ): THREE.BufferGeometry {
-  const currentKey = `${settings.terrainType}_${settings.terrainHeight}_${settings.seed}_${settings.backgroundColor}_${settings.hasWater}`;
+  // Bump cache key to v3 to immediately invalidate any legacy cached geometry
+  const currentKey = `${settings.terrainType}_${settings.terrainHeight}_${settings.seed}_${settings.backgroundColor}_${settings.hasWater}_v3`;
   if (currentKey !== lastCacheSettingsKey) {
     clearChunkCache();
     lastCacheSettingsKey = currentKey;
@@ -244,65 +245,65 @@ export function generateChunkGeometry(
         faceColor
       );
 
-      // East step wall (x1)
+      // East step wall (x1) - faces outward +X
       const hEast = hGrid[i + 1][j];
       if (h > hEast) {
         const sideColor = h >= 2.0 && terrainType === 'mountains'
           ? stoneColor
           : (terrainType === 'desert' ? desertSandColor : dirtColor);
         addQuad(
-          [x1, hEast, z0],
-          [x1, hEast, z1],
-          [x1, h, z1],
           [x1, h, z0],
+          [x1, h, z1],
+          [x1, hEast, z1],
+          [x1, hEast, z0],
           [1, 0, 0],
           tint(sideColor, 0.9)
         );
       }
 
-      // West step wall (x0)
+      // West step wall (x0) - faces outward -X
       const hWest = hGrid[i - 1][j];
       if (h > hWest) {
         const sideColor = h >= 2.0 && terrainType === 'mountains'
           ? stoneColor
           : (terrainType === 'desert' ? desertSandColor : dirtColor);
         addQuad(
-          [x0, h, z0],
-          [x0, h, z1],
-          [x0, hWest, z1],
           [x0, hWest, z0],
+          [x0, hWest, z1],
+          [x0, h, z1],
+          [x0, h, z0],
           [-1, 0, 0],
           tint(sideColor, 0.85)
         );
       }
 
-      // North step wall (z0)
+      // North step wall (z0) - faces outward -Z
       const hNorth = hGrid[i][j - 1];
       if (h > hNorth) {
         const sideColor = h >= 2.0 && terrainType === 'mountains'
           ? stoneColor
           : (terrainType === 'desert' ? desertSandColor : dirtColor);
         addQuad(
-          [x0, hNorth, z0],
           [x1, hNorth, z0],
-          [x1, h, z0],
+          [x0, hNorth, z0],
           [x0, h, z0],
+          [x1, h, z0],
           [0, 0, -1],
           tint(sideColor, 0.8)
         );
       }
 
-      // South step wall (z1)
+      // South step wall (z1) - faces outward +Z
       const hSouth = hGrid[i][j + 1];
       if (h > hSouth) {
         const sideColor = h >= 2.0 && terrainType === 'mountains'
           ? stoneColor
           : (terrainType === 'desert' ? desertSandColor : dirtColor);
         addQuad(
-          [x0, h, z1],
-          [x1, h, z1],
-          [x1, hSouth, z1],
           [x0, hSouth, z1],
+          [x1, hSouth, z1],
+          [x1, h, z1],
+          [x0, h, z1],
           [0, 0, 1],
           tint(sideColor, 0.95)
         );
@@ -592,6 +593,7 @@ export const VoxelTerrainMesh: React.FC<{
               roughness={0.9}
               metalness={0.05}
               flatShading={false}
+              side={THREE.DoubleSide}
             />
           </mesh>
         );

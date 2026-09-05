@@ -47,11 +47,11 @@ export const PWAInstallButton: React.FC<{ variant?: 'hud' | 'menu' }> = ({ varia
         <button
           onClick={handleClick}
           title="Install CozyPresenter as Android APK / Web App"
-          className="mc-btn px-2.5 py-1 flex items-center gap-1.5 text-base bg-[#448833]! hover:bg-[#55aa44]! text-white border-[#77dd55]! shadow-md animate-pulse"
+          className="mc-btn px-2 sm:px-2.5 py-0.5 sm:py-1 flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm bg-[#448833]! hover:bg-[#55aa44]! text-white border-[#77dd55]! shadow-md whitespace-nowrap"
         >
-          <Download className="w-4 h-4" />
-          <span className="hidden sm:inline">Install APK</span>
-          <span className="sm:hidden">APK</span>
+          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+          <span className="hidden md:inline">Install APK</span>
+          <span className="md:hidden">APK</span>
         </button>
       ) : (
         <div className="bg-[#b0b0b0] p-3 border-2 border-[#555] shadow-inner space-y-2">

@@ -389,8 +389,8 @@ const CameraRig = ({ target, zoom, pan, settings }: { target: Position, zoom: nu
 const MinecraftButton = ({ onClick, children, className = "", style = {} }: any) => (
   <button 
     onClick={onClick} 
-    className={`mc-btn px-4 py-2 font-xl active:translate-y-1 ${className}`}
-    style={{ fontFamily: "'VT323', monospace", fontSize: '1.25rem', ...style }}
+    className={`mc-btn active:translate-y-0.5 transition-transform ${className}`}
+    style={{ fontFamily: "'VT323', monospace", ...style }}
   >
     {children}
   </button>
@@ -399,6 +399,7 @@ const MinecraftButton = ({ onClick, children, className = "", style = {} }: any)
 const Joystick = ({ onMove }: { onMove: (x: number, y: number) => void }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
+  const touchIdRef = useRef<number | null>(null);
 
   const updateJoystick = (clientX: number, clientY: number) => {
     if (!containerRef.current) return;
@@ -408,7 +409,7 @@ const Joystick = ({ onMove }: { onMove: (x: number, y: number) => void }) => {
     let dx = clientX - centerX;
     let dy = clientY - centerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const maxDist = rect.width / 2;
+    const maxDist = rect.width / 2 - 8;
     if (distance > maxDist) {
       dx = (dx / distance) * maxDist;
       dy = (dy / distance) * maxDist;
@@ -417,30 +418,65 @@ const Joystick = ({ onMove }: { onMove: (x: number, y: number) => void }) => {
     onMove(dx / maxDist, dy / maxDist);
   };
 
-  const handleStart = (e: React.TouchEvent | React.MouseEvent) => {
+  const handleTouchStart = (e: React.TouchEvent) => {
     e.stopPropagation();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-    updateJoystick(clientX, clientY);
+    if (touchIdRef.current === null && e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      touchIdRef.current = touch.identifier;
+      updateJoystick(touch.clientX, touch.clientY);
+    }
   };
-  const handleMoveEvent = (e: React.TouchEvent | React.MouseEvent) => {
+
+  const handleTouchMove = (e: React.TouchEvent) => {
     e.stopPropagation();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-    updateJoystick(clientX, clientY);
+    if (touchIdRef.current !== null) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchIdRef.current) {
+          updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+          break;
+        }
+      }
+    }
   };
-  const handleEnd = (e: React.TouchEvent | React.MouseEvent) => {
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
     e.stopPropagation();
-    setKnobPos({ x: 0, y: 0 });
-    onMove(0, 0);
+    if (touchIdRef.current !== null) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchIdRef.current) {
+          touchIdRef.current = null;
+          setKnobPos({ x: 0, y: 0 });
+          onMove(0, 0);
+          break;
+        }
+      }
+    }
   };
 
   return (
-    <div className="fixed bottom-8 left-8 z-[60] w-32 h-32 md:hidden touch-none select-none pointer-events-auto"
-         onTouchStart={handleStart} onTouchMove={handleMoveEvent} onTouchEnd={handleEnd}>
-      <div ref={containerRef} className="w-full h-full bg-black/40 border-4 border-white relative shadow-[4px_4px_0px_#000]">
-        <div className="absolute w-12 h-12 bg-[#7f7f7f] border-2 border-white relative shadow-md"
-          style={{ left: '50%', top: '50%', transform: `translate(calc(-50% + ${knobPos.x}px), calc(-50% + ${knobPos.y}px))` }} />
+    <div
+      className="fixed bottom-3 left-3 sm:bottom-5 sm:left-5 z-40 w-20 h-20 sm:w-24 sm:h-24 md:hidden touch-none select-none pointer-events-auto"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
+      <div
+        ref={containerRef}
+        className="w-full h-full bg-black/40 border-2 border-white/80 relative shadow-[2px_2px_0px_#000] flex items-center justify-center"
+      >
+        {/* Center dot guide */}
+        <div className="w-1.5 h-1.5 rounded-full bg-white/20 pointer-events-none" />
+
+        {/* Movable Thumb Knob */}
+        <div
+          className="absolute w-7 h-7 sm:w-8 sm:h-8 bg-[#888] border-2 border-white shadow-md pointer-events-none"
+          style={{
+            left: '50%',
+            top: '50%',
+            transform: `translate(calc(-50% + ${knobPos.x}px), calc(-50% + ${knobPos.y}px))`,
+          }}
+        />
       </div>
     </div>
   );
@@ -856,59 +892,93 @@ const App: React.FC = () => {
            <Joystick onMove={(x, y) => { inputVector.current = { x, y }; }} />
         )}
 
-        {/* Top Left: Coordinates HUD, Spawn Warp & APK Install */}
-        <div className="absolute top-4 left-4 pointer-events-auto flex flex-wrap items-center gap-2 z-10">
-          <div className="mc-panel px-3 py-1 bg-[#c6c6c6] text-black font-bold text-lg flex items-center gap-1.5 shadow-md">
-            <Compass className="w-5 h-5 text-[#2d5a27]" />
-            <span>X: {Math.round(charPos.x)} Z: {Math.round(charPos.y)}</span>
+        {/* Top Responsive Navigation Bar */}
+        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-center pointer-events-none z-30 gap-2">
+          {/* Coordinates HUD, Spawn Warp & APK Install */}
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-shrink min-w-0">
+            <div className="mc-panel px-2 sm:px-2.5 py-1 bg-[#c6c6c6] text-black font-bold text-xs sm:text-base flex items-center gap-1 sm:gap-1.5 shadow-md whitespace-nowrap">
+              <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#2d5a27] flex-shrink-0" />
+              <span className="font-mono">X: {Math.round(charPos.x)} Z: {Math.round(charPos.y)}</span>
+            </div>
+
+            {(Math.abs(charPos.x) > 35 || Math.abs(charPos.y) > 35) && (
+              <button
+                onClick={() => {
+                  charPosRef.current = { x: 0, y: 0 };
+                  targetPosRef.current = { x: 0, y: 0 };
+                  setCharPos({ x: 0, y: 0 });
+                  setTargetPos({ x: 0, y: 0 });
+                  setCameraPan({ x: 0, y: 0 });
+                }}
+                className="mc-btn px-2 py-0.5 sm:py-1 text-xs sm:text-sm bg-[#3b82f6]! text-white border-[#93c5fd]! flex items-center gap-1 whitespace-nowrap shadow-md"
+                title="Return to Spawn (0, 0)"
+              >
+                <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
+                <span className="hidden sm:inline">Spawn (0, 0)</span>
+                <span className="sm:hidden">Spawn</span>
+              </button>
+            )}
+
+            <PWAInstallButton variant="hud" />
           </div>
 
-          {(Math.abs(charPos.x) > 35 || Math.abs(charPos.y) > 35) && (
-            <button
-              onClick={() => {
-                charPosRef.current = { x: 0, y: 0 };
-                targetPosRef.current = { x: 0, y: 0 };
-                setCharPos({ x: 0, y: 0 });
-                setTargetPos({ x: 0, y: 0 });
-                setCameraPan({ x: 0, y: 0 });
-              }}
-              className="mc-btn px-2.5 py-1 text-sm bg-[#3b82f6]! text-white border-[#93c5fd]! flex items-center gap-1"
-              title="Return to Spawn (0, 0)"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Spawn (0, 0)</span>
-            </button>
-          )}
+          {/* Top Right Controls: Settings & Share */}
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {viewMode === 'presenter' && (
+              <MinecraftButton 
+                onClick={() => setIsAdminPanelOpen(true)}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-base flex items-center gap-1 sm:gap-1.5"
+              >
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Settings</span>
+              </MinecraftButton>
+            )}
+            {viewMode === 'presenter' && (
+              <MinecraftButton 
+                onClick={handleShare} 
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-base bg-[#6366f1]! border-[#818cf8]! text-white flex items-center gap-1 sm:gap-1.5"
+              >
+                <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Share</span>
+              </MinecraftButton>
+            )}
+          </div>
+        </header>
 
-          <PWAInstallButton variant="hud" />
+        {/* Mobile Compact Controls Hint (Bottom Right - Never overlaps Joystick on Bottom Left) */}
+        <div className="md:hidden fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-30 pointer-events-auto">
+          <div className="mc-panel px-2.5 py-1 bg-[#c6c6c6]/95 text-black flex items-center gap-2 text-xs shadow-md border-2 whitespace-nowrap">
+            <div className="flex items-center gap-1 font-bold text-black">
+              <Gamepad2 className="w-3.5 h-3.5 text-[#2d5a27]" />
+              <span>Use joystick</span>
+            </div>
+            {viewMode === 'presenter' && (
+              <>
+                <div className="w-px h-3 bg-gray-500" />
+                <div className="flex items-center gap-1 font-bold text-black">
+                  <MousePointer2 className="w-3.5 h-3.5 text-[#2563eb]" />
+                  <span>Hold to add sign</span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Top Controls */}
-        <div className="absolute top-4 right-4 pointer-events-auto flex flex-col gap-3 items-end z-10">
+        {/* Desktop Controls HUD (Centered) */}
+        <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 mc-panel px-4 py-1.5 items-center gap-4 pointer-events-auto text-black shadow-lg text-sm font-bold whitespace-nowrap z-20">
+          <div className="flex items-center gap-1.5">
+            <Move className="w-4 h-4 text-[#2d5a27]" />
+            <span>CLICK OR DRAG TO MOVE</span>
+          </div>
           {viewMode === 'presenter' && (
-            <MinecraftButton onClick={() => setIsAdminPanelOpen(true)}>
-              <Settings className="w-6 h-6 inline-block mr-2" /> Settings
-            </MinecraftButton>
+            <>
+              <div className="w-px h-4 bg-gray-500" />
+              <div className="flex items-center gap-1.5">
+                <MousePointer2 className="w-4 h-4 text-[#2563eb]" />
+                <span>HOLD MAP TO ADD SIGN</span>
+              </div>
+            </>
           )}
-          {viewMode === 'presenter' && (
-            <MinecraftButton onClick={handleShare} className="bg-[#6366f1]! border-[#818cf8]! text-white">
-              <Share2 className="w-6 h-6 inline-block mr-2" /> Share
-            </MinecraftButton>
-          )}
-        </div>
-
-        {/* HUD */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 mc-panel px-6 py-2 flex items-center gap-6 pointer-events-auto text-black">
-           <div className="flex items-center gap-2 font-bold text-xl">
-             <span className="hidden md:flex items-center gap-2"><Move className="w-5 h-5" /> TAP TO MOVE</span>
-             <span className="md:hidden flex items-center gap-2"><Gamepad2 className="w-5 h-5" /> USE JOYSTICK</span>
-           </div>
-           {viewMode === 'presenter' && (
-             <>
-               <div className="w-1 h-8 bg-gray-500 border-r border-white" />
-               <div className="flex items-center gap-2 font-bold text-xl"><MousePointer2 className="w-5 h-5" /> HOLD TO ADD SIGN</div>
-             </>
-           )}
         </div>
 
         {/* Panels */}
@@ -1158,17 +1228,17 @@ const App: React.FC = () => {
 
         {/* Fullscreen Board View */}
         {activeBoard && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center pointer-events-auto bg-black/90 animate-in fade-in" onMouseDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-            <button onClick={(e) => { e.stopPropagation(); closeUI(setActiveBoard); }} className="absolute top-6 right-6 p-4 text-white hover:bg-white/10"><X className="w-8 h-8" /></button>
-            <div className="max-w-4xl max-h-[90vh] p-6 flex flex-col items-center mc-panel bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] relative">
-              <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(activeBoard.imageUrl)}>
-                <img src={activeBoard.imageUrl} className="max-w-full max-h-[60vh] object-contain border-4 border-black bg-black mb-6" style={{imageRendering: 'pixelated'}} />
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-6 pointer-events-auto bg-black/90 animate-in fade-in" onMouseDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <button onClick={(e) => { e.stopPropagation(); closeUI(setActiveBoard); }} className="absolute top-3 right-3 sm:top-6 sm:right-6 p-2 text-white hover:bg-white/10 z-10"><X className="w-6 h-6 sm:w-8 sm:h-8" /></button>
+            <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 flex flex-col items-center mc-panel bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] relative">
+              <div className="relative group cursor-zoom-in w-full flex justify-center" onClick={() => setFullscreenImage(activeBoard.imageUrl)}>
+                <img src={activeBoard.imageUrl} className="max-w-full max-h-[45vh] sm:max-h-[55vh] object-contain border-4 border-black bg-black mb-3 sm:mb-5" style={{imageRendering: 'pixelated'}} />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
-                  <Maximize2 className="text-white opacity-0 group-hover:opacity-100 w-12 h-12 drop-shadow-lg" />
+                  <Maximize2 className="text-white opacity-0 group-hover:opacity-100 w-8 h-8 sm:w-12 sm:h-12 drop-shadow-lg" />
                 </div>
               </div>
-              <h2 className="text-4xl text-black mb-4 underline decoration-4 decoration-black/20">{activeBoard.title}</h2>
-              <p className="text-black text-2xl text-center max-w-2xl font-mono leading-tight">{activeBoard.description}</p>
+              <h2 className="text-2xl sm:text-4xl text-black mb-2 sm:mb-3 underline decoration-4 decoration-black/20 text-center">{activeBoard.title}</h2>
+              <p className="text-black text-base sm:text-2xl text-center max-w-xl font-mono leading-tight">{activeBoard.description}</p>
             </div>
           </div>
         )}
@@ -1189,34 +1259,34 @@ const App: React.FC = () => {
 
         {/* Editor Modal */}
         {editingBoard && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-auto bg-black/60 backdrop-blur-sm" onMouseDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-            <div className="w-full max-w-md mc-panel p-6 flex flex-col gap-6">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-auto bg-black/60 backdrop-blur-sm" onMouseDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-md max-h-[92vh] overflow-y-auto mc-panel p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
               <div className="flex justify-between items-center border-b-2 border-black/20 pb-2">
-                <h2 className="text-3xl text-black">Edit Sign</h2>
+                <h2 className="text-2xl sm:text-3xl text-black">Edit Sign</h2>
                 <button onClick={(e) => { e.stopPropagation(); closeUI(setEditingBoard); }} className="mc-btn w-8 h-8 flex items-center justify-center"><X /></button>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <label className="text-xl text-black block mb-1">Title</label>
-                  <input type="text" value={editingBoard.title} onChange={e => setEditingBoard({ ...editingBoard, title: e.target.value })} className="mc-input w-full p-2 text-xl" />
+                  <label className="text-lg sm:text-xl text-black block mb-1">Title</label>
+                  <input type="text" value={editingBoard.title} onChange={e => setEditingBoard({ ...editingBoard, title: e.target.value })} className="mc-input w-full p-2 text-base sm:text-xl" />
                 </div>
                 <div>
-                   <label className="text-xl text-black block mb-1">Image URL</label>
+                   <label className="text-lg sm:text-xl text-black block mb-1">Image URL</label>
                    <div className="flex gap-2 mb-2">
-                      <MinecraftButton onClick={() => window.open('https://postimages.org', '_blank')} className="text-sm py-1 flex-1">
-                        <Upload className="w-4 h-4 inline mr-2" /> Upload Image
+                      <MinecraftButton onClick={() => window.open('https://postimages.org', '_blank')} className="text-xs sm:text-sm py-1 flex-1">
+                        <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4 inline mr-1 sm:mr-2" /> Upload Image
                       </MinecraftButton>
                    </div>
-                   <input type="text" value={editingBoard.imageUrl} onChange={e => setEditingBoard({ ...editingBoard, imageUrl: e.target.value })} className="mc-input w-full p-2 text-xl" />
+                   <input type="text" value={editingBoard.imageUrl} onChange={e => setEditingBoard({ ...editingBoard, imageUrl: e.target.value })} className="mc-input w-full p-2 text-base sm:text-xl" />
                 </div>
                 <div>
-                    <label className="text-xl text-black block mb-1">Description</label>
-                    <textarea rows={3} value={editingBoard.description} onChange={e => setEditingBoard({ ...editingBoard, description: e.target.value })} className="mc-input w-full p-2 text-xl resize-none"></textarea>
+                    <label className="text-lg sm:text-xl text-black block mb-1">Description</label>
+                    <textarea rows={3} value={editingBoard.description} onChange={e => setEditingBoard({ ...editingBoard, description: e.target.value })} className="mc-input w-full p-2 text-base sm:text-xl resize-none"></textarea>
                 </div>
               </div>
-              <div className="flex gap-3 mt-2">
-                <MinecraftButton onClick={(e: any) => { e.stopPropagation(); closeUI(setEditingBoard); }} className="flex-1 bg-[#ff5555]! border-[#ffaaaa]!">Cancel</MinecraftButton>
-                <MinecraftButton onClick={() => { setBlackboards(prev => prev.map(b => b.id === editingBoard.id ? editingBoard : b)); closeUI(setEditingBoard); }} className="flex-1 bg-[#55ff55]! border-[#aaffaa]! text-black!">Save</MinecraftButton>
+              <div className="flex gap-2 sm:gap-3 mt-1 sm:mt-2">
+                <MinecraftButton onClick={(e: any) => { e.stopPropagation(); closeUI(setEditingBoard); }} className="flex-1 py-1.5 bg-[#ff5555]! border-[#ffaaaa]! text-sm sm:text-base">Cancel</MinecraftButton>
+                <MinecraftButton onClick={() => { setBlackboards(prev => prev.map(b => b.id === editingBoard.id ? editingBoard : b)); closeUI(setEditingBoard); }} className="flex-1 py-1.5 bg-[#55ff55]! border-[#aaffaa]! text-black! text-sm sm:text-base">Save</MinecraftButton>
               </div>
             </div>
           </div>
