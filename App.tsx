@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, useLayoutEffect } from 'react';
-import { Settings, Plus, Info, Edit, Trash2, X, Move, Share2, Copy, Check, Upload, AlertTriangle, ExternalLink, Gamepad2, MousePointer2, ArrowUp, ArrowDown, Map as MapIcon, Maximize2, Mountain, TreePine, Droplets, Cloud, Sparkles, RefreshCw, Layers } from 'lucide-react';
+import { Settings, Plus, Info, Edit, Trash2, X, Move, Share2, Copy, Check, Upload, AlertTriangle, ExternalLink, Gamepad2, MousePointer2, ArrowUp, ArrowDown, Map as MapIcon, Maximize2, Mountain, TreePine, Droplets, Cloud, Sparkles, RefreshCw, Layers, Compass, Smartphone, Zap } from 'lucide-react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { 
   Text, 
@@ -16,14 +16,13 @@ import {
   WaterMesh,
   NatureInstances,
   VoxelClouds,
+  WORLD_SCALE,
 } from './terrain';
+import { PWAInstallButton, OfflineIndicator } from './PWAInstallUI';
 
 // Constants
 const STORAGE_KEY = 'cozy_presenter_data_v3_3d';
 const PROXIMITY_THRESHOLD = 80; 
-const WORLD_SCALE = 0.05; 
-const FLOOR_SIZE_3D = 100; 
-const MOVEMENT_LIMIT = (FLOOR_SIZE_3D / 2) / WORLD_SCALE - 15; 
 const ZOOM_MAX = 100;
 
 // Minecraft-y Defaults
@@ -37,6 +36,7 @@ const INITIAL_SETTINGS: MapSettings = {
   hasWater: true,
   hasClouds: true,
   seed: 42,
+  renderDistance: 2, // 2 = 5x5 chunks (Balanced)
 };
 
 const DEFAULT_BOARDS: Blackboard[] = [
@@ -45,15 +45,15 @@ const DEFAULT_BOARDS: Blackboard[] = [
     x: 0,
     y: 80,
     title: 'Welcome to CozyPresenter!',
-    description: 'Explore the 3D voxel terrain! Walk up stepped hills, discover water ponds, and wander past trees and flowers. Click or tap anywhere to move.',
+    description: 'Explore the infinite 3D voxel terrain! Walk up stepped hills, discover water ponds, and wander past trees and flowers. Click or tap anywhere to move.',
     imageUrl: 'https://picsum.photos/seed/cozymc1/400/300'
   },
   {
     id: 'terrain_info',
     x: 140,
     y: -70,
-    title: 'Terrain & Biomes',
-    description: 'Open Settings in the top right to customize your world! Switch between Hills, Mountain Peaks, Plains, Desert Dunes, or Classic Flat terrain.',
+    title: 'Infinite Biomes & Terrain',
+    description: 'Open Settings in the top right to customize your world! Switch between Hills, Mountain Peaks, Plains, Desert Dunes, or Superflat terrain with infinite chunk streaming.',
     imageUrl: 'https://picsum.photos/seed/cozymc2/400/300'
   },
   {
@@ -67,131 +67,6 @@ const DEFAULT_BOARDS: Blackboard[] = [
 ];
 
 // --- 3D Components ---
-
-const FloorDetails = ({ blackboards, settings }: { blackboards: Blackboard[], settings: MapSettings }) => {
-  const grassRef = useRef<THREE.InstancedMesh>(null);
-  const flowerRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const { grassData, flowerData } = useMemo(() => {
-    const grass: { x: number; y: number; z: number; s: number }[] = [];
-    const flowers: { x: number; y: number; z: number; color: string }[] = [];
-    const size = FLOOR_SIZE_3D / 2 - 2;
-    
-    // Helper to check if a point is too close to any signpost
-    const isTooClose = (x: number, z: number) => {
-        for(const b of blackboards) {
-            const bx = b.x * WORLD_SCALE;
-            const bz = b.y * WORLD_SCALE;
-            const dist = Math.sqrt((x - bx)**2 + (z - bz)**2);
-            if (dist < 1.5) return true; // 1.5 unit radius clear zone
-        }
-        return false;
-    };
-
-    if (settings.terrainType === 'desert') {
-      return { grassData: [], flowerData: [] };
-    }
-
-    // Grass
-    for (let i = 0; i < 400; i++) {
-       const x = (Math.random() - 0.5) * 2 * size;
-       const z = (Math.random() - 0.5) * 2 * size;
-       const y = getTerrainHeight(x, z, settings);
-       if (y > WATER_LEVEL && !isTooClose(x, z)) {
-         grass.push({ x, y, z, s: 0.6 + Math.random() * 0.4 });
-       }
-    }
-    // Flowers
-    for (let i = 0; i < 50; i++) {
-       const x = (Math.random() - 0.5) * 2 * size;
-       const z = (Math.random() - 0.5) * 2 * size;
-       const y = getTerrainHeight(x, z, settings);
-       if (y > WATER_LEVEL && !isTooClose(x, z)) {
-         flowers.push({ x, y, z, color: Math.random() > 0.5 ? '#ffff00' : '#ff5555' });
-       }
-    }
-    return { grassData: grass, flowerData: flowers };
-  }, [blackboards, settings]);
-
-  useLayoutEffect(() => {
-    if (grassRef.current) {
-      grassData.forEach((d, i) => {
-        dummy.position.set(d.x, d.y + 0.15, d.z);
-        dummy.rotation.set(0, Math.random() * Math.PI, 0);
-        dummy.scale.set(1, d.s, 1);
-        dummy.updateMatrix();
-        grassRef.current!.setMatrixAt(i, dummy.matrix);
-      });
-      grassRef.current.instanceMatrix.needsUpdate = true;
-    }
-    
-    if (flowerRef.current) {
-       flowerData.forEach((d, i) => {
-         dummy.position.set(d.x, d.y + 0.175, d.z);
-         dummy.rotation.set(0, Math.random() * Math.PI, 0);
-         dummy.scale.set(1, 1, 1);
-         dummy.updateMatrix();
-         flowerRef.current!.setMatrixAt(i, dummy.matrix);
-         flowerRef.current!.setColorAt(i, new THREE.Color(d.color));
-       });
-       flowerRef.current.instanceMatrix.needsUpdate = true;
-       if (flowerRef.current.instanceColor) flowerRef.current.instanceColor.needsUpdate = true;
-    }
-  }, [grassData, flowerData, dummy]);
-
-  return (
-    <>
-      <instancedMesh ref={grassRef} args={[undefined, undefined, grassData.length]} receiveShadow>
-        <boxGeometry args={[0.1, 0.3, 0.1]} />
-        <meshStandardMaterial color="#66bb6a" roughness={1} />
-      </instancedMesh>
-      <instancedMesh ref={flowerRef} args={[undefined, undefined, flowerData.length]} receiveShadow>
-        <boxGeometry args={[0.15, 0.35, 0.15]} />
-        <meshStandardMaterial color="white" roughness={1} />
-      </instancedMesh>
-    </>
-  );
-};
-
-const Floor = ({ textureUrl, color, onPointerDown, onPointerUp, onPointerMove }: any) => {
-  const texture = useMemo(() => {
-    if (!textureUrl) return null;
-    try {
-        const t = new THREE.TextureLoader().load(textureUrl);
-        // CRITICAL for Pixel Art look
-        t.magFilter = THREE.NearestFilter;
-        t.minFilter = THREE.NearestFilter;
-        t.wrapS = THREE.RepeatWrapping;
-        t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(1, 1);
-        t.colorSpace = THREE.SRGBColorSpace;
-        return t;
-    } catch (e) {
-        console.warn("Failed to load floor texture", e);
-        return null;
-    }
-  }, [textureUrl]);
-
-  return (
-    <mesh 
-      rotation={[-Math.PI / 2, 0, 0]} 
-      position={[0, -0.5, 0]} // Shifted down so y=0 is the top of the block
-      receiveShadow
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerMove={onPointerMove}
-    >
-      {/* Thick floor to look like a bedrock layer */}
-      <boxGeometry args={[FLOOR_SIZE_3D, FLOOR_SIZE_3D, 1]} />
-      {texture ? (
-        <meshStandardMaterial map={texture} />
-      ) : (
-        <meshStandardMaterial color={color} roughness={1} />
-      )}
-    </mesh>
-  );
-};
 
 // Simplified RoadPath that draws Manhattan (L-shaped) paths to look like Minecraft grid roads
 const RoadPath = ({ points, settings }: { points: Blackboard[], settings: MapSettings }) => {
@@ -702,9 +577,6 @@ const App: React.FC = () => {
 
         nextX += dx * moveSpeed * dt * 50; 
         nextY += dy * moveSpeed * dt * 50;
-        
-        nextX = Math.max(-MOVEMENT_LIMIT, Math.min(MOVEMENT_LIMIT, nextX));
-        nextY = Math.max(-MOVEMENT_LIMIT, Math.min(MOVEMENT_LIMIT, nextY));
 
         charPosRef.current = { x: nextX, y: nextY };
         targetPosRef.current = { x: nextX, y: nextY };
@@ -915,8 +787,8 @@ const App: React.FC = () => {
           args={[
             settings.terrainType === 'desert' ? '#eed6a9' : 
             settings.terrainType === 'mountains' ? '#b4d4ed' : '#87CEEB', 
-            35, 
-            190
+            (settings.renderDistance ?? 2) * 18, 
+            (settings.renderDistance ?? 2) * 36 + 18
           ]} 
         />
         <ambientLight intensity={0.7} />
@@ -934,36 +806,35 @@ const App: React.FC = () => {
         <Suspense fallback={null}>
           <CameraRig target={charPos} zoom={cameraZoom} pan={cameraPan} settings={settings} />
           
-          {/* Procedural Voxel 3D Terrain */}
+          {/* Infinite Chunk-based Voxel 3D Terrain */}
           <VoxelTerrainMesh
             settings={settings}
-            floorSize={FLOOR_SIZE_3D}
+            playerPos={charPos}
             onPointerDown={handleFloorPointerDown}
             onPointerUp={handleFloorPointerUp}
             onPointerMove={handleFloorPointerMove}
           />
 
-          {/* Animated Water */}
+          {/* Infinite Animated Water */}
           <WaterMesh
-            floorSize={FLOOR_SIZE_3D}
+            playerPos={charPos}
+            settings={settings}
             visible={settings.hasWater !== false && settings.terrainType !== 'flat'}
           />
 
-          {/* Instanced Trees, Rocks, Reeds, Lily pads */}
+          {/* Instanced Nature: Trees, Rocks, Reeds, Lily pads, Grass, Wildflowers */}
           <NatureInstances
             settings={settings}
             blackboards={blackboards}
-            floorSize={FLOOR_SIZE_3D}
+            playerPos={charPos}
           />
-          
-          <FloorDetails blackboards={blackboards} settings={settings} />
 
           <RoadPath points={blackboards} settings={settings} />
 
           <Player3D position={charPos} color={settings.characterColor} settings={settings} />
 
-          {/* Drifting Minecraft clouds */}
-          <VoxelClouds visible={settings.hasClouds !== false} />
+          {/* Drifting Minecraft clouds tracking player */}
+          <VoxelClouds playerPos={charPos} visible={settings.hasClouds !== false} />
 
           {blackboards.map((b, i) => (
             <Board3D 
@@ -985,8 +856,35 @@ const App: React.FC = () => {
            <Joystick onMove={(x, y) => { inputVector.current = { x, y }; }} />
         )}
 
+        {/* Top Left: Coordinates HUD, Spawn Warp & APK Install */}
+        <div className="absolute top-4 left-4 pointer-events-auto flex flex-wrap items-center gap-2 z-10">
+          <div className="mc-panel px-3 py-1 bg-[#c6c6c6] text-black font-bold text-lg flex items-center gap-1.5 shadow-md">
+            <Compass className="w-5 h-5 text-[#2d5a27]" />
+            <span>X: {Math.round(charPos.x)} Z: {Math.round(charPos.y)}</span>
+          </div>
+
+          {(Math.abs(charPos.x) > 35 || Math.abs(charPos.y) > 35) && (
+            <button
+              onClick={() => {
+                charPosRef.current = { x: 0, y: 0 };
+                targetPosRef.current = { x: 0, y: 0 };
+                setCharPos({ x: 0, y: 0 });
+                setTargetPos({ x: 0, y: 0 });
+                setCameraPan({ x: 0, y: 0 });
+              }}
+              className="mc-btn px-2.5 py-1 text-sm bg-[#3b82f6]! text-white border-[#93c5fd]! flex items-center gap-1"
+              title="Return to Spawn (0, 0)"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Spawn (0, 0)</span>
+            </button>
+          )}
+
+          <PWAInstallButton variant="hud" />
+        </div>
+
         {/* Top Controls */}
-        <div className="absolute top-4 right-4 pointer-events-auto flex flex-col gap-3 items-end">
+        <div className="absolute top-4 right-4 pointer-events-auto flex flex-col gap-3 items-end z-10">
           {viewMode === 'presenter' && (
             <MinecraftButton onClick={() => setIsAdminPanelOpen(true)}>
               <Settings className="w-6 h-6 inline-block mr-2" /> Settings
@@ -1135,6 +1033,57 @@ const App: React.FC = () => {
                   </div>
                 </section>
 
+                {/* World Performance & Infinite Chunk Optimization */}
+                <section>
+                  <label className="text-xl text-[#404040] mb-2 block flex items-center gap-2">
+                    <Zap className="w-5 h-5 inline text-black" /> World Optimization
+                  </label>
+                  <div className="space-y-2.5 bg-[#b0b0b0] p-3 border-2 border-[#555] shadow-inner">
+                    <div className="flex justify-between items-center text-black">
+                      <span className="text-lg font-bold">Infinite World</span>
+                      <span className="text-xs bg-[#407a3c] text-white px-2 py-0.5 border border-[#66aa66]">
+                        Streaming Active
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#2b2b2b] leading-tight">
+                      Voxel chunks dynamically generate & recycle around the player to prevent any lagging.
+                    </p>
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-base text-black font-bold">Render Distance</span>
+                        <span className="text-xs font-mono text-[#333]">
+                          {(settings.renderDistance ?? 2) === 1 ? '3x3 Chunks (Fast)' : (settings.renderDistance ?? 2) === 3 ? '7x7 Chunks (Far)' : '5x5 Chunks (Balanced)'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { dist: 1, label: 'Fast (3x3)' },
+                          { dist: 2, label: 'Balanced' },
+                          { dist: 3, label: 'Far (7x7)' },
+                        ].map(opt => (
+                          <button
+                            key={opt.dist}
+                            type="button"
+                            onClick={() => setSettings(s => ({ ...s, renderDistance: opt.dist }))}
+                            className={`mc-btn text-xs py-1 px-1 text-center truncate ${
+                              (settings.renderDistance ?? 2) === opt.dist
+                                ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
+                                : ''
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* PWA & Google Chrome WebAPK Installation */}
+                <section>
+                  <PWAInstallButton variant="menu" />
+                </section>
+
                 <section>
                 <label className="text-xl text-[#404040] mb-2 block">World Aesthetics</label>
                 <div className="space-y-4">
@@ -1272,6 +1221,9 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Offline indicator for PWA cached mode */}
+        <OfflineIndicator />
 
       </div>
     </div>

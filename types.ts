@@ -25,6 +25,7 @@ export interface MapSettings {
   hasWater?: boolean;
   hasClouds?: boolean;
   seed?: number;
+  renderDistance?: number;
 }
 
 export interface AppState {
