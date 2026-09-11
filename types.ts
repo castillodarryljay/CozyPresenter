@@ -212,7 +212,22 @@ export interface DamageNumber {
   createdAt: number;
 }
 
-export type LootType = 'xp' | 'gold' | 'potion' | 'shard' | 'wood' | 'stone' | 'iron' | 'bone' | 'silk' | 'crystal';
+export type LootType =
+  | 'xp'
+  | 'gold'
+  | 'potion'
+  | 'shard'
+  | 'wood'
+  | 'stone'
+  | 'iron'
+  | 'bone'
+  | 'silk'
+  | 'crystal'
+  | 'emerald'
+  | 'arrows'
+  | 'gear'
+  | 'soul'
+  | 'food';
 
 export interface LootDrop {
   id: string;
@@ -225,6 +240,7 @@ export interface LootDrop {
   value: number;
   color: string;
   createdAt: number;
+  gearItem?: any;
 }
 
 export interface MapSettings {

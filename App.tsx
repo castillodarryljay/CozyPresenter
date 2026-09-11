@@ -88,6 +88,32 @@ import { PWAInstallButton } from './PWAInstallUI';
 import { BuildCraftDrawer } from './BuildCraftDrawer';
 import { BuildPlacementHUD } from './BuildPlacementHUD';
 
+// Minecraft Dungeons Architecture & UI Components
+import {
+  DungeonsPlayerStats,
+  DungeonsItem,
+  DungeonsGearItem,
+  DungeonsArtifact,
+  DungeonsMission,
+} from './src/dungeons/types';
+import {
+  DUNGEONS_MISSIONS,
+  ALL_MELEE_WEAPONS,
+  ALL_RANGED_WEAPONS,
+  ALL_ARMOR,
+  ALL_ARTIFACTS,
+  INITIAL_MELEE,
+  INITIAL_RANGED,
+  INITIAL_ARMOR,
+  INITIAL_ARTIFACTS,
+  ENCHANTMENT_DEFINITIONS,
+} from './src/dungeons/dungeonsData';
+import { dungeonsAudio } from './src/dungeons/dungeonsAudio';
+import { DungeonsHUD } from './src/dungeons/DungeonsHUD';
+import { DungeonsInventory } from './src/dungeons/DungeonsInventory';
+import { DungeonsCamp } from './src/dungeons/DungeonsCamp';
+import { DungeonsMissionMap } from './src/dungeons/DungeonsMissionMap';
+
 // Game Constants
 const STORAGE_KEY = 'voxel_nomad_save_v1';
 const ZOOM_DEFAULT = 14;
@@ -385,12 +411,13 @@ const CameraRig: React.FC<{
     const tZ = p.y + pan.y;
     const tY = p.elevation;
 
-    const offsetH = zoom;
-    const offsetV = zoom * 0.85;
+    const offsetH = zoom * 0.95;
+    const offsetV = zoom * 1.15;
 
-    const desiredPos = new THREE.Vector3(tX, tY + offsetV, tZ + offsetH);
+    // Authentic Minecraft Dungeons 45-degree elevated diagonal isometric perspective
+    const desiredPos = new THREE.Vector3(tX - offsetH * 0.72, tY + offsetV, tZ + offsetH * 0.72);
     state.camera.position.lerp(desiredPos, Math.min(1, delta * 8));
-    state.camera.lookAt(tX, tY + 0.75, tZ);
+    state.camera.lookAt(tX, tY + 0.6, tZ);
   });
   return null;
 };
@@ -907,6 +934,54 @@ export const App: React.FC = () => {
   const [quests, setQuests] = useState<Quest[]>(INITIAL_QUESTS);
   const [unlockedRelicModal, setUnlockedRelicModal] = useState<Relic | null>(null);
 
+  // --- Minecraft Dungeons Architecture & Progression State ---
+  const [dungeonsStats, setDungeonsStats] = useState<DungeonsPlayerStats>(() => {
+    return {
+      level: 1,
+      xp: 0,
+      xpToNextLevel: 120,
+      enchantmentPoints: 2,
+      emeralds: 180,
+      arrows: 45,
+      souls: 0,
+      maxSouls: 50,
+      hp: 180,
+      maxHp: 180,
+      potionCooldownRemaining: 0,
+      potionCooldownMax: 25,
+      rollCooldownRemaining: 0,
+      rollCooldownMax: 2.5,
+      equippedMelee: INITIAL_MELEE,
+      equippedRanged: INITIAL_RANGED,
+      equippedArmor: INITIAL_ARMOR,
+      equippedArtifacts: INITIAL_ARTIFACTS,
+      artifactCooldowns: [0, 0, 0],
+      powerLevel: 22,
+      inventory: [
+        ALL_MELEE_WEAPONS.find(w => w.id === 'diamond_sword')!,
+        ALL_RANGED_WEAPONS.find(w => w.id === 'firebolt_bow')!,
+        ALL_ARTIFACTS.find(a => a.id === 'corrupted_beacon')!,
+        ALL_ARTIFACTS.find(a => a.id === 'harvester')!,
+        ALL_ARTIFACTS.find(a => a.id === 'iron_hide_amulet')!,
+      ].filter(Boolean),
+      buffs: {
+        mushroomEndTime: 0,
+        ironHideEndTime: 0,
+        bootsEndTime: 0,
+        fireworkLoaded: false,
+        potionBarrierEndTime: 0,
+      },
+      mobsKilled: 0,
+      chestsOpened: 0,
+      emeraldsCollected: 0,
+    };
+  });
+
+  const [currentMission, setCurrentMission] = useState<DungeonsMission>(DUNGEONS_MISSIONS[1]); // Creeper Woods
+  const [isDungeonsInventoryOpen, setIsDungeonsInventoryOpen] = useState<boolean>(false);
+  const [isDungeonsCampOpen, setIsDungeonsCampOpen] = useState<boolean>(false);
+  const [isDungeonsMapOpen, setIsDungeonsMapOpen] = useState<boolean>(false);
+
   // Day / Night Cycle (0.0 to 1.0, 0.25 = noon, 0.75 = midnight)
   const [timeOfDay, setTimeOfDay] = useState<number>(0.2); // Starts in clear morning
   const isNight = timeOfDay > 0.55 && timeOfDay < 0.95;
@@ -1331,6 +1406,354 @@ export const App: React.FC = () => {
     }, 4000);
   };
 
+  // --- MINECRAFT DUNGEONS POWER LEVEL & COOLDOWNS ---
+
+  // Dynamic Power Level calculation
+  const calculatePowerLevel = useCallback((
+    melee: DungeonsGearItem,
+    ranged: DungeonsGearItem,
+    armor: DungeonsGearItem,
+    artifacts: [DungeonsArtifact | null, DungeonsArtifact | null, DungeonsArtifact | null]
+  ) => {
+    let sum = melee.power + ranged.power + armor.power;
+    let count = 3;
+    artifacts.forEach(a => {
+      if (a) {
+        sum += a.power;
+        count++;
+      }
+    });
+    return Math.max(1, Math.round(sum / count));
+  }, []);
+
+  // Sync Power Level & Max HP
+  useEffect(() => {
+    const pLvl = calculatePowerLevel(
+      dungeonsStats.equippedMelee,
+      dungeonsStats.equippedRanged,
+      dungeonsStats.equippedArmor,
+      dungeonsStats.equippedArtifacts
+    );
+    const bonusHp = (dungeonsStats.equippedArmor.hpBonus || 0) + dungeonsStats.level * 15;
+    const targetMaxHp = 180 + bonusHp;
+
+    if (dungeonsStats.powerLevel !== pLvl || dungeonsStats.maxHp !== targetMaxHp) {
+      setDungeonsStats(prev => ({
+        ...prev,
+        powerLevel: pLvl,
+        maxHp: targetMaxHp,
+      }));
+      if (playerCombatRef.current) {
+        playerCombatRef.current.maxHp = targetMaxHp;
+      }
+    }
+  }, [
+    dungeonsStats.equippedMelee,
+    dungeonsStats.equippedRanged,
+    dungeonsStats.equippedArmor,
+    dungeonsStats.equippedArtifacts,
+    dungeonsStats.level,
+    calculatePowerLevel,
+  ]);
+
+  // Continuous Cooldown Countdown Timer (Potion, Roll, Artifacts)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDungeonsStats(prev => {
+        let changed = false;
+        let newPotCd = prev.potionCooldownRemaining;
+        let newRollCd = prev.rollCooldownRemaining;
+        const newArtCds = [...prev.artifactCooldowns] as [number, number, number];
+
+        if (newPotCd > 0) {
+          newPotCd = Math.max(0, newPotCd - 0.2);
+          changed = true;
+        }
+        if (newRollCd > 0) {
+          newRollCd = Math.max(0, newRollCd - 0.2);
+          changed = true;
+        }
+        for (let i = 0; i < 3; i++) {
+          if (newArtCds[i] > 0) {
+            newArtCds[i] = Math.max(0, newArtCds[i] - 0.2);
+            changed = true;
+          }
+        }
+
+        const curHp = playerCombatRef.current ? Math.round(playerCombatRef.current.hp) : prev.hp;
+        if (curHp !== prev.hp) {
+          changed = true;
+        }
+
+        if (!changed) return prev;
+        return {
+          ...prev,
+          hp: curHp,
+          potionCooldownRemaining: Number(newPotCd.toFixed(1)),
+          rollCooldownRemaining: Number(newRollCd.toFixed(1)),
+          artifactCooldowns: [
+            Number(newArtCds[0].toFixed(1)),
+            Number(newArtCds[1].toFixed(1)),
+            Number(newArtCds[2].toFixed(1)),
+          ],
+        };
+      });
+    }, 200);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // 1. Artifact Activation (Slots 1, 2, 3)
+  const handleActivateArtifact = useCallback((slotIndex: number) => {
+    const artifact = dungeonsStats.equippedArtifacts[slotIndex];
+    if (!artifact) {
+      setIsDungeonsInventoryOpen(true);
+      showToast('Open Inventory (I) to equip an Artifact!');
+      return;
+    }
+    if (dungeonsStats.artifactCooldowns[slotIndex] > 0) {
+      showToast(`⏳ ${artifact.name} is on cooldown (${Math.ceil(dungeonsStats.artifactCooldowns[slotIndex])}s)!`);
+      return;
+    }
+    if (artifact.soulCost && dungeonsStats.souls < artifact.soulCost) {
+      showToast(`👻 Not enough Souls! Required: ${artifact.soulCost} souls.`);
+      return;
+    }
+
+    const now = performance.now();
+
+    setDungeonsStats(prev => {
+      const nextCds = [...prev.artifactCooldowns] as [number, number, number];
+      nextCds[slotIndex] = artifact.cooldownSec;
+      return {
+        ...prev,
+        souls: artifact.soulCost ? Math.max(0, prev.souls - artifact.soulCost) : prev.souls,
+        artifactCooldowns: nextCds,
+      };
+    });
+
+    dungeonsAudio.playArtifactCast();
+
+    const p = playerMotionRef.current;
+    const forwardX = Math.sin(p.rotation);
+    const forwardY = Math.cos(p.rotation);
+
+    if (artifact.id === 'death_cap_mushroom') {
+      setDungeonsStats(prev => ({
+        ...prev,
+        buffs: { ...prev.buffs, mushroomEndTime: now + 9000 },
+      }));
+      confetti({ particleCount: 30, spread: 50, colors: ['#ef4444', '#f97316'] });
+      showToast('🍄 Frenzy Spores Unleashed!', '+100% Attack Speed for 9s!');
+    } else if (artifact.id === 'fireworks_arrow') {
+      setDungeonsStats(prev => ({
+        ...prev,
+        buffs: { ...prev.buffs, fireworkLoaded: true },
+      }));
+      showToast('🎆 Fireworks Rocket Loaded!', 'Next bow shot explodes in a massive radius!');
+    } else if (artifact.id === 'boots_of_swiftness') {
+      setDungeonsStats(prev => ({
+        ...prev,
+        buffs: { ...prev.buffs, bootsEndTime: now + 4500 },
+      }));
+      showToast('👢 Swiftness Surge!', '+80% Movement Speed for 4.5s!');
+    } else if (artifact.id === 'iron_hide_amulet') {
+      setDungeonsStats(prev => ({
+        ...prev,
+        buffs: { ...prev.buffs, ironHideEndTime: now + 10000 },
+      }));
+      showToast('🛡️ Iron Hide Protective Aura!', '+50% Armor Defense for 10s!');
+    } else if (artifact.id === 'harvester') {
+      let hitCount = 0;
+      for (const m of monstersRef.current) {
+        if (m.state === 'dead') continue;
+        const dist = Math.hypot(m.x - p.x, m.y - p.y);
+        if (dist <= 6.5) {
+          hitCount++;
+          m.hp -= 95;
+          m.hurtUntilTime = now + 400;
+          m.x += ((m.x - p.x) / (dist || 1)) * 3.5;
+          m.y += ((m.y - p.y) / (dist || 1)) * 3.5;
+          if (m.hp <= 0) {
+            m.state = 'dead';
+            handleMonsterDefeated(m);
+          }
+        }
+      }
+      dungeonsAudio.playFireworkExplosion();
+      confetti({ particleCount: 50, spread: 360, colors: ['#a855f7', '#38bdf8'] });
+      showToast('🔮 Soul Shockwave Detonated!', 'Enemies blasted with high knockback!');
+      if (hitCount > 0) setMonsters([...monstersRef.current]);
+    } else if (artifact.id === 'corrupted_beacon') {
+      projectilesRef.current.push({
+        id: `beacon_${now}`,
+        type: 'magic',
+        x: p.x + forwardX * 1.0,
+        y: p.y + forwardY * 1.0,
+        z: p.elevation + 0.8,
+        vx: forwardX * 30,
+        vy: forwardY * 30,
+        vz: 0,
+        damage: 110,
+        color: '#d946ef',
+        distanceTraveled: 0,
+        maxDistance: 16,
+      });
+      setProjectiles([...projectilesRef.current]);
+      showToast('⚡ Corrupted Beacon Beam Fired!');
+    } else if (artifact.id === 'wind_horn') {
+      for (const m of monstersRef.current) {
+        if (m.state === 'dead') continue;
+        const dist = Math.hypot(m.x - p.x, m.y - p.y);
+        if (dist <= 8.0) {
+          m.x += ((m.x - p.x) / (dist || 1)) * 4.0;
+          m.y += ((m.y - p.y) / (dist || 1)) * 4.0;
+          m.hurtUntilTime = now + 300;
+        }
+      }
+      setMonsters([...monstersRef.current]);
+      showToast('📯 Wind Horn Blast!', 'Enemies knocked back and staggered!');
+    } else if (artifact.id === 'tasty_bone') {
+      showToast('🦴 Wolf Companion Rallied!', 'Loyal wolf joined the fray!');
+    }
+  }, [dungeonsStats.equippedArtifacts, dungeonsStats.artifactCooldowns, dungeonsStats.souls]);
+
+  // 2. Upgrades, Enchantments, Equipping & Salvage Handlers
+  const handleUpgradeEnchantment = useCallback((gearId: string, slotIndex: number) => {
+    if (dungeonsStats.enchantmentPoints <= 0) {
+      showToast('⚠️ No Enchantment Points available! Level up to earn points.');
+      return;
+    }
+
+    setDungeonsStats(prev => {
+      let found = false;
+      const updateGear = (gear: DungeonsGearItem): DungeonsGearItem => {
+        if (gear.id !== gearId) return gear;
+        found = true;
+        const ench = gear.enchantmentSlots[slotIndex];
+        if (!ench || ench.tier >= 3) return gear;
+        const nextEnch = [...gear.enchantmentSlots];
+        nextEnch[slotIndex] = { ...ench, tier: ench.tier + 1 };
+        return { ...gear, enchantmentSlots: nextEnch };
+      };
+
+      const newMelee = updateGear(prev.equippedMelee);
+      const newRanged = updateGear(prev.equippedRanged);
+      const newArmor = updateGear(prev.equippedArmor);
+      const newInv = prev.inventory.map(item => {
+        if ('enchantmentSlots' in item && item.id === gearId) {
+          return updateGear(item as DungeonsGearItem);
+        }
+        return item;
+      });
+
+      if (!found) return prev;
+      dungeonsAudio.playEnchantUpgrade();
+      confetti({ particleCount: 30, spread: 60, colors: ['#c084fc', '#a855f7'] });
+      showToast('✨ Enchantment Upgraded!');
+
+      return {
+        ...prev,
+        enchantmentPoints: prev.enchantmentPoints - 1,
+        equippedMelee: newMelee,
+        equippedRanged: newRanged,
+        equippedArmor: newArmor,
+        inventory: newInv,
+      };
+    });
+  }, [dungeonsStats.enchantmentPoints]);
+
+  const handleRefundEnchantment = useCallback((gearId: string, slotIndex: number) => {
+    setDungeonsStats(prev => {
+      let pointsReturned = 0;
+      const updateGear = (gear: DungeonsGearItem): DungeonsGearItem => {
+        if (gear.id !== gearId) return gear;
+        const ench = gear.enchantmentSlots[slotIndex];
+        if (!ench || ench.tier <= 0) return gear;
+        pointsReturned = ench.tier;
+        const nextEnch = [...gear.enchantmentSlots];
+        nextEnch[slotIndex] = { ...ench, tier: 0 };
+        return { ...gear, enchantmentSlots: nextEnch };
+      };
+
+      const newMelee = updateGear(prev.equippedMelee);
+      const newRanged = updateGear(prev.equippedRanged);
+      const newArmor = updateGear(prev.equippedArmor);
+      const newInv = prev.inventory.map(item => {
+        if ('enchantmentSlots' in item && item.id === gearId) {
+          return updateGear(item as DungeonsGearItem);
+        }
+        return item;
+      });
+
+      if (pointsReturned <= 0) return prev;
+      showToast(`🟣 Refunded +${pointsReturned} Enchantment Points!`);
+      return {
+        ...prev,
+        enchantmentPoints: prev.enchantmentPoints + pointsReturned,
+        equippedMelee: newMelee,
+        equippedRanged: newRanged,
+        equippedArmor: newArmor,
+        inventory: newInv,
+      };
+    });
+  }, []);
+
+  const handleSalvageItem = useCallback((item: DungeonsItem) => {
+    setDungeonsStats(prev => {
+      let pointsReturned = 0;
+      if ('enchantmentSlots' in item) {
+        (item as DungeonsGearItem).enchantmentSlots.forEach(e => {
+          pointsReturned += e.tier;
+        });
+      }
+
+      dungeonsAudio.playEmeraldPickup();
+      showToast(`♻️ Salvaged ${item.name} for +${item.salvageEmeralds} Emeralds!`);
+
+      return {
+        ...prev,
+        emeralds: prev.emeralds + item.salvageEmeralds,
+        enchantmentPoints: prev.enchantmentPoints + pointsReturned,
+        inventory: prev.inventory.filter(i => i.id !== item.id),
+      };
+    });
+  }, []);
+
+  const handleEquipItem = useCallback((item: DungeonsItem, slotIndex?: number) => {
+    setDungeonsStats(prev => {
+      const curInv = [...prev.inventory];
+      const nextInv = curInv.filter(i => i.id !== item.id);
+
+      if (item.category === 'melee') {
+        nextInv.push(prev.equippedMelee);
+        dungeonsAudio.playEquipSound();
+        showToast(`⚔️ Equipped ${item.name}!`);
+        return { ...prev, equippedMelee: item as DungeonsGearItem, inventory: nextInv };
+      } else if (item.category === 'ranged') {
+        nextInv.push(prev.equippedRanged);
+        dungeonsAudio.playEquipSound();
+        showToast(`🏹 Equipped ${item.name}!`);
+        return { ...prev, equippedRanged: item as DungeonsGearItem, inventory: nextInv };
+      } else if (item.category === 'armor') {
+        nextInv.push(prev.equippedArmor);
+        dungeonsAudio.playEquipSound();
+        showToast(`🛡️ Equipped ${item.name}!`);
+        return { ...prev, equippedArmor: item as DungeonsGearItem, inventory: nextInv };
+      } else if (item.category === 'artifact') {
+        const slot = slotIndex !== undefined ? slotIndex : 0;
+        const curArt = prev.equippedArtifacts[slot];
+        if (curArt) nextInv.push(curArt);
+        const nextArtifacts = [...prev.equippedArtifacts] as [DungeonsArtifact | null, DungeonsArtifact | null, DungeonsArtifact | null];
+        nextArtifacts[slot] = item as DungeonsArtifact;
+        dungeonsAudio.playEquipSound();
+        showToast(`✨ Equipped ${item.name} to Artifact Slot ${slot + 1}!`);
+        return { ...prev, equippedArtifacts: nextArtifacts, inventory: nextInv };
+      }
+      return prev;
+    });
+  }, []);
+
   // --- COMBAT ACTIONS ---
 
   // 1. Primary Weapon Attack Action
@@ -1455,6 +1878,57 @@ export const App: React.FC = () => {
       setProjectiles([...projectilesRef.current]);
     }
   }, [activeWeaponIndex, weaponBonusDmg, activePerks]);
+
+  // 1b. Dungeons Ranged Weapon Attack Action (Bow / Crossbow)
+  const handleRangedAttack = useCallback(() => {
+    if (dungeonsStats.arrows <= 0) {
+      showToast('⚠️ Out of Arrows! Defeat monsters or gather supply crates.');
+      return;
+    }
+
+    const now = performance.now();
+    const equippedBow = dungeonsStats.equippedRanged;
+    const isFirework = dungeonsStats.buffs.fireworkLoaded;
+
+    // Deduct 1 arrow
+    setDungeonsStats(prev => ({
+      ...prev,
+      arrows: Math.max(0, prev.arrows - 1),
+      buffs: isFirework ? { ...prev.buffs, fireworkLoaded: false } : prev.buffs,
+    }));
+
+    if (isFirework) {
+      dungeonsAudio.playFireworkExplosion();
+      confetti({ particleCount: 45, spread: 70, colors: ['#f43f5e', '#eab308', '#38bdf8'] });
+      showToast('🎆 Fireworks Rocket Launched!', 'Massive area of effect impact!');
+    } else {
+      dungeonsAudio.playArrowShoot();
+    }
+
+    const p = playerMotionRef.current;
+    const rot = p.rotation;
+    const forwardX = Math.sin(rot);
+    const forwardY = Math.cos(rot);
+
+    const baseDmg = (equippedBow.damage || 35) + dungeonsStats.powerLevel * 3;
+    const finalDmg = isFirework ? baseDmg * 2.8 : baseDmg;
+
+    projectilesRef.current.push({
+      id: `dungeons_arrow_${now}`,
+      type: 'arrow',
+      x: p.x + forwardX * 0.8,
+      y: p.y + forwardY * 0.8,
+      z: p.elevation + 0.8,
+      vx: forwardX * 28,
+      vy: forwardY * 28,
+      vz: 0,
+      damage: Math.round(finalDmg),
+      color: isFirework ? '#f43f5e' : (equippedBow.color || '#facc15'),
+      distanceTraveled: 0,
+      maxDistance: equippedBow.range || 22,
+    });
+    setProjectiles([...projectilesRef.current]);
+  }, [dungeonsStats.arrows, dungeonsStats.equippedRanged, dungeonsStats.buffs.fireworkLoaded, dungeonsStats.powerLevel]);
 
   // 2. Dodge Roll / Dash Evade
   const handleDodgeRoll = useCallback(() => {
@@ -1814,41 +2288,39 @@ export const App: React.FC = () => {
         } else {
           actionHandlersRef.current.closeModals?.();
         }
+      } else if (e.key.toLowerCase() === 'i') {
+        setIsDungeonsInventoryOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 'm') {
+        setIsDungeonsMapOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 'c') {
+        setIsDungeonsCampOpen(prev => !prev);
+      } else if (e.key === '1') {
+        actionHandlersRef.current.artifact?.(0);
+      } else if (e.key === '2') {
+        actionHandlersRef.current.artifact?.(1);
+      } else if (e.key === '3') {
+        actionHandlersRef.current.artifact?.(2);
+      } else if (e.key.toLowerCase() === 'e') {
+        actionHandlersRef.current.potion?.();
+      } else if (e.key.toLowerCase() === 'f') {
+        actionHandlersRef.current.rangedAttack?.();
       } else if (e.key.toLowerCase() === 'b') {
         actionHandlersRef.current.toggleBuild?.();
       } else if (e.key.toLowerCase() === 'r') {
         if (actionHandlersRef.current.isBuildMode?.()) {
           actionHandlersRef.current.rotateBuild?.(1);
         } else {
-          actionHandlersRef.current.pet();
+          actionHandlersRef.current.pet?.();
         }
       } else if (e.key.toLowerCase() === 'q') {
-        if (actionHandlersRef.current.isBuildMode?.()) {
-          actionHandlersRef.current.rotateBuild?.(-1);
-        } else {
-          actionHandlersRef.current.potion();
-        }
+        actionHandlersRef.current.potion?.();
       } else if (e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
         e.preventDefault();
-        actionHandlersRef.current.dodge();
-      } else if (e.key === '1') {
-        actionHandlersRef.current.setWeapon(0);
-      } else if (e.key === '2') {
-        actionHandlersRef.current.setWeapon(1);
-      } else if (e.key === '3') {
-        actionHandlersRef.current.setWeapon(2);
-      } else if (e.key === '4') {
-        actionHandlersRef.current.setWeapon(3);
-      } else if (e.key.toLowerCase() === 'e') {
-        actionHandlersRef.current.interact();
-      } else if (e.key.toLowerCase() === 'c') {
-        actionHandlersRef.current.sonar();
-      } else if (e.key.toLowerCase() === 'f') {
-        actionHandlersRef.current.camp();
+        actionHandlersRef.current.dodge?.();
       } else if (e.key.toLowerCase() === 'j') {
-        actionHandlersRef.current.toggleJournal();
+        actionHandlersRef.current.toggleJournal?.();
       } else if (e.key.toLowerCase() === 'h' || e.key === '?') {
-        actionHandlersRef.current.openTutorial();
+        actionHandlersRef.current.openTutorial?.();
       }
     };
 
@@ -2346,8 +2818,10 @@ export const App: React.FC = () => {
   // Keep action handlers ref updated with latest closures
   actionHandlersRef.current = {
     attack: handlePlayerAttack,
+    rangedAttack: handleRangedAttack,
     dodge: handleDodgeRoll,
     potion: handleDrinkPotion,
+    artifact: (idx: number) => handleActivateArtifact(idx),
     interact: interactContextAction,
     sonar: triggerSonarPulse,
     camp: toggleCampfire,
@@ -2367,6 +2841,9 @@ export const App: React.FC = () => {
       setIsJournalOpen(false);
       setIsSettingsOpen(false);
       setIsBuildDrawerOpen(false);
+      setIsDungeonsInventoryOpen(false);
+      setIsDungeonsCampOpen(false);
+      setIsDungeonsMapOpen(false);
     },
     openTutorial: () => {
       setSettingsTab('tutorial');
@@ -2614,226 +3091,7 @@ export const App: React.FC = () => {
           <Joystick onMove={(x, y) => { inputVector.current = { x, y }; }} />
         )}
 
-        {/* Top Responsive Navigation & Status Bar */}
-        <header className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start pointer-events-none z-30 gap-1.5 sm:gap-2">
-          {/* Left: Player Combat Status, Level, Coords & Companion */}
-          <div className="pointer-events-auto flex flex-col items-start gap-1 flex-shrink min-w-0">
-            {/* Level, Coordinates, Gold & Flasks Chips Row */}
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-              {/* Level Pill */}
-              <div className="mc-panel px-1.5 sm:px-2.5 py-0.5 bg-[#d4af37] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md border-2 border-[#fff8a0] whitespace-nowrap">
-                <Trophy className="w-3 h-3 text-black flex-shrink-0" />
-                <span>Lv.{stats.level}</span>
-              </div>
 
-              {/* Coordinates */}
-              <div className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#c6c6c6] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md whitespace-nowrap">
-                <Compass className="w-3 h-3 text-[#2d5a27] flex-shrink-0" />
-                <span className="font-mono">{Math.round(charPos.x)}, {Math.round(charPos.y)}</span>
-              </div>
-
-              {/* Gold Coins */}
-              <div className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#ca8a04] text-black font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-md border border-[#fef08a]" title="Gold coins">
-                <span>🪙</span>
-                <span className="font-mono">{stats.gold}</span>
-              </div>
-
-              {/* Quick Flask pill */}
-              <button
-                onClick={handleDrinkPotion}
-                disabled={stats.potions <= 0}
-                className="mc-panel px-1.5 sm:px-2 py-0.5 bg-[#dc2626] hover:bg-[#b91c1c] disabled:opacity-50 text-white font-bold text-[11px] sm:text-xs flex items-center gap-0.5 shadow-md border border-[#fca5a5] active:scale-95 transition-all cursor-pointer"
-                title="Drink Healing Flask (Q)"
-              >
-                <span>🧪</span>
-                <span className="font-mono">{stats.potions}</span>
-              </button>
-            </div>
-
-            {/* Combat Vitals: Compact HP & Stamina Bars */}
-            <div className="flex flex-col gap-0.5 w-36 xs:w-44 sm:w-52">
-              {/* Health Bar */}
-              <div className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/90 text-white flex items-center gap-1 shadow-md border border-[#ef4444]">
-                <Heart className="w-3 h-3 text-red-500 fill-red-500 flex-shrink-0 animate-pulse" />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <div className="flex justify-between text-[10px] sm:text-xs font-mono font-bold leading-none mb-0.5">
-                    <span className="text-red-300">HP</span>
-                    <span>{Math.round(playerCombatRef.current?.hp ?? stats.hp)}/{stats.maxHp}</span>
-                  </div>
-                  <div className="w-full bg-red-950 h-1.5 sm:h-2 rounded-xs overflow-hidden border border-black/40">
-                    <div
-                      className="bg-gradient-to-r from-red-600 to-rose-400 h-full transition-all duration-150"
-                      style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(100, ((playerCombatRef.current?.hp ?? stats.hp) / stats.maxHp) * 100)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stamina Bar */}
-              <div className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/90 text-white flex items-center gap-1 shadow-md border border-[#eab308]">
-                <Zap className="w-3 h-3 text-yellow-400 fill-yellow-400 flex-shrink-0" />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <div className="flex justify-between text-[10px] sm:text-xs font-mono font-bold leading-none mb-0.5">
-                    <span className="text-yellow-300">STM</span>
-                    <span>{Math.round(playerCombatRef.current?.stamina ?? stats.stamina)}/{stats.maxStamina}</span>
-                  </div>
-                  <div className="w-full bg-amber-950 h-1.5 sm:h-2 rounded-xs overflow-hidden border border-black/40">
-                    <div
-                      className="bg-gradient-to-r from-amber-500 to-yellow-300 h-full transition-all duration-75"
-                      style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(100, ((playerCombatRef.current?.stamina ?? stats.stamina) / stats.maxStamina) * 100)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Companion & Kills Pill */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={petCompanion}
-                className="mc-panel px-1.5 py-0.5 bg-[#1e293b]/90 hover:bg-[#334155] text-white flex items-center gap-1 text-[11px] sm:text-xs shadow-md border border-[#475569] active:scale-95 transition-all"
-                title={`Click to pet ${companion.name}! (R)`}
-              >
-                <span>{settings.companionType === 'fox' ? '🦊' : settings.companionType === 'dog' ? '🐕' : '🦫'}</span>
-                <span className="font-bold text-[#ffd700] truncate max-w-[60px] sm:max-w-none">{companion.name}</span>
-                {nearbyFeature.feature && nearbyFeature.dist < 18 && (
-                  <span className="bg-amber-400 text-black px-1 rounded text-[9px] font-bold animate-pulse">
-                    Sniffing!
-                  </span>
-                )}
-              </button>
-
-              <div className="mc-panel px-1.5 py-0.5 bg-[#475569] text-white font-bold text-[11px] sm:text-xs flex items-center gap-0.5 shadow-md border border-[#94a3b8]" title="Total monsters vanquished">
-                <span>💀</span>
-                <span className="font-mono">{stats.monstersDefeated}</span>
-              </div>
-            </div>
-
-            {/* Looted Progressive Materials Ribbon */}
-            <div
-              onClick={() => {
-                setActiveBuildTab('resources');
-                setIsBuildDrawerOpen(true);
-              }}
-              className="mc-panel px-1.5 py-0.5 bg-[#0f172a]/95 text-white flex items-center gap-1 text-[10px] sm:text-[11px] font-mono shadow-md border border-[#334155] cursor-pointer hover:border-amber-400 transition-colors"
-              title="Click to view Looted Materials & Crafting Drops (B)"
-            >
-              <span className="flex items-center gap-0.5" title="Wood">
-                <span>🪵</span>
-                <span className="font-bold text-amber-200">{stats.resources?.wood || 0}</span>
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="flex items-center gap-0.5" title="Stone">
-                <span>🪨</span>
-                <span className="font-bold text-stone-300">{stats.resources?.stone || 0}</span>
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="flex items-center gap-0.5" title="Iron">
-                <span>⛓️</span>
-                <span className="font-bold text-slate-300">{stats.resources?.iron || 0}</span>
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="flex items-center gap-0.5" title="Bone">
-                <span>🦴</span>
-                <span className="font-bold text-stone-200">{stats.resources?.bone || 0}</span>
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="flex items-center gap-0.5" title="Silk">
-                <span>🕸️</span>
-                <span className="font-bold text-purple-300">{stats.resources?.silk || 0}</span>
-              </span>
-              <span className="text-gray-600">•</span>
-              <span className="flex items-center gap-0.5" title="Crystal">
-                <span>🔮</span>
-                <span className="font-bold text-cyan-300">{stats.resources?.crystal || 0}</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Top Right: Time, Tutorial, Journal, Settings */}
-          <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-            {/* Time of Day */}
-            <div className="mc-panel px-1.5 sm:px-2 py-0.5 sm:py-1 bg-[#444] text-white flex items-center gap-1 text-xs border-2">
-              {isNight ? (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-[#9ec7e8]" />
-                  <span className="hidden md:inline font-mono">Night</span>
-                </>
-              ) : (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-[#ffd700]" />
-                  <span className="hidden md:inline font-mono">Day</span>
-                </>
-              )}
-            </div>
-
-            {/* Build & Craft Button */}
-            <McButton
-              onClick={() => {
-                setActiveBuildTab('structures');
-                setIsBuildDrawerOpen(true);
-              }}
-              className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-xs bg-[#15803d]! border-[#86efac]! text-white flex items-center gap-1 shadow-md"
-              title="Open Wilderness Build & Craft Forge (B)"
-            >
-              <Hammer className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Build</span>
-              <span className="bg-black/30 text-white rounded px-1 text-[9px] sm:text-[10px] font-mono">
-                B
-              </span>
-            </McButton>
-
-            {/* Controls & Navigation Tutorial Button */}
-            <McButton
-              onClick={() => {
-                setSettingsTab('tutorial');
-                setIsSettingsOpen(true);
-              }}
-              className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs bg-[#059669]! border-[#34d399]! text-white flex items-center gap-1 shadow-md"
-              title="Controls & Navigation Tutorial (H)"
-            >
-              <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Guide</span>
-            </McButton>
-
-            {/* Journal / Compendium Button */}
-            <McButton
-              onClick={() => setIsJournalOpen(true)}
-              className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-xs bg-[#4f46e5]! border-[#818cf8]! text-white flex items-center gap-1 shadow-md"
-              title="Open Explorer Journal (J)"
-            >
-              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Journal</span>
-              <span className="bg-white/30 text-white rounded px-1 text-[10px] sm:text-xs">
-                {inventory.length}
-              </span>
-            </McButton>
-
-            {/* Game Settings */}
-            <McButton
-              onClick={() => {
-                setSettingsTab('options');
-                setIsSettingsOpen(true);
-              }}
-              className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs flex items-center gap-1"
-              title="Settings"
-            >
-              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-            </McButton>
-
-            <PWAInstallButton variant="hud" />
-          </div>
-        </header>
 
         {/* Ancient Radar Compass (Non-overlapping positioning on both portrait & landscape) */}
         {nearbyFeature.feature && (
@@ -2873,151 +3131,93 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Weapon Hotbar (Bottom Center - Scaled down cleanly on narrow screens to avoid overlap) */}
-        {!isJournalOpen && !isSettingsOpen && !unlockedRelicModal && (
-          <div className="fixed bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex items-center gap-1 sm:gap-2 p-1 mc-panel bg-[#1e293b]/95 border-2 border-[#475569] shadow-2xl">
-            {ALL_WEAPONS.map((w, idx) => {
-              const isActive = activeWeaponIndex === idx;
-              const isUnlocked = (stats.unlockedWeapons || ['starter_club']).includes(w.id);
-              return (
-                <button
-                  key={w.id}
-                  onClick={() => selectWeaponByIndex(idx)}
-                  className={`relative w-9 h-9 sm:w-13 sm:h-13 flex flex-col items-center justify-center rounded-xs transition-all border-2 select-none cursor-pointer ${
-                    isActive
-                      ? 'bg-[#334155] border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.6)] scale-105'
-                      : isUnlocked
-                      ? 'bg-[#0f172a]/80 border-[#334155] hover:bg-[#1e293b]'
-                      : 'bg-black/80 border-[#1f2937] opacity-60'
-                  }`}
-                  title={
-                    isUnlocked
-                      ? `${w.name} - ${w.damage + weaponBonusDmg} Dmg, ${w.range}m Range (${idx + 1})`
-                      : `${w.name} - Locked! Forge at Workbench [B]`
-                  }
-                >
-                  <span className={`text-base sm:text-2xl ${!isUnlocked ? 'grayscale' : ''}`}>{w.icon}</span>
-                  {!isUnlocked && (
-                    <span className="absolute inset-0 bg-black/50 flex items-center justify-center text-[10px]">
-                      🔒
-                    </span>
-                  )}
-                  <span className="absolute top-0 left-0.5 text-[8px] sm:text-[10px] font-mono text-gray-400 font-bold">
-                    {idx + 1}
-                  </span>
-                  <span className="absolute bottom-0 right-0.5 text-[7px] sm:text-[9px] font-mono text-amber-300 font-bold">
-                    {w.damage + weaponBonusDmg}d
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Action Controls (Bottom Right - Responsive compact pads in portrait mode) */}
-        <div className="fixed bottom-2.5 right-2 sm:bottom-5 sm:right-5 z-40 pointer-events-auto flex flex-col items-end gap-1 sm:gap-2">
-          {/* Secondary Action Row: Dash, Heal, Pulse, Camp, Build */}
-          <div className="flex items-center gap-1 sm:gap-1.5 justify-end">
-            <McButton
-              onClick={() => {
-                setActiveBuildTab('structures');
-                setIsBuildDrawerOpen(true);
-              }}
-              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#15803d]! border-[#86efac]! text-white font-bold flex items-center gap-0.5 shadow-md"
-              title="Open Wilderness Build & Craft Forge (B)"
-            >
-              <Hammer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">BUILD [B]</span>
-            </McButton>
-
-            <McButton
-              onClick={handleDodgeRoll}
-              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#eab308]! border-[#fde047]! text-black font-bold flex items-center gap-0.5 shadow-md"
-              title="Dodge Roll / Dash Evade (Shift)"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">DASH [⇧]</span>
-            </McButton>
-
-            <McButton
-              onClick={handleDrinkPotion}
-              disabled={stats.potions <= 0}
-              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#ef4444]! border-[#fca5a5]! text-white flex items-center gap-0.5 shadow-md disabled:opacity-40"
-              title="Drink Healing Flask (Q)"
-            >
-              <span>🧪</span>
-              <span className="text-xs font-mono">{stats.potions}</span>
-              <span className="hidden sm:inline">HEAL</span>
-            </McButton>
-
-            <McButton
-              onClick={triggerSonarPulse}
-              className="px-2 sm:px-2.5 py-1 text-xs sm:text-sm bg-[#0ea5e9]! border-[#38bdf8]! text-white flex items-center gap-0.5 shadow-md"
-              title="Send Sonar Pulse Echo (C)"
-            >
-              <Radio className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">PULSE [C]</span>
-            </McButton>
-
-            <McButton
-              onClick={toggleCampfire}
-              className={`px-2 sm:px-2.5 py-1 text-xs sm:text-sm text-white flex items-center gap-0.5 shadow-md ${
-                activeCampfirePos ? 'bg-[#ea580c]! border-[#fdba74]!' : 'bg-[#4b5563]!'
-              }`}
-              title="Pitch or pack Campfire (F)"
-            >
-              <Flame className="w-3.5 h-3.5 text-[#ffedd5]" />
-              <span className="hidden sm:inline">CAMP [F]</span>
-            </McButton>
-          </div>
-
-          {/* Primary Action Buttons: Compact in portrait, expanded on tablet/desktop */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <McButton
-              onClick={handlePlayerAttack}
-              className="px-3 sm:px-5 py-2 sm:py-3 text-sm sm:text-xl text-white font-bold bg-[#dc2626]! border-[#f87171]! shadow-[0_0_15px_rgba(220,38,38,0.5)] active:scale-95 flex items-center gap-1 sm:gap-1.5 transition-all"
-              title="Strike / Fire equipped weapon (Space)"
-            >
-              <span className="text-lg sm:text-2xl">{activeWeapon.icon}</span>
-              <span>ATTACK</span>
-              <span className="hidden sm:inline font-mono text-xs text-red-200">[SPACE]</span>
-            </McButton>
-
-            <McButton
-              onClick={interactContextAction}
-              className={`px-2.5 sm:px-4 py-2 sm:py-3 text-xs sm:text-lg text-white font-bold flex items-center justify-center gap-1 sm:gap-1.5 shadow-xl transition-all ${
-                nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
-                  ? 'bg-[#2563eb]! border-[#93c5fd]! animate-bounce scale-105 shadow-[0_0_15px_rgba(37,99,235,0.6)]'
-                  : nearbyFeature.dist < 3.5
-                  ? 'bg-[#16a34a]! border-[#4ade80]! animate-bounce scale-105 shadow-[0_0_15px_rgba(34,197,94,0.6)]'
-                  : 'bg-[#b45309]! border-[#f59e0b]!'
-              }`}
-              title="Interact with Structure or World Feature (E)"
-            >
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>
-                {nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
-                  ? nearbyPlacedStructure.structure.type === 'workbench'
-                    ? '⚒️ FORGE'
-                    : nearbyPlacedStructure.structure.type === 'storage_chest'
-                    ? '📦 CHEST'
-                    : nearbyPlacedStructure.structure.type === 'house' ||
-                      nearbyPlacedStructure.structure.type === 'tent'
-                    ? '🏡 REST'
-                    : '🛡️ OUTPOST'
-                  : nearbyFeature.dist < 3.5
-                  ? nearbyFeature.feature?.type === 'obelisk'
-                    ? '⚡ AWAKEN'
-                    : nearbyFeature.feature?.type === 'chest'
-                    ? '✨ OPEN'
-                    : '⛏️ UNEARTH'
-                  : '⛏️ DIG'}
-              </span>
-              <span className="hidden sm:inline font-mono text-xs text-amber-200">[E]</span>
-            </McButton>
-          </div>
-        </div>
+        {/* Official Minecraft Dungeons HUD */}
+        <DungeonsHUD
+          stats={dungeonsStats}
+          currentMission={currentMission}
+          onOpenInventory={() => setIsDungeonsInventoryOpen(true)}
+          onOpenMissionMap={() => setIsDungeonsMapOpen(true)}
+          onOpenCamp={() => setIsDungeonsCampOpen(true)}
+          onMeleeAttack={handlePlayerAttack}
+          onRangedAttack={handleRangedAttack}
+          onDodgeRoll={handleDodgeRoll}
+          onDrinkPotion={handleDrinkPotion}
+          onActivateArtifact={handleActivateArtifact}
+          soundEnabled={settings.soundEnabled}
+          onToggleSound={() => {
+            const next = !settings.soundEnabled;
+            setSettings(s => ({ ...s, soundEnabled: next }));
+            sounds.enabled = next;
+            dungeonsAudio.enabled = next;
+          }}
+        />
       </div>
+
+      {/* --- MINECRAFT DUNGEONS MODALS --- */}
+
+      {/* 1. Dungeons Hero Inventory & Enchantments Modal */}
+      <DungeonsInventory
+        isOpen={isDungeonsInventoryOpen}
+        onClose={() => setIsDungeonsInventoryOpen(false)}
+        stats={dungeonsStats}
+        onEquipItem={handleEquipItem}
+        onUpgradeEnchantment={handleUpgradeEnchantment}
+        onRefundEnchantment={handleRefundEnchantment}
+        onSalvageItem={handleSalvageItem}
+      />
+
+      {/* 2. Dungeons Camp Base & Blacksmith Forge Modal */}
+      <DungeonsCamp
+        isOpen={isDungeonsCampOpen}
+        onClose={() => setIsDungeonsCampOpen(false)}
+        stats={dungeonsStats}
+        onObtainItem={(item) => {
+          setDungeonsStats(prev => ({
+            ...prev,
+            inventory: [item, ...prev.inventory],
+          }));
+          dungeonsAudio.playLevelUp();
+          showToast(`📦 Obtained ${item.name}!`, `Power ◆${item.power}`);
+        }}
+        onDeductEmeralds={(amount) => {
+          if (dungeonsStats.emeralds < amount) {
+            showToast(`⚠️ Need ${amount} Emeralds!`);
+            return false;
+          }
+          setDungeonsStats(prev => ({
+            ...prev,
+            emeralds: prev.emeralds - amount,
+          }));
+          return true;
+        }}
+        onRestAtCamp={() => {
+          if (playerCombatRef.current) {
+            playerCombatRef.current.hp = dungeonsStats.maxHp;
+          }
+          setDungeonsStats(prev => ({ ...prev, hp: prev.maxHp }));
+          dungeonsAudio.playCampfireRest();
+          showToast('🏕️ Rested at Campfire!', 'Full vitality restored to hero.');
+        }}
+        onOpenMissionMap={() => {
+          setIsDungeonsCampOpen(false);
+          setIsDungeonsMapOpen(true);
+        }}
+      />
+
+      {/* 3. Dungeons Mission Map & Difficulty Selector Modal */}
+      <DungeonsMissionMap
+        isOpen={isDungeonsMapOpen}
+        onClose={() => setIsDungeonsMapOpen(false)}
+        stats={dungeonsStats}
+        currentMission={currentMission}
+        onSelectMission={(m) => {
+          setCurrentMission(m);
+          setIsDungeonsMapOpen(false);
+          setDungeonsStats(prev => ({ ...prev, mobsKilled: 0 }));
+          dungeonsAudio.playLevelUp();
+          showToast(`🗺️ Embarked on ${m.name}!`, `Difficulty: ${m.difficulty.toUpperCase()} • Recommended Power ◆${m.recommendedPower}`);
+        }}
+      />
 
       {/* --- MODALS & PANELS --- */}
 

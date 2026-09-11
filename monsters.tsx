@@ -664,6 +664,84 @@ export const LootDropsWorld: React.FC<{
                 </mesh>
               </group>
             )}
+
+            {/* Minecraft Dungeons Emerald Gem */}
+            {drop.type === 'emerald' && (
+              <group rotation={[0.2, 0.6, 0.1]}>
+                <mesh>
+                  <octahedronGeometry args={[0.24, 0]} />
+                  <meshStandardMaterial
+                    color="#22c55e"
+                    emissive="#15803d"
+                    emissiveIntensity={3.5}
+                    roughness={0.1}
+                    metalness={0.2}
+                  />
+                </mesh>
+              </group>
+            )}
+
+            {/* Quiver Arrows Bundle */}
+            {drop.type === 'arrows' && (
+              <group rotation={[0.6, 0.2, 0.4]}>
+                <mesh position={[0, 0, 0]}>
+                  <cylinderGeometry args={[0.03, 0.03, 0.4, 6]} />
+                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+                </mesh>
+                <mesh position={[0.04, 0, 0.04]}>
+                  <cylinderGeometry args={[0.03, 0.03, 0.38, 6]} />
+                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+                </mesh>
+                <mesh position={[0, 0.18, 0]}>
+                  <coneGeometry args={[0.07, 0.12, 4]} />
+                  <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+                </mesh>
+              </group>
+            )}
+
+            {/* Minecraft Dungeons Soul Wisp */}
+            {drop.type === 'soul' && (
+              <group>
+                <mesh>
+                  <sphereGeometry args={[0.2, 8, 8]} />
+                  <meshStandardMaterial
+                    color="#c084fc"
+                    emissive="#a855f7"
+                    emissiveIntensity={4.0}
+                    transparent
+                    opacity={0.85}
+                  />
+                </mesh>
+                <pointLight color="#c084fc" intensity={2.0} distance={4} />
+              </group>
+            )}
+
+            {/* Mystery Gear Drop Chest/Cube */}
+            {drop.type === 'gear' && (
+              <group rotation={[0.2, 0.4, 0.1]}>
+                <mesh>
+                  <boxGeometry args={[0.32, 0.32, 0.32]} />
+                  <meshStandardMaterial
+                    color="#f59e0b"
+                    emissive="#d97706"
+                    emissiveIntensity={2.5}
+                    metalness={0.6}
+                    roughness={0.2}
+                  />
+                </mesh>
+                <pointLight color="#fbbf24" intensity={3.0} distance={6} />
+              </group>
+            )}
+
+            {/* Food (Porkchop) */}
+            {drop.type === 'food' && (
+              <group rotation={[0.4, 0.2, 0.5]}>
+                <mesh>
+                  <boxGeometry args={[0.26, 0.16, 0.12]} />
+                  <meshStandardMaterial color="#b91c1c" roughness={0.6} />
+                </mesh>
+              </group>
+            )}
           </group>
         );
       })}
