@@ -107,6 +107,7 @@ import {
   INITIAL_ARMOR,
   INITIAL_ARTIFACTS,
   ENCHANTMENT_DEFINITIONS,
+  getRandomDrop,
 } from './src/dungeons/dungeonsData';
 import { dungeonsAudio } from './src/dungeons/dungeonsAudio';
 import { DungeonsHUD } from './src/dungeons/DungeonsHUD';
@@ -164,13 +165,14 @@ const INITIAL_STATS: PlayerStats = {
 // 3D Player Character with Minecraft Swing, Ground Contact Shadow, Handheld Lantern & Weapons
 const Player3D: React.FC<{
   playerPosRef: React.MutableRefObject<PlayerMotionState>;
+  playerCombatRef?: React.MutableRefObject<{ hp: number; maxHp: number; stamina: number; maxStamina: number; dodgeEndTime: number; lastAttackTime: number }>;
   color: string;
   settings: MapSettings;
   isNight: boolean;
   activeWeapon?: Weapon;
   attackAnimRef: React.MutableRefObject<{ isAttacking: boolean; startTime: number; duration: number }>;
   isHurtFlash?: boolean;
-}> = ({ playerPosRef, color, settings, isNight, activeWeapon, attackAnimRef, isHurtFlash }) => {
+}> = ({ playerPosRef, playerCombatRef, color, settings, isNight, activeWeapon, attackAnimRef, isHurtFlash }) => {
   const group = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Group>(null);
   const rightLeg = useRef<THREE.Group>(null);
@@ -180,43 +182,70 @@ const Player3D: React.FC<{
   useFrame((state, delta) => {
     if (group.current) {
       const p = playerPosRef.current;
-      group.current.position.set(p.x, p.elevation + 0.75, p.y);
-      group.current.rotation.y = p.rotation;
+      const now = performance.now();
+      const isDodging = Boolean(playerCombatRef && now < playerCombatRef.current.dodgeEndTime);
 
-      // Walking cycle & Attack Swing Animation
-      if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
+      if (isDodging && playerCombatRef) {
+        // Dynamic 360-degree forward tumble acrobatic roll
+        const rollDuration = 350;
+        const elapsed = Math.max(0, rollDuration - (playerCombatRef.current.dodgeEndTime - now));
+        const progress = Math.min(1, elapsed / rollDuration);
+        group.current.rotation.x = progress * Math.PI * 2;
+        group.current.rotation.y = p.rotation;
+        group.current.position.set(p.x, p.elevation + 0.45 + Math.sin(progress * Math.PI) * 0.2, p.y);
+
+        if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
+          leftLeg.current.rotation.x = Math.PI * 0.35;
+          rightLeg.current.rotation.x = Math.PI * 0.35;
+          leftArm.current.rotation.x = -Math.PI * 0.35;
+          rightArm.current.rotation.x = -Math.PI * 0.35;
+        }
+      } else {
+        group.current.rotation.x = 0;
+        group.current.rotation.y = p.rotation;
+
         if (p.isMoving) {
-          const t = state.clock.elapsedTime * 15;
+          const t = state.clock.elapsedTime * 14;
           const swing = Math.sin(t);
+          const bounce = Math.abs(Math.sin(t)) * 0.08;
+          group.current.position.set(p.x, p.elevation + 0.75 + bounce, p.y);
 
-          leftLeg.current.rotation.x = swing * 0.6;
-          rightLeg.current.rotation.x = -swing * 0.6;
-
-          leftArm.current.rotation.x = -swing * 0.6;
-          if (!attackAnimRef.current.isAttacking) {
-            rightArm.current.rotation.x = swing * 0.6;
-            rightArm.current.rotation.z = 0;
+          if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
+            leftLeg.current.rotation.x = swing * 0.65;
+            rightLeg.current.rotation.x = -swing * 0.65;
+            leftArm.current.rotation.x = -swing * 0.65;
+            if (!attackAnimRef.current.isAttacking) {
+              rightArm.current.rotation.x = swing * 0.65;
+              rightArm.current.rotation.z = 0;
+            }
           }
         } else {
-          leftLeg.current.rotation.x = THREE.MathUtils.lerp(leftLeg.current.rotation.x, 0, delta * 10);
-          rightLeg.current.rotation.x = THREE.MathUtils.lerp(rightLeg.current.rotation.x, 0, delta * 10);
-          leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, delta * 10);
-          if (!attackAnimRef.current.isAttacking) {
-            rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
-            rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, delta * 10);
+          // Gentle idle breathing bob
+          const breathe = Math.sin(state.clock.elapsedTime * 2.5) * 0.025;
+          group.current.position.set(p.x, p.elevation + 0.75 + breathe, p.y);
+
+          if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
+            leftLeg.current.rotation.x = THREE.MathUtils.lerp(leftLeg.current.rotation.x, 0, delta * 10);
+            rightLeg.current.rotation.x = THREE.MathUtils.lerp(rightLeg.current.rotation.x, 0, delta * 10);
+            leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, delta * 10);
+            if (!attackAnimRef.current.isAttacking) {
+              rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
+              rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, delta * 10);
+            }
           }
         }
 
         // Combat Attack Swing Override
-        if (attackAnimRef.current.isAttacking) {
-          const elapsed = (performance.now() - attackAnimRef.current.startTime) / attackAnimRef.current.duration;
+        if (attackAnimRef.current.isAttacking && rightArm.current) {
+          const elapsed = (now - attackAnimRef.current.startTime) / attackAnimRef.current.duration;
           if (elapsed < 1.0) {
-            // Forward dynamic slash or draw animation
             const swingProgress = Math.sin(elapsed * Math.PI);
-            rightArm.current.rotation.x = -Math.PI * 0.75 * swingProgress;
-            rightArm.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.35;
+            rightArm.current.rotation.x = -Math.PI * 0.85 * swingProgress;
+            rightArm.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.45;
+            group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.12;
           } else {
             attackAnimRef.current.isAttacking = false;
+            group.current.rotation.z = 0;
           }
         }
       }
@@ -465,6 +494,7 @@ const GameLoopController: React.FC<{
   placedStructuresRef?: React.MutableRefObject<PlacedStructure[]>;
   onPlayerHurt: (dmg: number, newHp: number) => void;
   onMonsterDefeated: (m: Monster) => void;
+  onProjectileHitMonster?: (proj: Projectile, m: Monster) => void;
   onCollectLoot: (l: LootDrop) => void;
   onCombatTick: (hp: number, stamina: number) => void;
   onSyncUI: (pos: { x: number; y: number }, steps: number) => void;
@@ -487,6 +517,7 @@ const GameLoopController: React.FC<{
   placedStructuresRef,
   onPlayerHurt,
   onMonsterDefeated,
+  onProjectileHitMonster,
   onCollectLoot,
   onCombatTick,
   onSyncUI,
@@ -704,6 +735,7 @@ const GameLoopController: React.FC<{
           m.x += (proj.vx / pMag) * 1.4;
           m.y += (proj.vy / pMag) * 1.4;
           sounds.playMonsterHit();
+          onProjectileHitMonster?.(proj, m);
 
           if (m.hp <= 0) {
             m.state = 'dead';
@@ -1371,6 +1403,120 @@ export const App: React.FC = () => {
     });
   }, [nearbyFeature.feature?.id, nearbyFeature.dist < 18]);
 
+  // Show Toast Notification
+  const showToast = useCallback((text: string, sub?: string) => {
+    setNotification({ text, sub });
+    setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+  }, []);
+
+  // --- PROGRESSION & QUEST ENGINE ---
+
+  // Add XP and level up both Wilderness Nomad & Minecraft Dungeons Hero
+  const addXP = useCallback((amount: number, reason?: string) => {
+    if (amount <= 0) return;
+
+    // 1. Update stats (Nomad Explorer level)
+    setStats(prev => {
+      const newXP = prev.xp + amount;
+      const nextLevelThreshold = prev.level * 120;
+      if (newXP >= nextLevelThreshold) {
+        sounds.playLevelUp();
+        return {
+          ...prev,
+          level: prev.level + 1,
+          xp: newXP - nextLevelThreshold,
+        };
+      }
+      return { ...prev, xp: newXP };
+    });
+
+    // 2. Update dungeonsStats (Dungeons Hero Level, XP bar & Enchantment Points)
+    setDungeonsStats(prev => {
+      let curXp = prev.xp + amount;
+      let curLevel = prev.level;
+      let curXpNeeded = prev.xpToNextLevel;
+      let curEnchantPts = prev.enchantmentPoints;
+      let leveledUp = false;
+
+      while (curXp >= curXpNeeded) {
+        curXp -= curXpNeeded;
+        curLevel += 1;
+        curEnchantPts += 1;
+        curXpNeeded = Math.round(curLevel * 120);
+        leveledUp = true;
+      }
+
+      if (leveledUp) {
+        sounds.playLevelUp();
+        dungeonsAudio.playLevelUp();
+        confetti({
+          particleCount: 80,
+          spread: 85,
+          origin: { y: 0.6 },
+          colors: ['#22c55e', '#ffd700', '#38bdf8', '#c084fc', '#f59e0b'],
+        });
+        showToast(
+          `⭐ HERO LEVEL UP! Reached Level ${curLevel}!`,
+          `+1 Enchantment Point awarded (Total: ${curEnchantPts} pt)`
+        );
+
+        if (playerCombatRef.current) {
+          playerCombatRef.current.hp = prev.maxHp;
+          playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
+        }
+
+        return {
+          ...prev,
+          level: curLevel,
+          xp: curXp,
+          xpToNextLevel: curXpNeeded,
+          enchantmentPoints: curEnchantPts,
+          hp: prev.maxHp,
+        };
+      }
+
+      return {
+        ...prev,
+        xp: curXp,
+      };
+    });
+  }, [showToast]);
+
+  // Update Quest Progress helper with reward distribution
+  const updateQuestProgress = useCallback((questId: string, amount: number) => {
+    setQuests(prev =>
+      prev.map(q => {
+        if (q.id === questId && !q.completed) {
+          const nextVal = Math.min(q.target, q.progress + amount);
+          if (nextVal >= q.target) {
+            sounds.playChestOpen();
+            dungeonsAudio.playMissionComplete();
+            confetti({
+              particleCount: 75,
+              spread: 80,
+              origin: { y: 0.5 },
+              colors: ['#ffd700', '#22c55e', '#38bdf8'],
+            });
+            addXP(q.xpReward, `Quest: ${q.title}`);
+
+            const bonusEmeralds = Math.round(q.xpReward * 0.75);
+            setDungeonsStats(d => ({ ...d, emeralds: d.emeralds + bonusEmeralds }));
+
+            showToast(
+              `🏆 Quest Completed: ${q.title}!`,
+              `+${q.xpReward} XP & +${bonusEmeralds} 💎 Emeralds awarded!`
+            );
+            return { ...q, progress: q.target, completed: true };
+          }
+          return { ...q, progress: nextVal };
+        }
+        return q;
+      })
+    );
+  }, [addXP, showToast]);
+
   // Stable UI and Chunk synchronization callbacks for GameLoopController
   const handleSyncUI = useCallback((pos: { x: number; y: number }, steps: number) => {
     setCharPos({ x: pos.x, y: pos.y });
@@ -1383,7 +1529,7 @@ export const App: React.FC = () => {
       }));
       updateQuestProgress('quest_wanderlust', steps);
     }
-  }, []);
+  }, [updateQuestProgress]);
 
   const handleCombatTick = useCallback((hp: number, stamina: number) => {
     setStats(prev => {
@@ -1397,14 +1543,6 @@ export const App: React.FC = () => {
   const handleChunkChange = useCallback((chunk: { cx: number; cz: number }) => {
     setPlayerChunk(chunk);
   }, []);
-
-  // Show Toast Notification
-  const showToast = (text: string, sub?: string) => {
-    setNotification({ text, sub });
-    setTimeout(() => {
-      setNotification(null);
-    }, 4000);
-  };
 
   // --- MINECRAFT DUNGEONS POWER LEVEL & COOLDOWNS ---
 
@@ -2179,34 +2317,60 @@ export const App: React.FC = () => {
     lootDropsRef.current.push(...newDrops);
     setLootDrops([...lootDropsRef.current]);
 
+    // Award XP to player and Hero
+    addXP(m.xpReward, `Vanquished ${m.name}`);
+
+    // Update Dungeons Hero state (souls, mobs killed for current mission)
+    setDungeonsStats(prev => {
+      const nextMobsKilled = prev.mobsKilled + 1;
+      const nextSouls = Math.min(prev.maxSouls, prev.souls + 3);
+
+      // Check Mission Completion
+      const rewardEm = currentMission?.rewardEmeralds ?? 120;
+      if (currentMission && nextMobsKilled >= currentMission.targetKills && prev.mobsKilled < currentMission.targetKills) {
+        dungeonsAudio.playMissionComplete();
+        confetti({
+          particleCount: 90,
+          spread: 85,
+          origin: { y: 0.5 },
+          colors: ['#22c55e', '#ffd700', '#f59e0b', '#38bdf8'],
+        });
+        showToast(
+          `🏆 MISSION VICTORY: ${currentMission.name}!`,
+          `+${rewardEm} 💎 Emeralds & +250 XP earned!`
+        );
+        addXP(250, `Mission Complete: ${currentMission.name}`);
+        return {
+          ...prev,
+          mobsKilled: nextMobsKilled,
+          souls: nextSouls,
+          emeralds: prev.emeralds + rewardEm,
+        };
+      }
+
+      return {
+        ...prev,
+        mobsKilled: nextMobsKilled,
+        souls: nextSouls,
+      };
+    });
+
     // Update Quests
-    setQuests(prev =>
-      prev.map(q => {
-        if (q.id === 'quest_monster_hunter' && !q.completed) {
-          const p = q.progress + 1;
-          const done = p >= q.target;
-          if (done) {
-            sounds.playChestOpen();
-            showToast(`🏆 Quest Complete: ${q.title}!`, `+${q.xpReward} XP awarded`);
-          }
-          return { ...q, progress: p, completed: done };
-        }
-        if (q.id === 'quest_golem_slayer' && m.type === 'golem' && !q.completed) {
-          sounds.playChestOpen();
-          showToast(`🏆 Quest Complete: ${q.title}!`, `+${q.xpReward} XP awarded`);
-          return { ...q, progress: 1, completed: true };
-        }
-        return q;
-      })
-    );
+    updateQuestProgress('quest_monster_hunter', 1);
+    if (m.type === 'golem') {
+      updateQuestProgress('quest_golem_slayer', 1);
+    }
 
     showToast(`⚔️ Vanquished ${m.name}!`, `+${m.xpReward} XP gained`);
-  }, []);
+  }, [addXP, updateQuestProgress, currentMission]);
 
   // 5. Player Hurt Feedback & Respawn
   const handlePlayerHurt = useCallback((amount: number, newHp: number) => {
     setIsHurtFlash(true);
     setTimeout(() => setIsHurtFlash(false), 240);
+
+    const safeHp = Math.max(0, Math.round(newHp));
+    setDungeonsStats(prev => ({ ...prev, hp: safeHp }));
 
     if (newHp <= 0) {
       // Fallen in battle: Respawn at origin with full vitality
@@ -2217,6 +2381,7 @@ export const App: React.FC = () => {
       playerMotionRef.current.targetX = 0;
       playerMotionRef.current.targetY = 0;
       setCharPos({ x: 0, y: 0 });
+      setDungeonsStats(prev => ({ ...prev, hp: playerCombatRef.current.maxHp }));
       showToast('☠️ Fallen in battle!', 'The Ancient Monolith restored your spirit at Origin.');
     }
   }, []);
@@ -2224,23 +2389,46 @@ export const App: React.FC = () => {
   // 6. Collect Loot Vacuum
   const handleCollectLoot = useCallback((loot: LootDrop) => {
     if (loot.type === 'xp') {
-      setStats(prev => {
-        const newXp = prev.xp + loot.value;
-        const xpNeeded = prev.level * 150;
-        if (newXp >= xpNeeded) {
-          sounds.playLevelUp();
-          confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-          showToast(`⭐ LEVEL UP! You reached Level ${prev.level + 1}!`);
-          return { ...prev, level: prev.level + 1, xp: newXp - xpNeeded };
-        }
-        return { ...prev, xp: newXp };
-      });
+      addXP(loot.value, 'XP Crystal');
+      sounds.playLootPickup();
+      showToast(`⭐ Gathered +${loot.value} XP!`);
+    } else if (loot.type === 'emerald') {
+      setDungeonsStats(prev => ({ ...prev, emeralds: prev.emeralds + loot.value }));
+      sounds.playChestOpen();
+      showToast(`💎 Picked up +${loot.value} Emeralds!`);
+    } else if (loot.type === 'arrows') {
+      setDungeonsStats(prev => ({ ...prev, arrows: Math.min(150, prev.arrows + loot.value) }));
+      sounds.playLootPickup();
+      showToast(`🏹 Gathered +${loot.value} Arrows!`);
+    } else if (loot.type === 'soul') {
+      setDungeonsStats(prev => ({ ...prev, souls: Math.min(prev.maxSouls, prev.souls + loot.value) }));
+      showToast('👻 Absorbed Soul Wisp!');
     } else if (loot.type === 'gold') {
       setStats(prev => ({ ...prev, gold: prev.gold + loot.value }));
+      sounds.playLootPickup();
       showToast(`🪙 Picked up +${loot.value} Gold!`);
     } else if (loot.type === 'potion') {
       setStats(prev => ({ ...prev, potions: prev.potions + 1 }));
-      showToast(`🧪 Picked up a Healing Flask!`);
+      setDungeonsStats(prev => ({ ...prev, potionCooldownRemaining: 0 }));
+      sounds.playLootPickup();
+      showToast('🧪 Picked up a Healing Flask!');
+    } else if (loot.type === 'food') {
+      const healAmount = 35;
+      if (playerCombatRef.current) {
+        playerCombatRef.current.hp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + healAmount);
+      }
+      setDungeonsStats(prev => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + healAmount) }));
+      sounds.playPotionDrink();
+      showToast(`🍖 Savored Savory Feast! Restored +${healAmount} HP`);
+    } else if (loot.type === 'gear') {
+      const randomGear = getRandomDrop(dungeonsStats.powerLevel);
+      setDungeonsStats(prev => ({
+        ...prev,
+        inventory: [...prev.inventory, randomGear],
+      }));
+      sounds.playChestOpen();
+      confetti({ particleCount: 30, spread: 45 });
+      showToast(`🎁 Found Mystery Gear: ${randomGear.name}!`, `Power: ◆${randomGear.power} (${randomGear.rarity.toUpperCase()})`);
     } else if (
       loot.type === 'wood' ||
       loot.type === 'stone' ||
@@ -2260,10 +2448,11 @@ export const App: React.FC = () => {
           },
         };
       });
+      sounds.playLootPickup();
       showToast(`${loot.icon} Collected +${loot.value} ${loot.name}!`, 'Resource stored for building & crafting');
-      updateQuestProgress('quest_gather_loot', loot.value);
+      updateQuestProgress('quest_gather_loot', 1);
     }
-  }, []);
+  }, [addXP, updateQuestProgress, dungeonsStats.powerLevel]);
 
   // Keyboard controls with fresh ref pattern to avoid any stale closures
   const actionHandlersRef = useRef<{ [key: string]: any }>({});
@@ -2366,43 +2555,7 @@ export const App: React.FC = () => {
     return () => cancelAnimationFrame(animId);
   }, [pulseActive]);
 
-  // Add XP and level up if threshold crossed
-  const addXP = (amount: number) => {
-    setStats(prev => {
-      const newXP = prev.xp + amount;
-      const nextLevelThreshold = prev.level * 150;
-      if (newXP >= nextLevelThreshold) {
-        sounds.playLevelUp();
-        confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
-        showToast(`🎉 Level Up! You are now Level ${prev.level + 1} Nomad!`);
-        return {
-          ...prev,
-          level: prev.level + 1,
-          xp: newXP - nextLevelThreshold,
-        };
-      }
-      return { ...prev, xp: newXP };
-    });
-  };
 
-  // Update Quest Progress helper
-  const updateQuestProgress = (questId: string, amount: number) => {
-    setQuests(prev =>
-      prev.map(q => {
-        if (q.id === questId && !q.completed) {
-          const nextVal = q.progress + amount;
-          if (nextVal >= q.target) {
-            sounds.playLevelUp();
-            addXP(q.xpReward);
-            showToast(`🏆 Quest Completed: ${q.title}!`, `+${q.xpReward} XP awarded`);
-            return { ...q, progress: q.target, completed: true };
-          }
-          return { ...q, progress: nextVal };
-        }
-        return q;
-      })
-    );
-  };
 
   // Sonar Pulse Action
   const triggerSonarPulse = () => {
@@ -2578,12 +2731,8 @@ export const App: React.FC = () => {
     showToast(`🏗️ Constructed: ${selectedBlueprint.name}!`, selectedBlueprint.description);
 
     // Update Quests
-    if (selectedBlueprint.type === 'house') {
-      updateQuestProgress('quest_first_house', 1);
-    } else if (selectedBlueprint.type === 'workbench') {
-      updateQuestProgress('quest_build_workbench', 1);
-    }
-    addXP(100);
+    updateQuestProgress('quest_build_first', 1);
+    addXP(100, `Constructed ${selectedBlueprint.name}`);
 
     setBuildMode(false);
     setSelectedBlueprint(null);
@@ -2951,7 +3100,11 @@ export const App: React.FC = () => {
       onWheel={handleWheel}
     >
       {/* 3D Exploration World */}
-      <Canvas camera={{ fov: 40, far: 1000 }}>
+      <Canvas
+        camera={{ fov: 40, far: 1000 }}
+        dpr={[1, Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 1.75)]}
+        gl={{ powerPreference: 'high-performance', antialias: true, stencil: false }}
+      >
         <color attach="background" args={[skyColor]} />
         <fog
           attach="fog"
@@ -2989,6 +3142,7 @@ export const App: React.FC = () => {
             placedStructuresRef={placedStructuresRef}
             onPlayerHurt={handlePlayerHurt}
             onMonsterDefeated={handleMonsterDefeated}
+            onProjectileHitMonster={() => updateQuestProgress('quest_sharpshooter', 1)}
             onCollectLoot={handleCollectLoot}
             onCombatTick={handleCombatTick}
             onSyncUI={handleSyncUI}
@@ -3030,6 +3184,7 @@ export const App: React.FC = () => {
           {/* Animated Voxel Player */}
           <Player3D
             playerPosRef={playerMotionRef}
+            playerCombatRef={playerCombatRef}
             color={settings.characterColor}
             settings={settings}
             isNight={isNight}

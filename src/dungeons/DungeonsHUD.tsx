@@ -78,9 +78,10 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isCompact = windowWidth < 840 || forceTouchControls;
-  const isUltraNarrow = windowWidth < 400;
   const isLandscapeShort = windowHeight < 480;
+  const isCompact = windowWidth < 840 || forceTouchControls;
+  const isNarrowMobile = windowWidth < 500 && !isLandscapeShort;
+  const isUltraNarrow = windowWidth < 400;
 
   const hpRatio = Math.max(0, Math.min(1, stats.hp / stats.maxHp));
   const isLowHp = hpRatio <= 0.3;
@@ -107,28 +108,28 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
       {/* ========================================================= */}
       {/* 1. TOP HEADER BAR: HERO VITALS & QUICK CONTROLS           */}
       {/* ========================================================= */}
-      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 flex justify-between items-start z-30 pointer-events-none gap-2">
+      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-start z-30 pointer-events-none gap-1.5 sm:gap-2">
         {/* Top-Left: Hero Profile & Power Level Diamond */}
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 bg-[#1a1714]/92 p-1.5 sm:p-2 rounded-xl border-2 border-[#453c35] shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md">
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 bg-[#1a1714]/92 p-1.5 sm:p-2 rounded-xl border-2 border-[#453c35] shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md">
           {/* Avatar Icon */}
-          <div className="relative w-8 h-8 sm:w-10 sm:h-10 bg-[#2d2722] rounded-lg border border-[#6b5e52] flex items-center justify-center flex-shrink-0">
-            <span className="text-base sm:text-xl">🗡️</span>
+          <div className="relative w-7 h-7 sm:w-10 sm:h-10 bg-[#2d2722] rounded-lg border border-[#6b5e52] flex items-center justify-center flex-shrink-0">
+            <span className="text-sm sm:text-xl">🗡️</span>
             {/* Level Badge */}
-            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[9px] sm:text-[10px] font-black px-1 rounded border border-[#4ade80] shadow">
+            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[8px] sm:text-[10px] font-black px-1 rounded border border-[#4ade80] shadow">
               {stats.level}
             </div>
           </div>
 
           {/* Vitals Column */}
-          <div className="flex flex-col min-w-[100px] sm:min-w-[150px]">
-            <div className="flex items-center justify-between gap-1.5">
-              <span className="text-[10px] sm:text-xs font-black text-[#f3ece7] tracking-wider">
+          <div className="flex flex-col min-w-[85px] sm:min-w-[150px]">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider">
                 HERO
               </span>
 
               {/* Power Level Diamond */}
               <div
-                className="flex items-center gap-1 bg-[#142338] px-1.5 sm:px-2 py-0.5 rounded border border-[#38bdf8] text-[#38bdf8] font-black text-[10px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+                className="flex items-center gap-0.5 sm:gap-1 bg-[#142338] px-1 sm:px-2 py-0.5 rounded border border-[#38bdf8] text-[#38bdf8] font-black text-[9px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)]"
                 title="Overall Gear Power Level"
               >
                 <span>◆</span>
@@ -143,7 +144,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
                 style={{ width: `${xpRatio * 100}%` }}
               />
             </div>
-            <div className="flex justify-between items-center text-[8px] sm:text-[9px] text-[#a8998a] font-mono mt-0.5 leading-none">
+            <div className="flex justify-between items-center text-[7px] sm:text-[9px] text-[#a8998a] font-mono mt-0.5 leading-none">
               <span>XP {Math.round(stats.xp)}/{stats.xpToNextLevel}</span>
               {stats.enchantmentPoints > 0 && (
                 <span className="text-[#d8b4fe] font-bold animate-pulse">
@@ -159,7 +160,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* Emeralds Currency Pill */}
           <div
             onClick={onOpenCamp}
-            className="flex items-center gap-1 bg-[#0e1f13]/90 px-2 py-1 rounded-lg border border-[#15803d] text-[#4ade80] font-black text-[11px] sm:text-xs shadow-sm cursor-pointer hover:border-[#4ade80] transition-colors"
+            className="flex items-center gap-1 bg-[#0e1f13]/90 px-1.5 sm:px-2 py-1 rounded-lg border border-[#15803d] text-[#4ade80] font-black text-[10px] sm:text-xs shadow-sm cursor-pointer hover:border-[#4ade80] transition-colors"
             title="Emeralds Currency - Tap to visit Camp"
           >
             <span>💎</span>
@@ -168,15 +169,15 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
 
           {/* Arrows Quiver Pill */}
           <div
-            className="flex items-center gap-1 bg-[#261c14]/90 px-2 py-1 rounded-lg border border-[#92400e] text-[#fde047] font-black text-[11px] sm:text-xs shadow-sm"
+            className="flex items-center gap-1 bg-[#261c14]/90 px-1.5 sm:px-2 py-1 rounded-lg border border-[#92400e] text-[#fde047] font-black text-[10px] sm:text-xs shadow-sm"
             title="Quiver Arrows"
           >
             <span>🏹</span>
             <span className="font-mono">{stats.arrows}</span>
           </div>
 
-          {/* Current Mission Tracker (hidden on ultra narrow screens to prevent crowding) */}
-          {!isUltraNarrow && (
+          {/* Current Mission Tracker (hidden on narrow screens to prevent crowding) */}
+          {!isNarrowMobile && !isUltraNarrow && (
             <div
               onClick={onOpenMissionMap}
               className="hidden md:flex items-center gap-1.5 bg-[#1a1714]/90 px-2.5 py-1 rounded-lg border border-[#453c35] text-white shadow-sm cursor-pointer hover:border-[#fbbf24] transition-colors"
@@ -197,30 +198,30 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* Camp Hub Button */}
           <button
             onClick={onOpenCamp}
-            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-[#ea580c] hover:bg-[#c2410c] border border-[#fed7aa] rounded-lg text-white font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#ea580c] hover:bg-[#c2410c] border border-[#fed7aa] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
             title="Camp & Blacksmith (C)"
           >
-            <Tent className="w-3.5 h-3.5" />
+            <Tent className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
             <span className="hidden sm:inline">CAMP</span>
           </button>
 
           {/* Mission Map Button */}
           <button
             onClick={onOpenMissionMap}
-            className="h-8 sm:h-9 px-2 sm:px-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] border border-[#93c5fd] rounded-lg text-white font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] border border-[#93c5fd] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
             title="Mission Map (M)"
           >
-            <MapIcon className="w-3.5 h-3.5" />
+            <MapIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
             <span className="hidden sm:inline">MAP</span>
           </button>
 
           {/* Inventory Button with Point Notification Badge */}
           <button
             onClick={onOpenInventory}
-            className="relative h-8 sm:h-9 px-2 sm:px-3 bg-[#d97706] hover:bg-[#b45309] border border-[#fef08a] rounded-lg text-white font-black text-[11px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="relative h-7 sm:h-9 px-1.5 sm:px-3 bg-[#d97706] hover:bg-[#b45309] border border-[#fef08a] rounded-lg text-white font-black text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
             title="Hero Inventory (I)"
           >
-            <Backpack className="w-3.5 h-3.5" />
+            <Backpack className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
             <span className="hidden sm:inline">INV</span>
             {stats.enchantmentPoints > 0 && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full animate-ping" />
@@ -230,13 +231,13 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* Audio Mute Button */}
           <button
             onClick={onToggleSound}
-            className="w-8 h-8 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
+            className="w-7 h-7 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
             title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
           >
             {soundEnabled ? (
-              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <Volume2 className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-emerald-400" />
             ) : (
-              <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+              <VolumeX className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-rose-400" />
             )}
           </button>
 
@@ -244,10 +245,10 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
+              className="w-7 h-7 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
               title="Game Settings & Guide"
             >
-              <Settings className="w-3.5 h-3.5 text-gray-300" />
+              <Settings className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-gray-300" />
             </button>
           )}
 
@@ -282,10 +283,16 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
         <>
           {/* --- BOTTOM-LEFT: Virtual Movement Joystick --- */}
           {onMoveJoystick && (
-            <div className={`fixed ${isLandscapeShort ? 'bottom-2 left-2' : 'bottom-3 left-3 sm:bottom-5 sm:left-5'} z-40`}>
+            <div className={`fixed ${
+              isLandscapeShort
+                ? 'bottom-2 left-2 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
+                : isNarrowMobile
+                ? 'bottom-3 left-2 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
+                : 'bottom-3 left-3 sm:bottom-5 sm:left-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
+            } z-40`}>
               <VirtualJoystick
                 onMove={onMoveJoystick}
-                size={isLandscapeShort ? 80 : 94}
+                size={isLandscapeShort ? 76 : isNarrowMobile ? 84 : 94}
               />
             </div>
           )}
@@ -293,8 +300,12 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* --- BOTTOM-CENTER: Health Orb & Quick Potion --- */}
           <div
             className={`fixed ${
-              isLandscapeShort ? 'bottom-1' : 'bottom-2 sm:bottom-3'
-            } left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1`}
+              isLandscapeShort
+                ? 'bottom-1 left-1/2 -translate-x-1/2 scale-75 origin-bottom'
+                : isNarrowMobile
+                ? 'bottom-22 left-1/2 -translate-x-1/2 scale-90 origin-bottom'
+                : 'bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 pb-[env(safe-area-inset-bottom)]'
+            } z-30 pointer-events-auto flex flex-col items-center gap-1 transition-all`}
           >
             {/* Souls mini meter */}
             <div
@@ -310,7 +321,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               <button
                 onClick={onDrinkPotion}
                 disabled={stats.potionCooldownRemaining > 0}
-                className="relative w-10 h-10 sm:w-11 sm:h-11 bg-[#261314] hover:bg-[#3f191b] border-2 border-[#ef4444] rounded-xl flex items-center justify-center text-lg shadow-[0_0_10px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
+                className="relative w-9 h-9 sm:w-11 sm:h-11 bg-[#261314] hover:bg-[#3f191b] border-2 border-[#ef4444] rounded-xl flex items-center justify-center text-base sm:text-lg shadow-[0_0_10px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
                 title="Drink Health Potion"
               >
                 <span>🧪</span>
@@ -327,7 +338,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               {/* The Iconic Minecraft Dungeons Red Heart Orb */}
               <div
                 className={`relative ${
-                  isLandscapeShort ? 'w-12 h-12' : 'w-13 h-13 sm:w-15 sm:h-15'
+                  isLandscapeShort ? 'w-11 h-11' : isNarrowMobile ? 'w-13 h-13' : 'w-14 h-14 sm:w-15 sm:h-15'
                 } rounded-full bg-[#3b0d11] border-3 sm:border-4 border-[#7f1d1d] shadow-[0_0_16px_rgba(239,68,68,0.6)] flex items-center justify-center overflow-hidden ${
                   isLowHp ? 'animate-bounce shadow-[0_0_25px_rgba(239,68,68,1)] border-red-500' : ''
                 }`}
@@ -349,7 +360,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               <button
                 onClick={onDodgeRoll}
                 disabled={stats.rollCooldownRemaining > 0}
-                className="relative w-10 h-10 sm:w-11 sm:h-11 bg-[#1e2319] hover:bg-[#2a3421] border-2 border-[#84cc16] rounded-xl flex items-center justify-center text-lg shadow-[0_0_10px_rgba(132,204,22,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
+                className="relative w-9 h-9 sm:w-11 sm:h-11 bg-[#1e2319] hover:bg-[#2a3421] border-2 border-[#84cc16] rounded-xl flex items-center justify-center text-base sm:text-lg shadow-[0_0_10px_rgba(132,204,22,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
                 title="Dodge Roll Evade"
               >
                 <span>💨</span>
@@ -368,11 +379,15 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* --- BOTTOM-RIGHT: Action Pad Cluster (Combat & Artifacts) --- */}
           <div
             className={`fixed ${
-              isLandscapeShort ? 'bottom-2 right-2' : 'bottom-3 right-3 sm:bottom-4 sm:right-4'
+              isLandscapeShort
+                ? 'bottom-2 right-2 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
+                : isNarrowMobile
+                ? 'bottom-2 right-2 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
+                : 'bottom-3 right-3 sm:bottom-4 sm:right-4 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
             } z-40 pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2`}
           >
             {/* Row of 3 Equipped Artifacts */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               {[0, 1, 2].map((slotIdx) => {
                 const artifact = stats.equippedArtifacts[slotIdx];
                 const cooldown = stats.artifactCooldowns[slotIdx];
@@ -386,7 +401,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
                     key={slotIdx}
                     onClick={() => onActivateArtifact(slotIdx)}
                     disabled={!artifact || isOnCooldown || !hasEnoughSouls}
-                    className={`relative w-9 h-9 sm:w-10 sm:h-10 bg-[#1e1b18]/95 border-2 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-md active:scale-95 transition-all overflow-hidden cursor-pointer ${
+                    className={`relative w-8 h-8 sm:w-10 sm:h-10 bg-[#1e1b18]/95 border-2 rounded-xl flex items-center justify-center text-sm sm:text-lg shadow-md active:scale-95 transition-all overflow-hidden cursor-pointer ${
                       artifact
                         ? artifact.rarity === 'unique'
                           ? 'border-[#fbbf24] shadow-[0_0_8px_rgba(251,191,36,0.4)]'
@@ -397,12 +412,12 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
                   >
                     {artifact ? <span>{artifact.icon}</span> : <span className="text-gray-600 text-xs">✦</span>}
                     {isOnCooldown && (
-                      <div className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[10px]">
+                      <div className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[9px] sm:text-[10px]">
                         {Math.ceil(cooldown)}s
                       </div>
                     )}
                     {artifact?.soulCost && (
-                      <span className="absolute top-0.5 right-0.5 text-[7px] font-mono font-black text-purple-300 bg-purple-950/80 px-0.5 rounded">
+                      <span className="absolute top-0.5 right-0.5 text-[6px] sm:text-[7px] font-mono font-black text-purple-300 bg-purple-950/80 px-0.5 rounded">
                         👻{artifact.soulCost}
                       </span>
                     )}
@@ -412,20 +427,20 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
             </div>
 
             {/* Combat Action Buttons Grid / Row */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Optional Contextual Action Button (Spire, Chest, Dig) */}
               {onInteract && (
                 <button
                   onClick={onInteract}
-                  className={`px-2.5 h-11 sm:h-12 rounded-xl font-bold text-xs flex items-center gap-1 border-2 transition-all active:scale-95 cursor-pointer shadow-lg ${
+                  className={`px-2 sm:px-2.5 h-10 sm:h-12 rounded-xl font-bold text-xs flex items-center gap-1 border-2 transition-all active:scale-95 cursor-pointer shadow-lg ${
                     canInteract
                       ? 'bg-[#15803d] hover:bg-[#16a34a] border-[#86efac] text-white shadow-[0_0_15px_rgba(34,197,94,0.6)] animate-pulse'
                       : 'bg-[#2a241f] border-[#4a3e32] text-[#d4c5b9]'
                   }`}
                   title={interactLabel}
                 >
-                  <Pickaxe className="w-4 h-4" />
-                  <span className="text-[10px] sm:text-xs font-mono font-black">{interactLabel}</span>
+                  <Pickaxe className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                  <span className="text-[9px] sm:text-xs font-mono font-black">{interactLabel}</span>
                 </button>
               )}
 
@@ -433,11 +448,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               <button
                 onClick={onRangedAttack}
                 disabled={stats.arrows <= 0}
-                className="relative w-12 h-12 sm:w-13 sm:h-13 bg-gradient-to-br from-[#d97706] to-[#b45309] hover:from-[#b45309] hover:to-[#92400e] border-2 border-[#fef08a] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_15px_rgba(217,119,6,0.6)] active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                className="relative w-11 h-11 sm:w-13 sm:h-13 bg-gradient-to-br from-[#d97706] to-[#b45309] hover:from-[#b45309] hover:to-[#92400e] border-2 border-[#fef08a] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_15px_rgba(217,119,6,0.6)] active:scale-95 transition-all cursor-pointer disabled:opacity-40"
                 title="Shoot Bow / Crossbow"
               >
-                <Crosshair className="w-5 h-5 drop-shadow" />
-                <span className="text-[8px] font-black font-mono tracking-tight text-[#fef08a]">
+                <Crosshair className="w-4 sm:w-5 h-4 sm:h-5 drop-shadow" />
+                <span className="text-[7px] sm:text-[8px] font-black font-mono tracking-tight text-[#fef08a]">
                   🏹 {stats.arrows}
                 </span>
               </button>
@@ -445,11 +460,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               {/* Primary Melee Attack Button (Big, Ergonomic Strike Target) */}
               <button
                 onClick={onMeleeAttack}
-                className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-[#dc2626] to-[#991b1b] hover:from-[#ef4444] hover:to-[#b91c1c] border-3 border-[#fca5a5] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.7)] active:scale-95 transition-all cursor-pointer"
+                className="w-13 h-13 sm:w-16 sm:h-16 bg-gradient-to-br from-[#dc2626] to-[#991b1b] hover:from-[#ef4444] hover:to-[#b91c1c] border-2 sm:border-3 border-[#fca5a5] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.7)] active:scale-95 transition-all cursor-pointer"
                 title="Primary Melee Strike"
               >
-                <Sword className="w-7 h-7 drop-shadow" />
-                <span className="text-[9px] font-black font-mono uppercase tracking-wider text-white">
+                <Sword className="w-6 sm:w-7 h-6 sm:h-7 drop-shadow" />
+                <span className="text-[8px] sm:text-[9px] font-black font-mono uppercase tracking-wider text-white">
                   STRIKE
                 </span>
               </button>

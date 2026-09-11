@@ -33,14 +33,21 @@ const SlimeMob: React.FC<{ monster: Monster; now: number }> = ({ monster, now })
   const groupRef = useRef<THREE.Group>(null);
   const isHurt = monster.hurtUntilTime > now;
 
-  useFrame((state) => {
-    if (groupRef.current && monster.state !== 'dead') {
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (monster.state === 'dead') {
+        groupRef.current.scale.lerp(new THREE.Vector3(0.001, 0.001, 0.001), delta * 14);
+        return;
+      }
       // Bouncing hop motion
       const bounce = Math.abs(Math.sin(state.clock.elapsedTime * 6 + monster.x));
       const squash = 1 - bounce * 0.25;
       const stretch = 1 + bounce * 0.35;
       groupRef.current.scale.set(stretch, squash, stretch);
-      groupRef.current.position.y = monster.elevation + 0.4 + bounce * 0.5;
+      
+      const hurtStagger = isHurt ? Math.sin(state.clock.elapsedTime * 45) * 0.1 : 0;
+      groupRef.current.position.set(monster.x + hurtStagger, monster.elevation + 0.4 + bounce * 0.5, monster.y);
+      groupRef.current.rotation.y = monster.rotation;
     }
   });
 
@@ -99,8 +106,16 @@ const SkeletonMob: React.FC<{ monster: Monster; now: number }> = ({ monster, now
   const leftArm = useRef<THREE.Group>(null);
   const isHurt = monster.hurtUntilTime > now;
 
-  useFrame((state) => {
-    if (groupRef.current && monster.state !== 'dead') {
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (monster.state === 'dead') {
+        groupRef.current.scale.lerp(new THREE.Vector3(0.001, 0.001, 0.001), delta * 12);
+        return;
+      }
+      const hurtStagger = isHurt ? Math.sin(state.clock.elapsedTime * 45) * 0.1 : 0;
+      groupRef.current.position.set(monster.x + hurtStagger, monster.elevation + 0.8, monster.y);
+      groupRef.current.rotation.y = monster.rotation;
+
       const isWalking = monster.state === 'chase' || monster.state === 'patrol';
       if (isWalking && leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
         const swing = Math.sin(state.clock.elapsedTime * 10);
@@ -203,8 +218,16 @@ const GolemMob: React.FC<{ monster: Monster; now: number }> = ({ monster, now })
   const coreRef = useRef<THREE.Mesh>(null);
   const isHurt = monster.hurtUntilTime > now;
 
-  useFrame((state) => {
-    if (groupRef.current && monster.state !== 'dead') {
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (monster.state === 'dead') {
+        groupRef.current.scale.lerp(new THREE.Vector3(0.001, 0.001, 0.001), delta * 10);
+        return;
+      }
+      const hurtStagger = isHurt ? Math.sin(state.clock.elapsedTime * 45) * 0.12 : 0;
+      groupRef.current.position.set(monster.x + hurtStagger, monster.elevation + 1.2, monster.y);
+      groupRef.current.rotation.y = monster.rotation;
+
       const t = state.clock.elapsedTime;
       // Stomping sway
       if (monster.state === 'chase' || monster.state === 'patrol') {
@@ -310,11 +333,20 @@ const SpiderMob: React.FC<{ monster: Monster; now: number }> = ({ monster, now }
   const groupRef = useRef<THREE.Group>(null);
   const isHurt = monster.hurtUntilTime > now;
 
-  useFrame((state) => {
-    if (groupRef.current && monster.state !== 'dead') {
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      if (monster.state === 'dead') {
+        groupRef.current.scale.lerp(new THREE.Vector3(0.001, 0.001, 0.001), delta * 12);
+        return;
+      }
+      const hurtStagger = isHurt ? Math.sin(state.clock.elapsedTime * 45) * 0.1 : 0;
+      groupRef.current.position.set(monster.x + hurtStagger, monster.elevation + 0.3, monster.y);
+
       if (monster.state === 'chase' || monster.state === 'patrol') {
         const wiggle = Math.sin(state.clock.elapsedTime * 20);
         groupRef.current.rotation.y = monster.rotation + wiggle * 0.1;
+      } else {
+        groupRef.current.rotation.y = monster.rotation;
       }
     }
   });
@@ -413,75 +445,96 @@ export const MonstersWorld: React.FC<{
   );
 };
 
+// --- Single Projectile Item with Smooth 60fps Position Sync ---
+const ProjectileItem: React.FC<{ p: Projectile }> = ({ p }) => {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (groupRef.current) {
+      groupRef.current.position.set(p.x, p.z, p.y);
+      if (p.type === 'arrow') {
+        groupRef.current.rotation.set(
+          0,
+          Math.atan2(p.vx, p.vy),
+          -Math.atan2(p.vz, Math.hypot(p.vx, p.vy))
+        );
+      } else if (p.type === 'magic') {
+        groupRef.current.rotation.y += 0.08;
+      }
+    }
+  });
+
+  if (p.type === 'arrow') {
+    return (
+      <group
+        ref={groupRef}
+        position={[p.x, p.z, p.y]}
+        rotation={[0, Math.atan2(p.vx, p.vy), -Math.atan2(p.vz, Math.hypot(p.vx, p.vy))]}
+      >
+        {/* Wooden shaft */}
+        <mesh>
+          <boxGeometry args={[0.06, 0.06, 0.7]} />
+          <meshStandardMaterial color="#78350f" roughness={0.8} />
+        </mesh>
+        {/* Iron Arrowhead */}
+        <mesh position={[0, 0, 0.4]}>
+          <boxGeometry args={[0.14, 0.14, 0.18]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.8} />
+        </mesh>
+        {/* Feather Fletching */}
+        <mesh position={[0, 0, -0.32]}>
+          <boxGeometry args={[0.18, 0.18, 0.12]} />
+          <meshStandardMaterial color={p.color || '#eab308'} roughness={0.9} />
+        </mesh>
+      </group>
+    );
+  }
+
+  if (p.type === 'magic') {
+    return (
+      <group ref={groupRef} position={[p.x, p.z, p.y]}>
+        {/* Glowing core */}
+        <mesh>
+          <sphereGeometry args={[0.26, 12, 12]} />
+          <meshStandardMaterial
+            color="#22d3ee"
+            emissive="#06b6d4"
+            emissiveIntensity={3.5}
+            roughness={0.1}
+          />
+        </mesh>
+        {/* Orbiting celestial halo */}
+        <mesh>
+          <boxGeometry args={[0.38, 0.38, 0.38]} />
+          <meshBasicMaterial color="#a5f3fc" wireframe />
+        </mesh>
+      </group>
+    );
+  }
+
+  if (p.type === 'slash') {
+    return (
+      <group ref={groupRef} position={[p.x, p.z, p.y]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.6, 1.1, 16, 1, 0, Math.PI]} />
+          <meshBasicMaterial color="#f8fafc" transparent opacity={0.6} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return null;
+};
+
 // --- Projectiles Scene Container ---
 export const ProjectilesWorld: React.FC<{
   projectiles: Projectile[];
 }> = ({ projectiles }) => {
   return (
     <group>
-      {projectiles.map((p) => {
-        if (p.type === 'arrow') {
-          return (
-            <group
-              key={p.id}
-              position={[p.x, p.z, p.y]}
-              rotation={[0, Math.atan2(p.vx, p.vy), -Math.atan2(p.vz, Math.hypot(p.vx, p.vy))]}
-            >
-              {/* Wooden shaft */}
-              <mesh>
-                <boxGeometry args={[0.06, 0.06, 0.7]} />
-                <meshStandardMaterial color="#78350f" roughness={0.8} />
-              </mesh>
-              {/* Iron Arrowhead */}
-              <mesh position={[0, 0, 0.4]}>
-                <boxGeometry args={[0.14, 0.14, 0.18]} />
-                <meshStandardMaterial color="#e2e8f0" roughness={0.3} metalness={0.8} />
-              </mesh>
-              {/* Feather Fletching */}
-              <mesh position={[0, 0, -0.32]}>
-                <boxGeometry args={[0.18, 0.18, 0.12]} />
-                <meshStandardMaterial color="#eab308" roughness={0.9} />
-              </mesh>
-            </group>
-          );
-        }
-
-        if (p.type === 'magic') {
-          return (
-            <group key={p.id} position={[p.x, p.z, p.y]}>
-              {/* Glowing core */}
-              <mesh>
-                <sphereGeometry args={[0.26, 12, 12]} />
-                <meshStandardMaterial
-                  color="#22d3ee"
-                  emissive="#06b6d4"
-                  emissiveIntensity={3.5}
-                  roughness={0.1}
-                />
-              </mesh>
-              {/* Orbiting celestial halo */}
-              <mesh>
-                <boxGeometry args={[0.38, 0.38, 0.38]} />
-                <meshBasicMaterial color="#a5f3fc" wireframe />
-              </mesh>
-              <pointLight color="#22d3ee" intensity={2} distance={6} />
-            </group>
-          );
-        }
-
-        if (p.type === 'slash') {
-          return (
-            <group key={p.id} position={[p.x, p.z, p.y]}>
-              <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.6, 1.1, 16, 1, 0, Math.PI]} />
-                <meshBasicMaterial color="#f8fafc" transparent opacity={0.6} side={THREE.DoubleSide} />
-              </mesh>
-            </group>
-          );
-        }
-
-        return null;
-      })}
+      {projectiles.map((p) => (
+        <ProjectileItem key={p.id} p={p} />
+      ))}
     </group>
   );
 };
@@ -707,12 +760,11 @@ export const LootDropsWorld: React.FC<{
                   <meshStandardMaterial
                     color="#c084fc"
                     emissive="#a855f7"
-                    emissiveIntensity={4.0}
+                    emissiveIntensity={4.5}
                     transparent
                     opacity={0.85}
                   />
                 </mesh>
-                <pointLight color="#c084fc" intensity={2.0} distance={4} />
               </group>
             )}
 
@@ -724,12 +776,11 @@ export const LootDropsWorld: React.FC<{
                   <meshStandardMaterial
                     color="#f59e0b"
                     emissive="#d97706"
-                    emissiveIntensity={2.5}
+                    emissiveIntensity={3.5}
                     metalness={0.6}
                     roughness={0.2}
                   />
                 </mesh>
-                <pointLight color="#fbbf24" intensity={3.0} distance={6} />
               </group>
             )}
 

@@ -283,6 +283,40 @@ class DungeonsAudioEngine {
   playSalvageSound() {
     this.playEmeraldPickup();
   }
+
+  // Mission Complete triumphant victory fanfare
+  playMissionComplete() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const victoryNotes = [
+      { f: 523.25, d: 0.12 }, // C5
+      { f: 659.25, d: 0.12 }, // E5
+      { f: 783.99, d: 0.14 }, // G5
+      { f: 1046.5, d: 0.35 }, // C6
+    ];
+
+    let delay = 0;
+    victoryNotes.forEach(({ f, d }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const noteTime = now + delay;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, noteTime);
+
+      gain.gain.setValueAtTime(0.001, noteTime);
+      gain.gain.linearRampToValueAtTime(0.25, noteTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + d);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + d);
+      delay += d * 0.75;
+    });
+  }
 }
 
 export const dungeonsAudio = new DungeonsAudioEngine();

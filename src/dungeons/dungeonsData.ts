@@ -645,3 +645,15 @@ export const INITIAL_ARTIFACTS: [DungeonsArtifact | null, DungeonsArtifact | nul
   ALL_ARTIFACTS.find(a => a.id === 'fireworks_arrow') || null,
   ALL_ARTIFACTS.find(a => a.id === 'boots_of_swiftness') || null,
 ];
+
+// Procedural gear drop generator matching player power level
+export function getRandomDrop(powerLevel: number): DungeonsGearItem | DungeonsArtifact {
+  const pool = [...ALL_MELEE_WEAPONS, ...ALL_RANGED_WEAPONS, ...ALL_ARMOR, ...ALL_ARTIFACTS];
+  const template = pool[Math.floor(Math.random() * pool.length)];
+  const itemPower = Math.max(1, (powerLevel || 1) + Math.floor(Math.random() * 5) - 2);
+  return {
+    ...template,
+    id: `${template.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    power: itemPower,
+  };
+}

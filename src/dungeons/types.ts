@@ -115,6 +115,7 @@ export interface DungeonsMission {
   targetKills: number;
   targetChests: number;
   potentialDrops: string[];
+  rewardEmeralds?: number;
   bossName?: string;
   completed?: boolean;
 }
