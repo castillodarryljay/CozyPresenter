@@ -5,7 +5,7 @@ export type DungeonsRarity = 'common' | 'rare' | 'unique';
 export type DungeonsItemCategory = 'melee' | 'ranged' | 'armor' | 'artifact';
 
 export type MeleeType = 'sword' | 'gauntlets' | 'axe' | 'mace' | 'glaive' | 'dagger' | 'claymore' | 'katana';
-export type RangedType = 'bow' | 'crossbow' | 'longbow' | 'power_bow' | 'scatter_crossbow';
+export type RangedType = 'bow' | 'shortbow' | 'crossbow' | 'longbow' | 'power_bow' | 'scatter_crossbow';
 export type ArmorType = 'light' | 'medium' | 'heavy' | 'robe';
 
 export type EnchantmentId =
@@ -103,6 +103,8 @@ export interface DungeonsArtifact {
 }
 
 export type DungeonsItem = DungeonsGearItem | DungeonsArtifact;
+
+export type DungeonsInventoryState = DungeonsItem[];
 
 export interface DungeonsMission {
   id: string;

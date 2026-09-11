@@ -52,7 +52,7 @@
             background: #aaa; 
         }
 
-        /* Minecraft Button Class */
+        /* Minecraft UI Design System */
         .mc-btn {
             background-color: #7f7f7f;
             border-top: 2px solid #ddd;
@@ -61,7 +61,12 @@
             border-right: 2px solid #222;
             color: white;
             text-shadow: 2px 2px 0px #000;
+            font-family: 'VT323', monospace;
             transition: none;
+            cursor: pointer;
+        }
+        .mc-btn:hover {
+            background-color: #8c8c8c;
         }
         .mc-btn:active {
             border-top: 2px solid #222;
@@ -70,16 +75,88 @@
             border-right: 2px solid #ddd;
             background-color: #555;
         }
+        .mc-btn-green {
+            background-color: #2e7d32;
+            border-top: 2px solid #81c784;
+            border-left: 2px solid #81c784;
+            border-bottom: 2px solid #1b5e20;
+            border-right: 2px solid #1b5e20;
+            color: white;
+            text-shadow: 2px 2px 0px #000;
+            font-family: 'VT323', monospace;
+            cursor: pointer;
+        }
+        .mc-btn-green:hover {
+            background-color: #388e3c;
+        }
+        .mc-btn-green:active {
+            border-top: 2px solid #1b5e20;
+            border-left: 2px solid #1b5e20;
+            border-bottom: 2px solid #81c784;
+            border-right: 2px solid #81c784;
+            background-color: #1b5e20;
+        }
+        .mc-btn-red {
+            background-color: #c62828;
+            border-top: 2px solid #ef5350;
+            border-left: 2px solid #ef5350;
+            border-bottom: 2px solid #b71c1c;
+            border-right: 2px solid #b71c1c;
+            color: white;
+            text-shadow: 2px 2px 0px #000;
+            font-family: 'VT323', monospace;
+            cursor: pointer;
+        }
+        .mc-btn-red:hover {
+            background-color: #d32f2f;
+        }
+        .mc-btn-gold {
+            background-color: #b45309;
+            border-top: 2px solid #fde047;
+            border-left: 2px solid #fde047;
+            border-bottom: 2px solid #78350f;
+            border-right: 2px solid #78350f;
+            color: white;
+            text-shadow: 2px 2px 0px #000;
+            font-family: 'VT323', monospace;
+            cursor: pointer;
+        }
         .mc-panel {
             background-color: #c6c6c6;
-            border: 2px solid #000;
-            box-shadow: inset 2px 2px 0px #fff, inset -2px -2px 0px #555;
+            border: 3px solid #000;
+            box-shadow: inset 3px 3px 0px #ffffff, inset -3px -3px 0px #555555;
+            font-family: 'VT323', monospace;
+        }
+        .mc-panel-dark {
+            background-color: #242424;
+            border: 3px solid #000;
+            box-shadow: inset 3px 3px 0px #3d3d3d, inset -3px -3px 0px #111111;
+            font-family: 'VT323', monospace;
+        }
+        .mc-slot {
+            background-color: #8b8b8b;
+            border: 2px solid #373737;
+            box-shadow: inset 2px 2px 0px #000000, inset -2px -2px 0px #ffffff;
+        }
+        .mc-slot-dark {
+            background-color: #171717;
+            border: 2px solid #0a0a0a;
+            box-shadow: inset 2px 2px 0px #000000, inset -2px -2px 0px #333333;
+        }
+        .mc-slot-selected {
+            border: 2px solid #facc15 !important;
+            box-shadow: inset 2px 2px 0px #ca8a04, inset -2px -2px 0px #fef08a, 0 0 6px #eab308 !important;
         }
         .mc-input {
             background-color: #000;
             border: 2px solid #555;
             color: white;
             font-family: 'VT323', monospace;
+        }
+        .mc-text {
+            font-family: 'VT323', monospace;
+            text-shadow: 2px 2px 0px #000;
+            letter-spacing: 0.04em;
         }
     </style>
 <script type="importmap">

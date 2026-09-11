@@ -38,7 +38,16 @@ export interface Relic {
   foundAt?: { x: number; z: number; date: string };
 }
 
-export type FeatureType = 'obelisk' | 'chest' | 'buried_mound' | 'campfire' | 'ancient_shrine';
+export type FeatureType =
+  | 'obelisk'
+  | 'chest'
+  | 'buried_mound'
+  | 'campfire'
+  | 'ancient_shrine'
+  | 'village_well'
+  | 'village_hut'
+  | 'village_farm'
+  | 'market_stall';
 
 export interface WorldFeature {
   id: string;
@@ -162,7 +171,17 @@ export interface Weapon {
   projectileColor?: string;
 }
 
-export type MonsterType = 'slime' | 'skeleton' | 'golem' | 'spider';
+export type MonsterType =
+  | 'slime'
+  | 'skeleton'
+  | 'golem'
+  | 'spider'
+  | 'cow'
+  | 'sheep'
+  | 'pig'
+  | 'chicken'
+  | 'villager'
+  | 'trader';
 
 export interface Monster {
   id: string;
@@ -184,6 +203,19 @@ export interface Monster {
   state: 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
   patrolCenter: { x: number; y: number };
   deathTime?: number;
+  isPassive?: boolean;
+  villagerRole?: 'farmer' | 'blacksmith' | 'librarian' | 'trader';
+  dialogue?: string;
+}
+
+export interface CharacterCustomization {
+  skinColor: string;
+  hairColor: string;
+  hairStyle: 'explorer_hat' | 'hair' | 'knight_helm' | 'crown' | 'hood' | 'none';
+  shirtColor: string;
+  pantsColor: string;
+  capeStyle: 'none' | 'royal_red' | 'emerald_ranger' | 'void_walker' | 'golden_champion';
+  showArmor: boolean;
 }
 
 export interface Projectile {

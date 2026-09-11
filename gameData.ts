@@ -528,6 +528,60 @@ export function generateChunkFeatures(
     return features;
   }
 
+  // Village Settlements: Guaranteed at chunk (1, 1), and procedurally every ~7 chunks
+  const isVillageChunk = (chunkX === 1 && chunkZ === 1) ||
+    (Math.abs(chunkX * 11 + chunkZ * 17 + seed) % 7 === 0 && !(chunkX === 0 && chunkZ === 0));
+
+  if (isVillageChunk) {
+    const cx = chunkX * 24;
+    const cz = chunkZ * 24;
+
+    // 1. Village Well (Center)
+    features.push({
+      id: `village_well_${chunkX}_${chunkZ}`,
+      type: 'village_well',
+      x: cx,
+      y: cz,
+      elevation: getElevation(cx, cz),
+      active: false,
+      discovered: true,
+      riddle: 'The bustling center of a friendly Overworld village settlement.',
+    });
+
+    // 2. Village Cottage / Blacksmith Hut
+    features.push({
+      id: `village_hut_${chunkX}_${chunkZ}`,
+      type: 'village_hut',
+      x: cx - 7,
+      y: cz - 6,
+      elevation: getElevation(cx - 7, cz - 6),
+      active: false,
+      discovered: true,
+    });
+
+    // 3. Village Farmland
+    features.push({
+      id: `village_farm_${chunkX}_${chunkZ}`,
+      type: 'village_farm',
+      x: cx + 7,
+      y: cz - 6,
+      elevation: getElevation(cx + 7, cz - 6),
+      active: false,
+      discovered: true,
+    });
+
+    // 4. Market Stall with Wandering Trader
+    features.push({
+      id: `market_stall_${chunkX}_${chunkZ}`,
+      type: 'market_stall',
+      x: cx + 5,
+      y: cz + 6,
+      elevation: getElevation(cx + 5, cz + 6),
+      active: false,
+      discovered: true,
+    });
+  }
+
   // General procedural feature placement:
   // Every ~4-5 chunks has an ancient obelisk
   const isObeliskChunk = (Math.abs(chunkX * 7 + chunkZ * 13 + seed) % 5 === 0);
@@ -606,21 +660,156 @@ export function generateChunkMonsters(
   const hash = Math.sin(chunkX * 782451653 + chunkZ * 333494437 + seed * 5) * 43758.5453;
   const randVal = hash - Math.floor(hash);
 
-  // Spawn 1 to 3 monsters per chunk (increased at night or in wilder terrain)
-  const isSpawnChunk = (chunkX === 0 && chunkZ === 0) ? true : randVal > 0.35;
+  const isVillageChunk =
+    (chunkX === 1 && chunkZ === 1) ||
+    (Math.abs(chunkX * 11 + chunkZ * 17 + seed) % 7 === 0 && !(chunkX === 0 && chunkZ === 0));
+
+  // --- VILLAGE SETTLEMENT ENTITIES ---
+  if (isVillageChunk) {
+    const cx = chunkX * 24;
+    const cz = chunkZ * 24;
+
+    // 1. Farmer Villager
+    monsters.push({
+      id: `villager_farmer_${chunkX}_${chunkZ}`,
+      type: 'villager',
+      name: 'Farmer Giles',
+      villagerRole: 'farmer',
+      isPassive: true,
+      x: cx + 6,
+      y: cz - 4,
+      elevation: getElevation(cx + 6, cz - 4),
+      hp: 60,
+      maxHp: 60,
+      damage: 0,
+      speed: 1.2,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: 10,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: Math.PI * 0.4,
+      state: 'patrol',
+      patrolCenter: { x: cx + 6, y: cz - 4 },
+      dialogue: 'Fresh bread, juicy apples, and emerald trades! Welcome to our village!',
+    });
+
+    // 2. Blacksmith Villager
+    monsters.push({
+      id: `villager_blacksmith_${chunkX}_${chunkZ}`,
+      type: 'villager',
+      name: 'Blacksmith Donald',
+      villagerRole: 'blacksmith',
+      isPassive: true,
+      x: cx - 6,
+      y: cz - 4,
+      elevation: getElevation(cx - 6, cz - 4),
+      hp: 100,
+      maxHp: 100,
+      damage: 0,
+      speed: 1.0,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: 15,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: -Math.PI * 0.3,
+      state: 'patrol',
+      patrolCenter: { x: cx - 6, y: cz - 4 },
+      dialogue: 'I forge the finest diamond armors and sharpest blades. Have you got emeralds?',
+    });
+
+    // 3. Wandering Trader
+    monsters.push({
+      id: `trader_${chunkX}_${chunkZ}`,
+      type: 'trader',
+      name: 'Wandering Trader Balthazar',
+      villagerRole: 'trader',
+      isPassive: true,
+      x: cx + 5,
+      y: cz + 5,
+      elevation: getElevation(cx + 5, cz + 5),
+      hp: 120,
+      maxHp: 120,
+      damage: 0,
+      speed: 1.4,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: 25,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: Math.PI,
+      state: 'patrol',
+      patrolCenter: { x: cx + 5, y: cz + 5 },
+      dialogue: 'Exotic curios from distant realms! Totems of Undying, enchanted books, and blueprints!',
+    });
+
+    // 4. Village Pasture Animals (Cows and Sheep)
+    monsters.push({
+      id: `cow_${chunkX}_${chunkZ}_1`,
+      type: 'cow',
+      name: 'Pasture Cow',
+      isPassive: true,
+      x: cx - 2,
+      y: cz + 6,
+      elevation: getElevation(cx - 2, cz + 6),
+      hp: 30,
+      maxHp: 30,
+      damage: 0,
+      speed: 1.5,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: 15,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: Math.PI * 0.7,
+      state: 'patrol',
+      patrolCenter: { x: cx - 2, y: cz + 6 },
+    });
+
+    monsters.push({
+      id: `sheep_${chunkX}_${chunkZ}_1`,
+      type: 'sheep',
+      name: 'Fluffy Sheep',
+      isPassive: true,
+      x: cx + 1,
+      y: cz + 8,
+      elevation: getElevation(cx + 1, cz + 8),
+      hp: 20,
+      maxHp: 20,
+      damage: 0,
+      speed: 1.6,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: 12,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: -Math.PI * 0.5,
+      state: 'patrol',
+      patrolCenter: { x: cx + 1, y: cz + 8 },
+    });
+
+    return monsters;
+  }
+
+  // --- WILDERNESS MONSTERS & ANIMALS ---
+  const isSpawnChunk = chunkX === 0 && chunkZ === 0 ? true : randVal > 0.35;
   if (!isSpawnChunk) return monsters;
 
-  const count = (chunkX === 0 && chunkZ === 0)
-    ? 2 // Starter chunk has a couple of friendly practice slimes far from center
-    : (isNight ? Math.floor(randVal * 3) + 1 : Math.floor(randVal * 2) + 1);
+  const count =
+    chunkX === 0 && chunkZ === 0
+      ? 2 // Starter chunk has a couple of friendly practice slimes far from center
+      : isNight
+      ? Math.floor(randVal * 3) + 1
+      : Math.floor(randVal * 2) + 1;
 
   for (let i = 0; i < count; i++) {
     const subHash = Math.sin(chunkX * 919 + chunkZ * 541 + i * 733 + seed) * 12345.67;
     const r1 = subHash - Math.floor(subHash);
-    const r2 = (subHash * 3.7) - Math.floor(subHash * 3.7);
+    const r2 = subHash * 3.7 - Math.floor(subHash * 3.7);
 
-    let localX = (chunkX * 24) + ((r1 - 0.5) * 18);
-    let localZ = (chunkZ * 24) + ((r2 - 0.5) * 18);
+    let localX = chunkX * 24 + (r1 - 0.5) * 18;
+    let localZ = chunkZ * 24 + (r2 - 0.5) * 18;
 
     // Keep spawn at safe distance from origin (0, 0)
     if (chunkX === 0 && chunkZ === 0) {
@@ -674,13 +863,51 @@ export function generateChunkMonsters(
       damage,
       speed,
       aggroRange: type === 'golem' ? 11 : 14,
-      attackRange: type === 'slime' ? 1.6 : (type === 'golem' ? 2.3 : 1.9),
+      attackRange: type === 'slime' ? 1.6 : type === 'golem' ? 2.3 : 1.9,
       xpReward: xp,
       lastAttackTime: 0,
       hurtUntilTime: 0,
       rotation: Math.PI * 2 * r1,
       state: 'patrol',
-      patrolCenter: { x: localX, y: localZ }
+      patrolCenter: { x: localX, y: localZ },
+      isPassive: false,
+    });
+  }
+
+  // --- ALSO SPAWN WILD ANIMALS IN DAYLIGHT / GREEN TERRAIN ---
+  if (!isNight && randVal > 0.25) {
+    const animalTypes: Array<{ type: MonsterType; name: string; hp: number; speed: number; xp: number }> = [
+      { type: 'cow', name: 'Wild Highland Cow', hp: 35, speed: 1.8, xp: 15 },
+      { type: 'sheep', name: 'Mountain Sheep', hp: 25, speed: 2.0, xp: 12 },
+      { type: 'pig', name: 'Forest Piglet', hp: 25, speed: 2.2, xp: 14 },
+      { type: 'chicken', name: 'Meadow Chicken', hp: 15, speed: 2.4, xp: 8 },
+    ];
+
+    const animalPick = animalTypes[Math.floor(randVal * animalTypes.length)];
+    const ax = chunkX * 24 + ((randVal * 7.7) % 1 - 0.5) * 16;
+    const az = chunkZ * 24 + ((randVal * 5.3) % 1 - 0.5) * 16;
+    const aElev = getElevation(ax, az);
+
+    monsters.push({
+      id: `animal_${chunkX}_${chunkZ}`,
+      type: animalPick.type,
+      name: animalPick.name,
+      x: ax,
+      y: az,
+      elevation: aElev,
+      hp: animalPick.hp,
+      maxHp: animalPick.hp,
+      damage: 0,
+      speed: animalPick.speed,
+      aggroRange: 0,
+      attackRange: 0,
+      xpReward: animalPick.xp,
+      lastAttackTime: 0,
+      hurtUntilTime: 0,
+      rotation: Math.PI * 2 * randVal,
+      state: 'patrol',
+      patrolCenter: { x: ax, y: az },
+      isPassive: true,
     });
   }
 

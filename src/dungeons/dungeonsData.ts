@@ -258,6 +258,24 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
 // --- MELEE WEAPONS CATALOG ---
 export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
   {
+    id: 'starter_wooden_sword',
+    name: 'Carved Wooden Sword',
+    category: 'melee',
+    subType: 'sword',
+    rarity: 'common',
+    power: 1,
+    icon: '🗡️',
+    color: '#854d0e',
+    damage: 12,
+    attackSpeed: 1.0,
+    range: 2.2,
+    description: 'A novice blade hand-carved from forest timber. Your journey begins with this humble weapon.',
+    enchantmentSlots: [
+      { id: 'sharpness', tier: 0 },
+    ],
+    salvageEmeralds: 5,
+  },
+  {
     id: 'diamond_sword',
     name: 'Diamond Sword',
     category: 'melee',
@@ -385,6 +403,25 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
 // --- RANGED WEAPONS CATALOG ---
 export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
   {
+    id: 'starter_shortbow',
+    name: 'Crude Shortbow',
+    category: 'ranged',
+    subType: 'shortbow',
+    rarity: 'common',
+    power: 1,
+    icon: '🏹',
+    color: '#a16207',
+    damage: 14,
+    range: 16,
+    attackSpeed: 1.0,
+    arrowCost: 1,
+    description: 'A simple bent wooden branch strung with twine. Basic but reliable distance defense.',
+    enchantmentSlots: [
+      { id: 'power', tier: 0 },
+    ],
+    salvageEmeralds: 5,
+  },
+  {
     id: 'harp_crossbow',
     name: 'Harp Crossbow',
     category: 'ranged',
@@ -474,6 +511,23 @@ export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
 // --- ARMOR CATALOG ---
 export const ALL_ARMOR: DungeonsGearItem[] = [
   {
+    id: 'starter_leather_tunic',
+    name: 'Worn Leather Tunic',
+    category: 'armor',
+    subType: 'light',
+    rarity: 'common',
+    power: 1,
+    icon: '🥋',
+    color: '#854d0e',
+    hpBonus: 20,
+    damageReduction: 0.05,
+    description: 'A modest stitched leather tunic offering entry-level defense for wandering explorers.',
+    enchantmentSlots: [
+      { id: 'protection', tier: 0 },
+    ],
+    salvageEmeralds: 5,
+  },
+  {
     id: 'mercenary_armor',
     name: 'Mercenary Armor',
     category: 'armor',
@@ -534,6 +588,101 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'potion_barrier', tier: 1 },
     ],
     salvageEmeralds: 190,
+  },
+  {
+    id: 'champion_armor',
+    name: "Champion's Armor",
+    category: 'armor',
+    subType: 'heavy',
+    rarity: 'unique',
+    power: 40,
+    icon: '👑',
+    color: '#38bdf8',
+    hpBonus: 110,
+    damageReduction: 0.38,
+    moveSpeedBonus: 0.05,
+    description: 'Masterwork diamond-inlaid armor forged for legendary conquerors of the realm.',
+    uniquePerk: '+38% Damage reduction, +110 Max HP, radiant defiance aura',
+    enchantmentSlots: [
+      { id: 'protection', tier: 2 },
+      { id: 'thorns', tier: 2 },
+      { id: 'potion_barrier', tier: 1 },
+    ],
+    salvageEmeralds: 220,
+  },
+  {
+    id: 'golden_knight_armor',
+    name: 'Golden Knight Carapace',
+    category: 'armor',
+    subType: 'heavy',
+    rarity: 'unique',
+    power: 37,
+    icon: '✨',
+    color: '#eab308',
+    hpBonus: 85,
+    damageReduction: 0.3,
+    description: 'Dazzling gilded armor that converts absorbed damage into emerald drops and shields.',
+    uniquePerk: '+30% Damage reduction, bonus emerald generation in combat',
+    enchantmentSlots: [
+      { id: 'protection', tier: 1 },
+      { id: 'potion_barrier', tier: 1 },
+    ],
+    salvageEmeralds: 195,
+  },
+  {
+    id: 'grim_armor',
+    name: 'Grim Armor',
+    category: 'armor',
+    subType: 'medium',
+    rarity: 'rare',
+    power: 28,
+    icon: '💀',
+    color: '#64748b',
+    hpBonus: 50,
+    damageReduction: 0.2,
+    soulGathering: 3,
+    description: 'Forged from dark souls of the Nether chasm, granting life steal on melee strikes.',
+    uniquePerk: '+3 Soul gathering and +3% life steal on kill',
+    enchantmentSlots: [
+      { id: 'protection', tier: 1 },
+      { id: 'swiftfooted', tier: 0 },
+    ],
+    salvageEmeralds: 110,
+  },
+  {
+    id: 'hunter_tunic',
+    name: "Ranger's Hunter Tunic",
+    category: 'armor',
+    subType: 'light',
+    rarity: 'common',
+    power: 16,
+    icon: '🏹',
+    color: '#16a34a',
+    hpBonus: 25,
+    damageReduction: 0.1,
+    moveSpeedBonus: 0.12,
+    description: 'Lightweight forest garment with leather bracers for agile exploration.',
+    enchantmentSlots: [
+      { id: 'swiftfooted', tier: 0 },
+    ],
+    salvageEmeralds: 35,
+  },
+  {
+    id: 'iron_plate',
+    name: 'Iron Breastplate',
+    category: 'armor',
+    subType: 'medium',
+    rarity: 'common',
+    power: 18,
+    icon: '🛡️',
+    color: '#cbd5e1',
+    hpBonus: 35,
+    damageReduction: 0.18,
+    description: 'Sturdy hammered iron plate capable of stopping heavy blows.',
+    enchantmentSlots: [
+      { id: 'protection', tier: 0 },
+    ],
+    salvageEmeralds: 40,
   },
   {
     id: 'wolf_armor',
@@ -637,13 +786,13 @@ export const DUNGEONS_MISSIONS: DungeonsMission[] = [
 ];
 
 // Initial default gear setup for a new character in Minecraft Dungeons style
-export const INITIAL_MELEE: DungeonsGearItem = ALL_MELEE_WEAPONS.find(w => w.id === 'broadsword') || ALL_MELEE_WEAPONS[0];
-export const INITIAL_RANGED: DungeonsGearItem = ALL_RANGED_WEAPONS.find(w => w.id === 'hunters_bow') || ALL_RANGED_WEAPONS[0];
-export const INITIAL_ARMOR: DungeonsGearItem = ALL_ARMOR.find(a => a.id === 'wolf_armor') || ALL_ARMOR[0];
+export const INITIAL_MELEE: DungeonsGearItem = ALL_MELEE_WEAPONS.find(w => w.id === 'starter_wooden_sword') || ALL_MELEE_WEAPONS[0];
+export const INITIAL_RANGED: DungeonsGearItem = ALL_RANGED_WEAPONS.find(w => w.id === 'starter_shortbow') || ALL_RANGED_WEAPONS[0];
+export const INITIAL_ARMOR: DungeonsGearItem = ALL_ARMOR.find(a => a.id === 'starter_leather_tunic') || ALL_ARMOR[0];
 export const INITIAL_ARTIFACTS: [DungeonsArtifact | null, DungeonsArtifact | null, DungeonsArtifact | null] = [
-  ALL_ARTIFACTS.find(a => a.id === 'death_cap_mushroom') || null,
-  ALL_ARTIFACTS.find(a => a.id === 'fireworks_arrow') || null,
-  ALL_ARTIFACTS.find(a => a.id === 'boots_of_swiftness') || null,
+  null,
+  null,
+  null,
 ];
 
 // Procedural gear drop generator matching player power level

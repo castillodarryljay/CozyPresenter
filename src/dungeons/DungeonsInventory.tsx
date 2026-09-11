@@ -80,7 +80,8 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl h-[94vh] sm:h-[90vh] max-h-[780px] bg-[#1a1714] border-3 sm:border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+        className="relative w-full max-w-5xl h-[94vh] sm:h-[90vh] max-h-[780px] mc-panel-dark flex flex-col overflow-hidden text-white"
+        style={{ fontFamily: "'VT323', monospace" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* --- WINDOW HEADER --- */}

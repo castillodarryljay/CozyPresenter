@@ -15,6 +15,9 @@ import {
   VolumeX,
   Settings,
   Pickaxe,
+  Shield,
+  Hammer,
+  Coins,
 } from 'lucide-react';
 import { VirtualJoystick } from './VirtualJoystick';
 
@@ -24,6 +27,10 @@ interface DungeonsHUDProps {
   onOpenInventory: () => void;
   onOpenMissionMap: () => void;
   onOpenCamp: () => void;
+  onOpenCharacterSheet?: () => void;
+  onOpenBuildDrawer?: () => void;
+  onOpenVillageTrade?: () => void;
+  isNearVillager?: boolean;
   onOpenSettings?: () => void;
   onMeleeAttack: () => void;
   onRangedAttack: () => void;
@@ -44,6 +51,10 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
   onOpenInventory,
   onOpenMissionMap,
   onOpenCamp,
+  onOpenCharacterSheet,
+  onOpenBuildDrawer,
+  onOpenVillageTrade,
+  isNearVillager = false,
   onOpenSettings,
   onMeleeAttack,
   onRangedAttack,
@@ -110,7 +121,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
       {/* ========================================================= */}
       <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-start z-30 pointer-events-none gap-1.5 sm:gap-2">
         {/* Top-Left: Hero Profile & Power Level Diamond */}
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 bg-[#1a1714]/92 p-1.5 sm:p-2 rounded-xl border-2 border-[#453c35] shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md">
+        <div
+          onClick={onOpenCharacterSheet}
+          className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 bg-[#1a1714]/92 p-1.5 sm:p-2 rounded-xl border-2 border-[#453c35] hover:border-amber-500 shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md cursor-pointer transition-colors"
+          title="Open Hero Stats & Appearance Customization (C)"
+        >
           {/* Avatar Icon */}
           <div className="relative w-7 h-7 sm:w-10 sm:h-10 bg-[#2d2722] rounded-lg border border-[#6b5e52] flex items-center justify-center flex-shrink-0">
             <span className="text-sm sm:text-xl">🗡️</span>
@@ -123,8 +138,8 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           {/* Vitals Column */}
           <div className="flex flex-col min-w-[85px] sm:min-w-[150px]">
             <div className="flex items-center justify-between gap-1">
-              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider">
-                HERO
+              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-1">
+                HERO <Shield className="w-3 h-3 text-amber-400" />
               </span>
 
               {/* Power Level Diamond */}
@@ -159,9 +174,9 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
         <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
           {/* Emeralds Currency Pill */}
           <div
-            onClick={onOpenCamp}
+            onClick={onOpenVillageTrade || onOpenCamp}
             className="flex items-center gap-1 bg-[#0e1f13]/90 px-1.5 sm:px-2 py-1 rounded-lg border border-[#15803d] text-[#4ade80] font-black text-[10px] sm:text-xs shadow-sm cursor-pointer hover:border-[#4ade80] transition-colors"
-            title="Emeralds Currency - Tap to visit Camp"
+            title="Emeralds Currency - Click to trade or visit Camp"
           >
             <span>💎</span>
             <span className="font-mono">{stats.emeralds}</span>
@@ -175,6 +190,42 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
             <span>🏹</span>
             <span className="font-mono">{stats.arrows}</span>
           </div>
+
+          {/* Trade Button (Highlighted when near a villager) */}
+          {isNearVillager && onOpenVillageTrade && (
+            <button
+              onClick={onOpenVillageTrade}
+              className="h-7 sm:h-9 px-2 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-2 border-emerald-300 rounded-lg text-white font-black text-[10px] sm:text-xs flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.7)] animate-bounce transition-all cursor-pointer"
+              title="Trade with Village Merchant (E)"
+            >
+              <Coins className="w-3.5 h-3.5 text-yellow-300" />
+              <span>TRADE [E]</span>
+            </button>
+          )}
+
+          {/* Hero Sheet Button */}
+          {onOpenCharacterSheet && (
+            <button
+              onClick={onOpenCharacterSheet}
+              className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#7c2d12] hover:bg-[#9a3412] border border-[#fdba74] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+              title="Hero Character Sheet & Stats (C)"
+            >
+              <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">HERO</span>
+            </button>
+          )}
+
+          {/* Build & Craft Forge Button */}
+          {onOpenBuildDrawer && (
+            <button
+              onClick={onOpenBuildDrawer}
+              className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#0f766e] hover:bg-[#115e59] border border-[#99f6e4] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+              title="Build Structures & Craft Forge (B)"
+            >
+              <Hammer className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-emerald-300" />
+              <span className="hidden sm:inline">BUILD</span>
+            </button>
+          )}
 
           {/* Current Mission Tracker (hidden on narrow screens to prevent crowding) */}
           {!isNarrowMobile && !isUltraNarrow && (
@@ -199,7 +250,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           <button
             onClick={onOpenCamp}
             className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#ea580c] hover:bg-[#c2410c] border border-[#fed7aa] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-            title="Camp & Blacksmith (C)"
+            title="Camp & Blacksmith"
           >
             <Tent className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
             <span className="hidden sm:inline">CAMP</span>

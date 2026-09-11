@@ -133,6 +133,7 @@ export const BuildCraftDrawer: React.FC<BuildCraftDrawerProps> = ({
     >
       <div
         className="w-full max-w-4xl max-h-[92vh] mc-panel p-3 sm:p-5 md:p-6 bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col gap-3 sm:gap-4 overflow-hidden"
+        style={{ fontFamily: "'VT323', monospace" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Top Header */}

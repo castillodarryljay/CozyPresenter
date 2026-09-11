@@ -62,6 +62,7 @@ import {
   BuildableStructureBlueprint,
   ResourceType,
   WeaponRecipe,
+  CharacterCustomization,
 } from './types';
 import {
   getTerrainHeight,
@@ -87,6 +88,8 @@ import { MonstersWorld, ProjectilesWorld, LootDropsWorld } from './monsters';
 import { PWAInstallButton } from './PWAInstallUI';
 import { BuildCraftDrawer } from './BuildCraftDrawer';
 import { BuildPlacementHUD } from './BuildPlacementHUD';
+import { CharacterSheetModal } from './CharacterSheetModal';
+import { VillageTradeModal } from './VillageTradeModal';
 
 // Minecraft Dungeons Architecture & UI Components
 import {
@@ -162,7 +165,7 @@ const INITIAL_STATS: PlayerStats = {
 
 // --- 3D Scene Components ---
 
-// 3D Player Character with Minecraft Swing, Ground Contact Shadow, Handheld Lantern & Weapons
+// 3D Player Character with Minecraft Swing, Ground Contact Shadow, Handheld Lantern, Visible Armor Suite & Weapons
 const Player3D: React.FC<{
   playerPosRef: React.MutableRefObject<PlayerMotionState>;
   playerCombatRef?: React.MutableRefObject<{ hp: number; maxHp: number; stamina: number; maxStamina: number; dodgeEndTime: number; lastAttackTime: number }>;
@@ -172,12 +175,26 @@ const Player3D: React.FC<{
   activeWeapon?: Weapon;
   attackAnimRef: React.MutableRefObject<{ isAttacking: boolean; startTime: number; duration: number }>;
   isHurtFlash?: boolean;
-}> = ({ playerPosRef, playerCombatRef, color, settings, isNight, activeWeapon, attackAnimRef, isHurtFlash }) => {
+  customization?: CharacterCustomization;
+  equippedArmor?: DungeonsGearItem;
+}> = ({
+  playerPosRef,
+  playerCombatRef,
+  color,
+  settings,
+  isNight,
+  activeWeapon,
+  attackAnimRef,
+  isHurtFlash,
+  customization,
+  equippedArmor,
+}) => {
   const group = useRef<THREE.Group>(null);
   const leftLeg = useRef<THREE.Group>(null);
   const rightLeg = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
+  const capeRef = useRef<THREE.Group>(null);
 
   useFrame((state, delta) => {
     if (group.current) {
@@ -219,6 +236,10 @@ const Player3D: React.FC<{
               rightArm.current.rotation.z = 0;
             }
           }
+
+          if (capeRef.current) {
+            capeRef.current.rotation.x = Math.PI * 0.16 + Math.sin(t) * 0.08;
+          }
         } else {
           // Gentle idle breathing bob
           const breathe = Math.sin(state.clock.elapsedTime * 2.5) * 0.025;
@@ -232,6 +253,10 @@ const Player3D: React.FC<{
               rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
               rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, delta * 10);
             }
+          }
+
+          if (capeRef.current) {
+            capeRef.current.rotation.x = THREE.MathUtils.lerp(capeRef.current.rotation.x, Math.PI * 0.04, delta * 6);
           }
         }
 
@@ -253,7 +278,29 @@ const Player3D: React.FC<{
   });
 
   const initP = playerPosRef.current;
-  const torsoColor = isHurtFlash ? '#ef4444' : color;
+  const skinColor = isHurtFlash ? '#fca5a5' : (customization?.skinColor || '#FACC9A');
+  const torsoColor = isHurtFlash ? '#ef4444' : (customization?.shirtColor || color || '#15803d');
+  const pantsColor = customization?.pantsColor || '#37305C';
+  const hairColor = customization?.hairColor || '#3d2314';
+  const hairStyle = customization?.hairStyle || 'explorer_hat';
+  const capeStyle = customization?.capeStyle || 'royal_red';
+  const showArmor = customization?.showArmor !== false;
+
+  // Armor suite visual styling
+  const armorHex = equippedArmor
+    ? (equippedArmor.color || (equippedArmor.rarity === 'unique' ? '#f59e0b' : equippedArmor.rarity === 'rare' ? '#a855f7' : '#38bdf8'))
+    : '#38bdf8';
+  const isUniqueArmor = equippedArmor?.rarity === 'unique';
+  const isRareArmor = equippedArmor?.rarity === 'rare';
+
+  // Cape color map
+  const capeColorMap: { [key: string]: string } = {
+    royal_red: '#dc2626',
+    emerald_ranger: '#059669',
+    void_walker: '#7c3aed',
+    golden_champion: '#d97706',
+  };
+  const capeColor = capeColorMap[capeStyle] || '#dc2626';
 
   return (
     <group ref={group} position={[initP.x, initP.elevation + 0.75, initP.y]}>
@@ -263,46 +310,176 @@ const Player3D: React.FC<{
         <meshBasicMaterial color="#1a2e12" transparent opacity={0.35} depthWrite={false} />
       </mesh>
 
-      {/* Head */}
+      {/* Head & Headgear */}
       <group position={[0, 0.75, 0]}>
         <Box args={[0.5, 0.5, 0.5]}>
-          <meshStandardMaterial color={isHurtFlash ? '#fca5a5' : '#FACC9A'} roughness={1} />
+          <meshStandardMaterial color={skinColor} roughness={1} />
         </Box>
-        {/* Explorer Hat */}
-        <Box position={[0, 0.28, 0]} args={[0.56, 0.1, 0.56]}>
-          <meshStandardMaterial color="#5d4037" roughness={0.9} />
-        </Box>
-        <Box position={[0, 0.38, 0]} args={[0.38, 0.16, 0.38]}>
-          <meshStandardMaterial color="#6d4c41" roughness={0.9} />
-        </Box>
-        {/* Eyes */}
-        <Box position={[-0.1, 0, 0.26]} args={[0.08, 0.08, 0.05]}>
-          <meshStandardMaterial color="white" />
-        </Box>
-        <Box position={[0.1, 0, 0.26]} args={[0.08, 0.08, 0.05]}>
-          <meshStandardMaterial color="white" />
-        </Box>
-        <Box position={[-0.08, 0, 0.29]} args={[0.04, 0.04, 0.05]}>
-          <meshStandardMaterial color="#4A4A4A" />
-        </Box>
-        <Box position={[0.12, 0, 0.29]} args={[0.04, 0.04, 0.05]}>
-          <meshStandardMaterial color="#4A4A4A" />
-        </Box>
+
+        {/* Headgear Styles */}
+        {hairStyle === 'explorer_hat' && (
+          <>
+            <Box position={[0, 0.28, 0]} args={[0.56, 0.1, 0.56]}>
+              <meshStandardMaterial color="#5d4037" roughness={0.9} />
+            </Box>
+            <Box position={[0, 0.38, 0]} args={[0.38, 0.16, 0.38]}>
+              <meshStandardMaterial color="#6d4c41" roughness={0.9} />
+            </Box>
+          </>
+        )}
+
+        {hairStyle === 'knight_helm' && (
+          <group position={[0, 0.04, 0]}>
+            <Box args={[0.54, 0.52, 0.54]}>
+              <meshStandardMaterial color={armorHex} roughness={0.3} metalness={0.8} />
+            </Box>
+            {/* Visor Eye Slit */}
+            <Box position={[0, 0, 0.28]} args={[0.42, 0.08, 0.04]}>
+              <meshBasicMaterial color="#09090b" />
+            </Box>
+            {/* Crest Plume */}
+            <Box position={[0, 0.32, -0.05]} args={[0.1, 0.18, 0.4]}>
+              <meshStandardMaterial color={isUniqueArmor ? '#fbbf24' : '#ef4444'} roughness={0.7} />
+            </Box>
+          </group>
+        )}
+
+        {hairStyle === 'crown' && (
+          <group position={[0, 0.28, 0]}>
+            {/* Golden Circlet */}
+            <Box args={[0.54, 0.1, 0.54]}>
+              <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
+            </Box>
+            {/* 4 Golden Crown Points */}
+            <Box position={[-0.24, 0.1, -0.24]} args={[0.08, 0.14, 0.08]}>
+              <meshStandardMaterial color="#facc15" metalness={0.9} />
+            </Box>
+            <Box position={[0.24, 0.1, -0.24]} args={[0.08, 0.14, 0.08]}>
+              <meshStandardMaterial color="#facc15" metalness={0.9} />
+            </Box>
+            <Box position={[-0.24, 0.1, 0.24]} args={[0.08, 0.14, 0.08]}>
+              <meshStandardMaterial color="#facc15" metalness={0.9} />
+            </Box>
+            <Box position={[0.24, 0.1, 0.24]} args={[0.08, 0.14, 0.08]}>
+              <meshStandardMaterial color="#facc15" metalness={0.9} />
+            </Box>
+            {/* Embedded Ruby */}
+            <mesh position={[0, 0.06, 0.28]}>
+              <boxGeometry args={[0.08, 0.08, 0.02]} />
+              <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={2} />
+            </mesh>
+          </group>
+        )}
+
+        {hairStyle === 'hood' && (
+          <group position={[0, 0.05, -0.02]}>
+            <Box args={[0.56, 0.54, 0.56]}>
+              <meshStandardMaterial color={torsoColor} roughness={0.9} />
+            </Box>
+          </group>
+        )}
+
+        {hairStyle === 'hair' && (
+          <group position={[0, 0.22, -0.04]}>
+            <Box args={[0.52, 0.22, 0.54]}>
+              <meshStandardMaterial color={hairColor} roughness={0.8} />
+            </Box>
+          </group>
+        )}
+
+        {/* Eyes (Visible for all non-helmet styles) */}
+        {hairStyle !== 'knight_helm' && (
+          <>
+            <Box position={[-0.1, 0, 0.26]} args={[0.08, 0.08, 0.05]}>
+              <meshStandardMaterial color="white" />
+            </Box>
+            <Box position={[0.1, 0, 0.26]} args={[0.08, 0.08, 0.05]}>
+              <meshStandardMaterial color="white" />
+            </Box>
+            <Box position={[-0.08, 0, 0.29]} args={[0.04, 0.04, 0.05]}>
+              <meshStandardMaterial color="#4A4A4A" />
+            </Box>
+            <Box position={[0.12, 0, 0.29]} args={[0.04, 0.04, 0.05]}>
+              <meshStandardMaterial color="#4A4A4A" />
+            </Box>
+          </>
+        )}
       </group>
 
-      {/* Torso */}
-      <Box position={[0, 0.15, 0]} args={[0.5, 0.7, 0.25]}>
-        <meshStandardMaterial color={torsoColor} roughness={1} />
-      </Box>
+      {/* Torso & Armor Chestplate */}
+      <group position={[0, 0.15, 0]}>
+        <Box args={[0.5, 0.7, 0.25]}>
+          <meshStandardMaterial color={torsoColor} roughness={1} />
+        </Box>
 
-      {/* Left Arm (Holds Explorer Lantern) */}
+        {/* Visible Armor Suite (Chestplate Layer) */}
+        {showArmor && (
+          <group>
+            {/* Fitted Breastplate */}
+            <Box position={[0, 0.02, 0]} args={[0.54, 0.68, 0.28]}>
+              <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+            </Box>
+            {/* Golden Belt */}
+            <Box position={[0, -0.28, 0.01]} args={[0.55, 0.12, 0.29]}>
+              <meshStandardMaterial color="#78350f" roughness={0.8} />
+            </Box>
+            {/* Belt Buckle */}
+            <Box position={[0, -0.28, 0.16]} args={[0.14, 0.1, 0.04]}>
+              <meshStandardMaterial color="#eab308" metalness={0.9} />
+            </Box>
+
+            {/* Glowing Gem for Rare/Unique Armor */}
+            {(isUniqueArmor || isRareArmor) && (
+              <mesh position={[0, 0.12, 0.16]}>
+                <boxGeometry args={[0.08, 0.08, 0.04]} />
+                <meshStandardMaterial
+                  color={isUniqueArmor ? '#fef08a' : '#c084fc'}
+                  emissive={isUniqueArmor ? '#f59e0b' : '#9333ea'}
+                  emissiveIntensity={2.5}
+                />
+              </mesh>
+            )}
+          </group>
+        )}
+
+        {/* Flowing Back Cape */}
+        {capeStyle !== 'none' && (
+          <group ref={capeRef} position={[0, 0.32, -0.15]}>
+            <Box position={[0, -0.42, 0]} args={[0.46, 0.82, 0.03]}>
+              <meshStandardMaterial color={capeColor} roughness={0.7} />
+            </Box>
+            {/* Cape Clasp Trim */}
+            <Box position={[0, 0, 0.02]} args={[0.48, 0.06, 0.04]}>
+              <meshStandardMaterial color="#eab308" metalness={0.8} />
+            </Box>
+          </group>
+        )}
+      </group>
+
+      {/* Left Arm (Holds Explorer Lantern & Shoulder Pauldron) */}
       <group ref={leftArm} position={[-0.38, 0.45, 0]}>
         <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]}>
           <meshStandardMaterial color={torsoColor} roughness={1} />
         </Box>
         <Box position={[0, -0.7, 0]} args={[0.2, 0.2, 0.25]}>
-          <meshStandardMaterial color="#FACC9A" roughness={1} />
+          <meshStandardMaterial color={skinColor} roughness={1} />
         </Box>
+
+        {/* Shoulder Pauldron */}
+        {showArmor && (
+          <group position={[-0.04, 0.02, 0]}>
+            <Box args={[0.26, 0.22, 0.29]}>
+              <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+            </Box>
+          </group>
+        )}
+
+        {/* Gauntlet Wrist Guard */}
+        {showArmor && (
+          <Box position={[0, -0.55, 0]} args={[0.22, 0.2, 0.27]}>
+            <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+          </Box>
+        )}
 
         {/* Handheld Voxel Lantern */}
         <group position={[0, -0.85, 0.15]}>
@@ -325,14 +502,30 @@ const Player3D: React.FC<{
         </group>
       </group>
 
-      {/* Right Arm (Wields Active Weapon) */}
+      {/* Right Arm (Wields Active Weapon & Shoulder Pauldron) */}
       <group ref={rightArm} position={[0.38, 0.45, 0]}>
         <Box position={[0, -0.3, 0]} args={[0.2, 0.7, 0.25]}>
           <meshStandardMaterial color={torsoColor} roughness={1} />
         </Box>
         <Box position={[0, -0.7, 0]} args={[0.2, 0.2, 0.25]}>
-          <meshStandardMaterial color="#FACC9A" roughness={1} />
+          <meshStandardMaterial color={skinColor} roughness={1} />
         </Box>
+
+        {/* Shoulder Pauldron */}
+        {showArmor && (
+          <group position={[0.04, 0.02, 0]}>
+            <Box args={[0.26, 0.22, 0.29]}>
+              <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+            </Box>
+          </group>
+        )}
+
+        {/* Gauntlet Wrist Guard */}
+        {showArmor && (
+          <Box position={[0, -0.55, 0]} args={[0.22, 0.2, 0.27]}>
+            <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+          </Box>
+        )}
 
         {/* Equipped 3D Weapon Model */}
         {activeWeapon && (
@@ -410,16 +603,27 @@ const Player3D: React.FC<{
         )}
       </group>
 
-      {/* Legs */}
+      {/* Legs & Armored Greaves */}
       <group ref={leftLeg} position={[-0.13, -0.2, 0]}>
         <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]}>
-          <meshStandardMaterial color="#37305C" roughness={1} />
+          <meshStandardMaterial color={pantsColor} roughness={1} />
         </Box>
+        {showArmor && (
+          <Box position={[0, -0.45, 0]} args={[0.24, 0.35, 0.27]}>
+            <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+          </Box>
+        )}
       </group>
+
       <group ref={rightLeg} position={[0.13, -0.2, 0]}>
         <Box position={[0, -0.35, 0]} args={[0.22, 0.7, 0.25]}>
-          <meshStandardMaterial color="#37305C" roughness={1} />
+          <meshStandardMaterial color={pantsColor} roughness={1} />
         </Box>
+        {showArmor && (
+          <Box position={[0, -0.45, 0]} args={[0.24, 0.35, 0.27]}>
+            <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
+          </Box>
+        )}
       </group>
     </group>
   );
@@ -1014,6 +1218,36 @@ export const App: React.FC = () => {
   const [isDungeonsCampOpen, setIsDungeonsCampOpen] = useState<boolean>(false);
   const [isDungeonsMapOpen, setIsDungeonsMapOpen] = useState<boolean>(false);
 
+  // Character Customization & Stats Sheet Modal State
+  const [characterCustomization, setCharacterCustomization] = useState<CharacterCustomization>(() => {
+    try {
+      const saved = localStorage.getItem('voxel_nomad_character_customization');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      skinColor: '#FACC9A',
+      shirtColor: '#15803d',
+      pantsColor: '#37305C',
+      hairColor: '#3d2314',
+      hairStyle: 'explorer_hat',
+      capeStyle: 'royal_red',
+      showArmor: true,
+      title: 'Hero of the Realm',
+    };
+  });
+  const [isCharacterSheetOpen, setIsCharacterSheetOpen] = useState<boolean>(false);
+
+  // Village Trading State & Modals
+  const [isVillageTradeOpen, setIsVillageTradeOpen] = useState<boolean>(false);
+  const [activeTradeVillager, setActiveTradeVillager] = useState<Monster | null>(null);
+
+  // Save Character Customization when updated
+  useEffect(() => {
+    try {
+      localStorage.setItem('voxel_nomad_character_customization', JSON.stringify(characterCustomization));
+    } catch (e) {}
+  }, [characterCustomization]);
+
   // Day / Night Cycle (0.0 to 1.0, 0.25 = noon, 0.75 = midnight)
   const [timeOfDay, setTimeOfDay] = useState<number>(0.2); // Starts in clear morning
   const isNight = timeOfDay > 0.55 && timeOfDay < 0.95;
@@ -1204,6 +1438,22 @@ export const App: React.FC = () => {
   const [monsters, setMonsters] = useState<Monster[]>([]);
   const monstersRef = useRef<Monster[]>([]);
   const chunkMonstersMap = useRef<Map<string, Monster[]>>(new Map());
+
+  // Nearest Friendly Villager or Trader for Trade Interaction
+  const nearVillager = useMemo(() => {
+    let closest: Monster | null = null;
+    let minDist = Infinity;
+    for (const m of monsters) {
+      if (m.state === 'dead') continue;
+      if (m.type !== 'villager' && m.type !== 'trader') continue;
+      const d = Math.hypot(m.x - charPos.x, m.y - charPos.y);
+      if (d < 4.5 && d < minDist) {
+        minDist = d;
+        closest = m;
+      }
+    }
+    return closest;
+  }, [monsters, Math.round(charPos.x * 2) / 2, Math.round(charPos.y * 2) / 2]);
 
   // Projectiles & Combat FX
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
@@ -1892,6 +2142,70 @@ export const App: React.FC = () => {
     });
   }, []);
 
+  // Handle trading with Village Merchants and Peddlers
+  const handleExecuteTrade = useCallback((trade: any) => {
+    if (trade.type === 'buy_item') {
+      if (dungeonsStats.emeralds < (trade.costEmeralds || 0)) {
+        showToast('⚠️ Not enough Emeralds to purchase this item!');
+        return;
+      }
+      setDungeonsStats(prev => ({
+        ...prev,
+        emeralds: prev.emeralds - trade.costEmeralds,
+        ...(trade.rewardType === 'arrows'
+          ? { arrows: Math.min(150, prev.arrows + (trade.rewardAmount || 30)) }
+          : {}),
+        ...(trade.rewardType === 'gear' && trade.gearItem
+          ? { inventory: [...prev.inventory, trade.gearItem] }
+          : {}),
+      }));
+
+      if (trade.rewardType === 'food') {
+        if (playerCombatRef.current) {
+          playerCombatRef.current.hp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + 55);
+        }
+        setDungeonsStats(prev => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + 55) }));
+        sounds.playPotionDrink();
+        showToast('🍞 Restored +55 HP!');
+      } else if (trade.rewardType === 'arrows') {
+        sounds.playLootPickup();
+        showToast(`🏹 +${trade.rewardAmount || 30} Arrows stocked!`);
+      } else if (trade.rewardType === 'gear') {
+        sounds.playChestOpen();
+        confetti({ particleCount: 35, spread: 60 });
+        showToast(`🎁 Acquired Gear: ${trade.gearItem.name}!`);
+      } else if (trade.rewardType === 'potion') {
+        setStats(prev => ({ ...prev, potions: prev.potions + 1 }));
+        sounds.playPotionDrink();
+        showToast('🧪 Restocked Healing Flask!');
+      } else if (trade.rewardType === 'artifact') {
+        sounds.playChestOpen();
+        showToast(`✨ Acquired Relic: ${trade.name}!`);
+      }
+      dungeonsAudio.playEmeraldPickup();
+    } else if (trade.type === 'sell_material' && trade.costMaterial) {
+      const matKey = trade.costMaterial.key;
+      const curAmt = stats.resources?.[matKey] || 0;
+      if (curAmt < trade.costMaterial.amount) {
+        showToast(`⚠️ Need at least ${trade.costMaterial.amount}x ${trade.costMaterial.name}!`);
+        return;
+      }
+      setStats(prev => ({
+        ...prev,
+        resources: {
+          ...prev.resources,
+          [matKey]: (prev.resources[matKey] || 0) - trade.costMaterial.amount,
+        },
+      }));
+      setDungeonsStats(prev => ({
+        ...prev,
+        emeralds: prev.emeralds + (trade.rewardEmeralds || 5),
+      }));
+      dungeonsAudio.playEmeraldPickup();
+      showToast(`🪙 Sold ${trade.costMaterial.name} for +${trade.rewardEmeralds} Emeralds!`);
+    }
+  }, [dungeonsStats.emeralds, stats.resources]);
+
   // --- COMBAT ACTIONS ---
 
   // 1. Primary Weapon Attack Action
@@ -2481,8 +2795,10 @@ export const App: React.FC = () => {
         setIsDungeonsInventoryOpen(prev => !prev);
       } else if (e.key.toLowerCase() === 'm') {
         setIsDungeonsMapOpen(prev => !prev);
-      } else if (e.key.toLowerCase() === 'c') {
-        setIsDungeonsCampOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'k') {
+        setIsCharacterSheetOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 't') {
+        actionHandlersRef.current.openTrade?.();
       } else if (e.key === '1') {
         actionHandlersRef.current.artifact?.(0);
       } else if (e.key === '2') {
@@ -2490,7 +2806,7 @@ export const App: React.FC = () => {
       } else if (e.key === '3') {
         actionHandlersRef.current.artifact?.(2);
       } else if (e.key.toLowerCase() === 'e') {
-        actionHandlersRef.current.potion?.();
+        actionHandlersRef.current.interact?.();
       } else if (e.key.toLowerCase() === 'f') {
         actionHandlersRef.current.rangedAttack?.();
       } else if (e.key.toLowerCase() === 'b') {
@@ -2892,6 +3208,15 @@ export const App: React.FC = () => {
 
   // Contextual Dig / Interact Button
   const interactContextAction = () => {
+    // 0. Friendly Villager or Wandering Trader interaction
+    if (nearVillager) {
+      setActiveTradeVillager(nearVillager);
+      setIsVillageTradeOpen(true);
+      sounds.playChestOpen();
+      showToast(`🛒 Trading with ${nearVillager.name || 'Villager'}!`, 'Browse wares or sell materials for Emeralds');
+      return;
+    }
+
     // 1. Placed structure interaction
     if (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) {
       const st = nearbyPlacedStructure.structure;
@@ -2993,7 +3318,14 @@ export const App: React.FC = () => {
       setIsDungeonsInventoryOpen(false);
       setIsDungeonsCampOpen(false);
       setIsDungeonsMapOpen(false);
+      setIsCharacterSheetOpen(false);
+      setIsVillageTradeOpen(false);
     },
+    openTrade: () => {
+      if (nearVillager) setActiveTradeVillager(nearVillager);
+      setIsVillageTradeOpen(true);
+    },
+    toggleCharacterSheet: () => setIsCharacterSheetOpen(prev => !prev),
     openTutorial: () => {
       setSettingsTab('tutorial');
       setIsSettingsOpen(true);
@@ -3191,6 +3523,8 @@ export const App: React.FC = () => {
             activeWeapon={activeWeapon}
             attackAnimRef={attackAnimRef}
             isHurtFlash={isHurtFlash}
+            customization={characterCustomization}
+            equippedArmor={dungeonsStats.equippedArmor}
           />
 
           {/* Voxel Faithful Companion */}
@@ -3286,6 +3620,13 @@ export const App: React.FC = () => {
           onOpenInventory={() => setIsDungeonsInventoryOpen(true)}
           onOpenMissionMap={() => setIsDungeonsMapOpen(true)}
           onOpenCamp={() => setIsDungeonsCampOpen(true)}
+          onOpenCharacterSheet={() => setIsCharacterSheetOpen(true)}
+          onOpenBuildDrawer={() => setIsBuildDrawerOpen(true)}
+          onOpenVillageTrade={() => {
+            if (nearVillager) setActiveTradeVillager(nearVillager);
+            setIsVillageTradeOpen(true);
+          }}
+          isNearVillager={Boolean(nearVillager)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onMeleeAttack={handlePlayerAttack}
           onRangedAttack={handleRangedAttack}
@@ -3304,11 +3645,14 @@ export const App: React.FC = () => {
           }}
           onInteract={interactContextAction}
           canInteract={Boolean(
+            nearVillager ||
             (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) ||
             (nearbyFeature.feature && nearbyFeature.dist < 3.0)
           )}
           interactLabel={
-            nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
+            nearVillager
+              ? 'TRADE'
+              : nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
               ? nearbyPlacedStructure.structure.type === 'workbench'
                 ? 'FORGE'
                 : nearbyPlacedStructure.structure.type === 'storage_chest'
@@ -4342,6 +4686,48 @@ export const App: React.FC = () => {
           onRotate={dir => setBuildRotation(r => r + dir * (Math.PI / 4))}
         />
       )}
+
+      {/* 7. Character Stats & Customization Sheet Modal */}
+      <CharacterSheetModal
+        isOpen={isCharacterSheetOpen}
+        onClose={() => setIsCharacterSheetOpen(false)}
+        customization={characterCustomization}
+        onUpdateCustomization={newConfig => setCharacterCustomization(newConfig)}
+        equippedArmor={dungeonsStats.equippedArmor}
+        onEquipArmor={armor => handleEquipItem(armor)}
+        dungeonsInventory={dungeonsStats.inventory}
+        playerCombatStats={{
+          hp: Math.round(playerCombatRef.current.hp),
+          maxHp: dungeonsStats.maxHp,
+          stamina: Math.round(playerCombatRef.current.stamina),
+          maxStamina: playerCombatRef.current.maxStamina,
+        }}
+        level={stats.level}
+        xp={stats.xp}
+        xpToNextLevel={stats.level * 120}
+        dungeonsLevel={dungeonsStats.level}
+        emeralds={dungeonsStats.emeralds}
+        monstersSlainCount={dungeonsStats.mobsKilled || 0}
+        structuresBuiltCount={placedStructures.length}
+      />
+
+      {/* 8. Village Merchant & Trader Trade Modal */}
+      <VillageTradeModal
+        isOpen={isVillageTradeOpen}
+        onClose={() => {
+          setIsVillageTradeOpen(false);
+          setActiveTradeVillager(null);
+        }}
+        activeVillager={activeTradeVillager || nearVillager}
+        emeralds={dungeonsStats.emeralds}
+        resources={{
+          wood: stats.resources?.wood || 0,
+          stone: stats.resources?.stone || 0,
+          iron: stats.resources?.iron || 0,
+          crystals: stats.resources?.crystal || 0,
+        }}
+        onExecuteTrade={handleExecuteTrade}
+      />
     </div>
   );
 };

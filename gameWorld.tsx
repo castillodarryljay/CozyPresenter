@@ -218,6 +218,187 @@ const MoundMesh: React.FC<{ feature: WorldFeature; isNearby: boolean; onInteract
   );
 };
 
+// --- VILLAGE WORLD FEATURES ---
+
+// 1. Village Well (Town Square Centerpiece)
+const VillageWellMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
+  return (
+    <group position={[feature.x, feature.elevation, feature.y]}>
+      {/* Cobblestone Rim */}
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.4, 0.9, 2.4]} />
+        <meshStandardMaterial color="#64748b" roughness={0.9} />
+      </mesh>
+      {/* Water pool inside */}
+      <mesh position={[0, 0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.6, 1.6]} />
+        <meshStandardMaterial color="#0284c7" roughness={0.1} metalness={0.8} />
+      </mesh>
+      {/* Wooden corner pillars */}
+      <mesh position={[-0.9, 1.4, -0.9]} castShadow>
+        <boxGeometry args={[0.2, 1.8, 0.2]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.9, 1.4, -0.9]} castShadow>
+        <boxGeometry args={[0.2, 1.8, 0.2]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      <mesh position={[-0.9, 1.4, 0.9]} castShadow>
+        <boxGeometry args={[0.2, 1.8, 0.2]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.9, 1.4, 0.9]} castShadow>
+        <boxGeometry args={[0.2, 1.8, 0.2]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      {/* Shingled Roof */}
+      <mesh position={[0, 2.45, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+        <coneGeometry args={[1.9, 1.0, 4]} />
+        <meshStandardMaterial color="#92400e" roughness={0.7} />
+      </mesh>
+      {/* Hanging Golden Bell */}
+      <mesh position={[0, 1.8, 0]}>
+        <cylinderGeometry args={[0.12, 0.2, 0.28, 8]} />
+        <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
+      </mesh>
+    </group>
+  );
+};
+
+// 2. Village Hut (NPC Cottage)
+const VillageHutMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
+  return (
+    <group position={[feature.x, feature.elevation, feature.y]}>
+      {/* Cobblestone Foundation */}
+      <mesh position={[0, 0.25, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.6, 0.5, 3.6]} />
+        <meshStandardMaterial color="#475569" roughness={0.9} />
+      </mesh>
+      {/* Oak Plank Walls */}
+      <mesh position={[0, 1.4, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.2, 1.8, 3.2]} />
+        <meshStandardMaterial color="#a16207" roughness={0.8} />
+      </mesh>
+      {/* Pitched Roof */}
+      <mesh position={[0, 2.7, 0]} rotation={[0, 0, 0]} castShadow>
+        <coneGeometry args={[2.7, 1.2, 4]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      {/* Cobblestone Chimney */}
+      <mesh position={[1.1, 2.4, 0.8]} castShadow>
+        <boxGeometry args={[0.5, 2.0, 0.5]} />
+        <meshStandardMaterial color="#475569" roughness={0.9} />
+      </mesh>
+      {/* Front Door */}
+      <mesh position={[0, 0.9, 1.62]}>
+        <boxGeometry args={[0.8, 1.4, 0.08]} />
+        <meshStandardMaterial color="#451a03" roughness={0.9} />
+      </mesh>
+      {/* Glowing Warm Window */}
+      <mesh position={[1.0, 1.3, 1.62]}>
+        <boxGeometry args={[0.6, 0.6, 0.05]} />
+        <meshStandardMaterial color="#fde047" emissive="#eab308" emissiveIntensity={0.8} />
+      </mesh>
+      {/* Flower Box */}
+      <mesh position={[1.0, 0.9, 1.7]}>
+        <boxGeometry args={[0.7, 0.2, 0.2]} />
+        <meshStandardMaterial color="#713f12" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+};
+
+// 3. Village Farmland (Crops & Hay)
+const VillageFarmMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
+  return (
+    <group position={[feature.x, feature.elevation, feature.y]}>
+      {/* Farmland Dirt Bed */}
+      <mesh position={[0, 0.1, 0]} receiveShadow>
+        <boxGeometry args={[4.2, 0.2, 4.2]} />
+        <meshStandardMaterial color="#3f2712" roughness={0.95} />
+      </mesh>
+      {/* Water Irrigation Trench */}
+      <mesh position={[0, 0.12, 0]}>
+        <boxGeometry args={[0.5, 0.18, 4.0]} />
+        <meshStandardMaterial color="#0284c7" roughness={0.2} metalness={0.7} />
+      </mesh>
+      {/* Wheat Rows */}
+      {[-1.4, -0.7, 0.7, 1.4].map((offset, idx) => (
+        <group key={idx} position={[offset, 0.35, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.4, 0.45, 3.8]} />
+            <meshStandardMaterial color={idx % 2 === 0 ? '#ca8a04' : '#65a30d'} roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+      {/* Hay Bales nearby */}
+      <mesh position={[2.4, 0.4, 1.5]} castShadow>
+        <boxGeometry args={[0.8, 0.7, 0.8]} />
+        <meshStandardMaterial color="#eab308" roughness={0.9} />
+      </mesh>
+      {/* Wooden Perimeter Fence Posts */}
+      {[-2.1, 2.1].map((xPos) =>
+        [-2.1, 0, 2.1].map((zPos, zIdx) => (
+          <mesh key={`${xPos}_${zIdx}`} position={[xPos, 0.4, zPos]} castShadow>
+            <boxGeometry args={[0.15, 0.7, 0.15]} />
+            <meshStandardMaterial color="#78350f" roughness={0.9} />
+          </mesh>
+        ))
+      )}
+    </group>
+  );
+};
+
+// 4. Village Market Stall (Trader Outpost)
+const VillageMarketStallMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
+  return (
+    <group position={[feature.x, feature.elevation, feature.y]}>
+      {/* Wooden Counter Table */}
+      <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.4, 0.8, 1.2]} />
+        <meshStandardMaterial color="#854d0e" roughness={0.8} />
+      </mesh>
+      {/* Wooden Awning Posts */}
+      <mesh position={[-1.1, 1.4, -0.5]} castShadow>
+        <boxGeometry args={[0.15, 1.8, 0.15]} />
+        <meshStandardMaterial color="#713f12" />
+      </mesh>
+      <mesh position={[1.1, 1.4, -0.5]} castShadow>
+        <boxGeometry args={[0.15, 1.8, 0.15]} />
+        <meshStandardMaterial color="#713f12" />
+      </mesh>
+      <mesh position={[-1.1, 1.4, 0.5]} castShadow>
+        <boxGeometry args={[0.15, 1.8, 0.15]} />
+        <meshStandardMaterial color="#713f12" />
+      </mesh>
+      <mesh position={[1.1, 1.4, 0.5]} castShadow>
+        <boxGeometry args={[0.15, 1.8, 0.15]} />
+        <meshStandardMaterial color="#713f12" />
+      </mesh>
+      {/* Red & White Striped Canopy Awning */}
+      <group position={[0, 2.3, 0]}>
+        <mesh position={[-0.6, 0, 0]} rotation={[0, 0, 0.12]} castShadow>
+          <boxGeometry args={[1.3, 0.1, 1.5]} />
+          <meshStandardMaterial color="#dc2626" roughness={0.7} />
+        </mesh>
+        <mesh position={[0.6, 0, 0]} rotation={[0, 0, -0.12]} castShadow>
+          <boxGeometry args={[1.3, 0.1, 1.5]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.7} />
+        </mesh>
+      </group>
+      {/* Crates and Goods on Counter */}
+      <mesh position={[-0.6, 0.98, 0]} castShadow>
+        <boxGeometry args={[0.4, 0.25, 0.4]} />
+        <meshStandardMaterial color="#a16207" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.6, 0.98, 0]} castShadow>
+        <cylinderGeometry args={[0.12, 0.15, 0.3, 8]} />
+        <meshStandardMaterial color="#10b981" roughness={0.2} metalness={0.8} />
+      </mesh>
+    </group>
+  );
+};
+
 // Cozy Campfire
 const CampfireMesh: React.FC<{ x: number; z: number; elevation: number }> = ({ x, z, elevation }) => {
   const flameRef = useRef<THREE.Mesh>(null);
@@ -669,11 +850,11 @@ const TentMesh: React.FC<{ structure: PlacedStructure; isGhost?: boolean; canAff
       </mesh>
 
       {/* A-Frame Peaked Canvas Roof */}
-      <mesh position={[-0.45, 0.7, 0]} rotation={[0, 0, 0.55]} castShadow>
+      <mesh position={[-0.45, 0.7, 0]} rotation={[0, 0, -0.55]} castShadow>
         <boxGeometry args={[0.1, 1.6, 2.0]} />
         <meshStandardMaterial color={matColor || '#f8fafc'} roughness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>
-      <mesh position={[0.45, 0.7, 0]} rotation={[0, 0, -0.55]} castShadow>
+      <mesh position={[0.45, 0.7, 0]} rotation={[0, 0, 0.55]} castShadow>
         <boxGeometry args={[0.1, 1.6, 2.0]} />
         <meshStandardMaterial color={matColor || '#f8fafc'} roughness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>
@@ -836,6 +1017,18 @@ export const WorldFeaturesManager: React.FC<WorldObjectsProps> = ({
               onInteract={() => onInteractFeature(feature)}
             />
           );
+        }
+        if (feature.type === 'village_well') {
+          return <VillageWellMesh key={feature.id} feature={feature} />;
+        }
+        if (feature.type === 'village_hut') {
+          return <VillageHutMesh key={feature.id} feature={feature} />;
+        }
+        if (feature.type === 'village_farm') {
+          return <VillageFarmMesh key={feature.id} feature={feature} />;
+        }
+        if (feature.type === 'market_stall') {
+          return <VillageMarketStallMesh key={feature.id} feature={feature} />;
         }
         return null;
       })}
