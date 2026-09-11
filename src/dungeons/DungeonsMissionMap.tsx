@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DungeonsMission, DungeonsPlayerStats } from './types';
 import { DUNGEONS_MISSIONS } from './dungeonsData';
-import { X, Play, Skull, Shield, Map as MapIcon, ChevronRight } from 'lucide-react';
+import { X, Play, Skull, ChevronRight } from 'lucide-react';
 
 interface DungeonsMissionMapProps {
   isOpen: boolean;
@@ -31,36 +31,37 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xs select-none"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl h-[94vh] sm:h-[88vh] max-h-[740px] bg-[#1a1714] border-3 sm:border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white font-sans"
+        className="relative w-full max-w-4xl h-[94vh] sm:h-[88vh] max-h-[740px] mc-panel-dark flex flex-col overflow-hidden text-white border-4 border-black"
+        style={{ fontFamily: "'VT323', monospace" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <header className="flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
+        <header className="flex justify-between items-center px-4 py-3 border-b-2 border-black bg-[#1e1e1e]">
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xl sm:text-2xl">🗺️</span>
+            <span className="text-2xl sm:text-3xl">🗺️</span>
             <div>
-              <h1 className="text-base sm:text-xl font-black tracking-wider sm:tracking-widest text-[#f5ebd7] uppercase">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-[#fde047] uppercase leading-none">
                 Mission Map
               </h1>
-              <span className="hidden sm:inline text-xs text-[#b8a99a]">
-                Select an adventure to hunt loot and conquer bosses
+              <span className="text-sm text-[#a3a3a3]">
+                Select an adventure to hunt loot and vanquish dungeon bosses
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-1 bg-[#142338] px-2 sm:px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-bold text-xs sm:text-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 mc-slot-dark px-3 py-1 text-[#38bdf8] font-bold text-base">
               <span>◆</span>
-              <span>HERO PL {stats.powerLevel}</span>
+              <span>HERO POWER LEVEL {stats.powerLevel}</span>
             </div>
 
             <button
               onClick={onClose}
-              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
+              className="mc-btn w-8 h-8 flex items-center justify-center text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -68,23 +69,19 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
         </header>
 
         {/* Mobile Tab Switcher */}
-        <div className="flex md:hidden bg-[#1f1b17] border-b border-[#3d3329] p-1.5 gap-1">
+        <div className="flex md:hidden bg-[#181818] border-b-2 border-black p-1.5 gap-2">
           <button
             onClick={() => setMobileTab('list')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              mobileTab === 'list'
-                ? 'bg-[#2563eb] text-white shadow'
-                : 'bg-[#2a241f] text-[#a8998a]'
+            className={`mc-btn flex-1 py-1 text-base ${
+              mobileTab === 'list' ? 'mc-btn-gold text-white font-bold' : 'text-gray-300'
             }`}
           >
-            🗺️ Missions
+            🗺️ Missions List
           </button>
           <button
             onClick={() => setMobileTab('briefing')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              mobileTab === 'briefing'
-                ? 'bg-[#2563eb] text-white shadow'
-                : 'bg-[#2a241f] text-[#a8998a]'
+            className={`mc-btn flex-1 py-1 text-base ${
+              mobileTab === 'briefing' ? 'mc-btn-gold text-white font-bold' : 'text-gray-300'
             }`}
           >
             📜 Briefing & Launch
@@ -93,27 +90,26 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
 
         {/* 2-Column: Map Missions List & Mission Detail Panel */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
-          
           {/* LEFT: MISSIONS MAP NODES (7 Cols) */}
           <div
-            className={`md:col-span-7 p-3 sm:p-5 overflow-y-auto bg-[#141210] flex flex-col gap-3 ${
+            className={`md:col-span-7 p-4 overflow-y-auto bg-[#141414] flex flex-col gap-3 ${
               mobileTab !== 'list' ? 'hidden md:flex' : 'flex'
             }`}
           >
             {/* Difficulty Toggle */}
-            <div className="flex items-center gap-1.5 p-1 bg-[#221c16] rounded-xl border border-[#3d3329]">
+            <div className="flex items-center gap-2 p-1.5 mc-slot-dark">
               {(['Default', 'Adventure', 'Apocalypse'] as const).map((diff) => (
                 <button
                   key={diff}
                   onClick={() => setSelectedDifficulty(diff)}
-                  className={`flex-1 py-1.5 text-[11px] sm:text-xs font-black uppercase rounded-lg transition-all cursor-pointer ${
+                  className={`mc-btn flex-1 py-1 text-base uppercase font-bold transition-all ${
                     selectedDifficulty === diff
                       ? diff === 'Apocalypse'
-                        ? 'bg-[#b91c1c] text-white border border-[#f87171] shadow-md'
+                        ? 'mc-btn-red text-white'
                         : diff === 'Adventure'
-                        ? 'bg-[#d97706] text-white border border-[#fef08a] shadow-md'
-                        : 'bg-[#15803d] text-white border border-[#86efac] shadow-md'
-                      : 'text-gray-400 hover:text-white'
+                        ? 'mc-btn-gold text-white'
+                        : 'mc-btn-green text-white'
+                      : 'text-gray-400'
                   }`}
                 >
                   {diff}
@@ -131,36 +127,36 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                   <div
                     key={mission.id}
                     onClick={() => handleSelect(mission)}
-                    className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-2 ${
+                    className={`p-3 cursor-pointer transition-all flex flex-col justify-between gap-2 border-2 ${
                       isSelected
-                        ? 'border-[#fbbf24] bg-[#2a221a] shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-[1.01]'
-                        : 'border-[#3d3329] bg-[#1e1b18] hover:border-[#635343]'
+                        ? 'mc-panel-dark border-[#facc15] shadow-[0_0_10px_rgba(250,204,21,0.5)]'
+                        : 'mc-slot-dark hover:border-[#666]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{mission.icon}</span>
+                        <span className="text-2xl p-1 bg-black/40 border border-neutral-700">{mission.icon}</span>
                         <div className="flex flex-col">
-                          <span className="font-bold text-xs sm:text-sm text-[#f5ebd7]">
+                          <span className="font-bold text-base text-[#fef08a] leading-tight">
                             {mission.name}
                           </span>
-                          <span className="text-[10px] text-gray-400">{mission.region}</span>
+                          <span className="text-xs text-gray-400">{mission.region}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-500 md:hidden" />
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-[#332b23]">
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-800">
                       <span
-                        className={`font-black flex items-center gap-1 ${
-                          isPowerSufficient ? 'text-[#38bdf8]' : 'text-[#f87171]'
+                        className={`font-bold flex items-center gap-1 ${
+                          isPowerSufficient ? 'text-[#38bdf8]' : 'text-red-400'
                         }`}
                       >
                         ◆ Rec. Power {mission.recommendedPower}
                       </span>
                       {mission.bossName && (
-                        <span className="text-red-400 font-bold flex items-center gap-0.5">
-                          <Skull className="w-3 h-3" /> BOSS
+                        <span className="text-rose-400 font-bold flex items-center gap-0.5">
+                          <Skull className="w-3.5 h-3.5" /> BOSS
                         </span>
                       )}
                     </div>
@@ -172,37 +168,37 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
 
           {/* RIGHT: MISSION BRIEFING & LAUNCH (5 Cols) */}
           <div
-            className={`md:col-span-5 p-3 sm:p-5 bg-[#1a1714] border-t-0 md:border-l-2 border-[#3d3329] flex flex-col justify-between gap-3 overflow-y-auto ${
+            className={`md:col-span-5 p-4 bg-[#181818] border-t-2 md:border-t-0 md:border-l-2 border-black flex flex-col justify-between gap-3 overflow-y-auto ${
               mobileTab !== 'briefing' ? 'hidden md:flex' : 'flex'
             }`}
           >
             <div className="space-y-3">
               {/* Mission Header */}
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <span className="text-3xl sm:text-4xl p-2 bg-[#221c16] rounded-xl border border-[#4a3e32]">
+              <div className="flex items-center gap-3">
+                <span className="text-4xl p-2 mc-slot-dark border border-neutral-700">
                   {selectedMission.icon}
                 </span>
                 <div>
-                  <h2 className="text-base sm:text-lg font-black text-[#fef08a]">
+                  <h2 className="text-xl font-bold text-[#fef08a] leading-none">
                     {selectedMission.name}
                   </h2>
-                  <span className="text-xs text-[#38bdf8] font-mono">
+                  <span className="text-sm text-[#38bdf8]">
                     {selectedMission.region} • {selectedDifficulty}
                   </span>
                 </div>
               </div>
 
               {/* Description */}
-              <p className="text-xs text-[#cbd5e1] leading-relaxed bg-[#141210] p-2.5 sm:p-3 rounded-xl border border-[#332b23]">
+              <div className="text-base text-gray-300 mc-slot-dark p-3 leading-relaxed">
                 {selectedMission.description}
-              </p>
+              </div>
 
               {/* Objectives */}
               <div className="space-y-1">
-                <span className="text-[11px] font-bold text-[#bcaaa4] uppercase tracking-wider">
+                <span className="text-sm font-bold text-[#bcaaa4] uppercase">
                   Expedition Objectives
                 </span>
-                <div className="bg-[#141210] p-2.5 rounded-xl border border-[#332b23] text-xs space-y-1 text-gray-300">
+                <div className="mc-slot-dark p-2.5 text-sm space-y-1 text-gray-300">
                   <div className="flex items-center gap-2">
                     <span className="text-red-400">⚔️</span>
                     <span>Defeat {selectedMission.targetKills} Hostile Mobs</span>
@@ -222,14 +218,14 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
 
               {/* Potential Gear Drops Preview */}
               <div className="space-y-1">
-                <span className="text-[11px] font-bold text-[#bcaaa4] uppercase tracking-wider">
-                  Potential Rewards
+                <span className="text-sm font-bold text-[#bcaaa4] uppercase">
+                  Potential Drops
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedMission.potentialDrops.map((drop, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-0.5 bg-[#261f19] border border-[#544333] text-[#fef08a] rounded-lg text-[11px] font-mono font-bold"
+                      className="px-2 py-0.5 mc-slot-dark text-[#fef08a] text-xs font-bold"
                     >
                       ★ {drop}
                     </span>
@@ -244,9 +240,9 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                 onSelectMission({ ...selectedMission, difficulty: selectedDifficulty });
                 onClose();
               }}
-              className="w-full py-3 sm:py-3.5 bg-[#15803d] hover:bg-[#16a34a] border-2 border-[#86efac] rounded-xl text-white font-black text-xs sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(21,128,61,0.6)] cursor-pointer active:scale-95 transition-all mt-2"
+              className="w-full mc-btn-green py-3 text-xl flex items-center justify-center gap-2 mt-2"
             >
-              <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
+              <Play className="w-5 h-5 fill-white" />
               <span>EMBARK ON MISSION</span>
             </button>
           </div>

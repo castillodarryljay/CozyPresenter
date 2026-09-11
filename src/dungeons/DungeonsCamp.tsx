@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DungeonsPlayerStats,
   DungeonsItem,
@@ -12,7 +12,7 @@ import {
   ALL_ARTIFACTS,
 } from './dungeonsData';
 import { dungeonsAudio } from './dungeonsAudio';
-import { X, Sparkles, Hammer, ShoppingBag, ShieldAlert, Check } from 'lucide-react';
+import { X, Sparkles, Hammer, ShoppingBag, Flame, Map as MapIcon, Clock } from 'lucide-react';
 
 interface DungeonsCampProps {
   isOpen: boolean;
@@ -35,6 +35,16 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'blacksmith' | 'trader' | 'campfire'>('blacksmith');
   const [rewardReveal, setRewardReveal] = useState<DungeonsItem | null>(null);
+  const [restCooldown, setRestCooldown] = useState<number>(0);
+
+  // Rest cooldown countdown timer (prevents infinite spam healing)
+  useEffect(() => {
+    if (restCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRestCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [restCooldown]);
 
   if (!isOpen) return null;
 
@@ -85,59 +95,67 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
     setRewardReveal(newArt);
   };
 
+  const handleCampfireRest = () => {
+    if (restCooldown > 0) return;
+    if (stats.hp >= stats.maxHp) return;
+
+    onRestAtCamp();
+    dungeonsAudio.playCampfireRest();
+    setRestCooldown(45); // 45-second cooldown to prevent exploit
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md select-none font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-xs select-none"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl max-h-[92vh] bg-[#1a1714] border-3 sm:border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+        className="relative w-full max-w-3xl max-h-[92vh] mc-panel-dark flex flex-col overflow-hidden text-white border-4 border-black"
+        style={{ fontFamily: "'VT323', monospace" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <header className="flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
+        <header className="flex justify-between items-center px-4 py-3 border-b-2 border-black bg-[#1e1e1e]">
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-2xl sm:text-3xl">🏕️</span>
+            <span className="text-3xl">🏕️</span>
             <div>
-              <h1 className="text-base sm:text-xl font-black tracking-wider sm:tracking-widest text-[#f5ebd7] uppercase">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-[#fde047] uppercase leading-none">
                 Camp Outpost
               </h1>
-              <span className="hidden sm:inline text-xs text-[#b8a99a]">
-                Visit merchants, forge mystery armaments, and plan expeditions
+              <span className="text-sm text-[#a3a3a3]">
+                Visit merchants, forge mystery armaments, and rest at the hearth
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-1.5 bg-[#0e1f13] px-2.5 sm:px-3 py-1 rounded-lg border border-[#15803d] text-[#4ade80] font-black text-xs sm:text-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 mc-slot-dark px-3 py-1 text-[#4ade80] font-bold text-base">
               <span>💎</span>
-              <span className="font-mono">{stats.emeralds}</span>
+              <span className="font-mono">{stats.emeralds} EMERALDS</span>
             </div>
 
             <button
               onClick={onClose}
-              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all"
+              className="mc-btn w-8 h-8 flex items-center justify-center text-white"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </header>
 
-        {/* Tab Selector */}
-        <div className="flex gap-1 sm:gap-2 px-2 sm:px-6 pt-2 sm:pt-3 border-b border-[#3d3329] bg-[#1d1916] overflow-x-auto">
+        {/* Minecraft Tabs */}
+        <div className="flex gap-2 px-4 pt-3 border-b-2 border-black bg-[#181818] overflow-x-auto">
           <button
             onClick={() => {
               setActiveTab('blacksmith');
               setRewardReveal(null);
             }}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'blacksmith'
-                ? 'bg-[#29221b] border-t-2 border-x-2 border-[#fbbf24] text-[#fef08a]'
-                : 'text-gray-400 hover:text-white'
+            className={`mc-btn px-4 py-1.5 text-lg flex items-center gap-2 cursor-pointer ${
+              activeTab === 'blacksmith' ? 'mc-btn-gold text-white font-bold' : 'text-gray-300'
             }`}
           >
-            <Hammer className="w-4 h-4 text-amber-400" />
-            <span>Blacksmith</span>
+            <Hammer className="w-4 h-4 text-amber-300" />
+            <span>Blacksmith Forge</span>
           </button>
 
           <button
@@ -145,13 +163,11 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
               setActiveTab('trader');
               setRewardReveal(null);
             }}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'trader'
-                ? 'bg-[#29221b] border-t-2 border-x-2 border-[#38bdf8] text-[#38bdf8]'
-                : 'text-gray-400 hover:text-white'
+            className={`mc-btn px-4 py-1.5 text-lg flex items-center gap-2 cursor-pointer ${
+              activeTab === 'trader' ? 'mc-btn-gold text-white font-bold' : 'text-gray-300'
             }`}
           >
-            <ShoppingBag className="w-4 h-4 text-sky-400" />
+            <ShoppingBag className="w-4 h-4 text-sky-300" />
             <span>Mystery Trader</span>
           </button>
 
@@ -160,62 +176,60 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
               setActiveTab('campfire');
               setRewardReveal(null);
             }}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'campfire'
-                ? 'bg-[#29221b] border-t-2 border-x-2 border-[#f97316] text-[#fed7aa]'
-                : 'text-gray-400 hover:text-white'
+            className={`mc-btn px-4 py-1.5 text-lg flex items-center gap-2 cursor-pointer ${
+              activeTab === 'campfire' ? 'mc-btn-gold text-white font-bold' : 'text-gray-300'
             }`}
           >
-            <span>🔥</span>
+            <Flame className="w-4 h-4 text-orange-400" />
             <span>Campfire Hearth</span>
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-3 sm:p-6 overflow-y-auto bg-[#171412]">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto bg-[#141414]">
           {/* BLACKSMITH VIEW */}
           {activeTab === 'blacksmith' && (
-            <div className="flex flex-col items-center text-center max-w-xl mx-auto space-y-3 sm:space-y-4">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#2d2218] border-2 border-[#f59e0b] rounded-2xl flex items-center justify-center text-3xl sm:text-4xl shadow-[0_0_20px_rgba(245,158,11,0.4)]">
+            <div className="flex flex-col items-center text-center max-w-lg mx-auto space-y-4">
+              <div className="w-20 h-20 mc-slot-dark border-2 border-amber-600 flex items-center justify-center text-4xl shadow-md">
                 ⚒️
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-[#fef08a]">The Village Blacksmith</h2>
-              <p className="text-xs text-gray-300">
+              <h2 className="text-2xl text-[#fef08a] font-bold">The Village Blacksmith</h2>
+              <p className="text-base text-gray-300">
                 Forge a random weapon or armor piece tailored to your current Power Level (◆ {stats.powerLevel}).
-                Higher level items grant superior damage and health bonuses.
+                Higher level armaments grant superior damage and defense bonuses.
               </p>
 
               <button
                 onClick={handleRollBlacksmith}
                 disabled={stats.emeralds < blacksmithCost}
-                className="px-6 py-3 bg-[#d97706] hover:bg-[#b45309] border-2 border-[#fef08a] rounded-xl text-white font-black text-sm flex items-center gap-2 shadow-[0_0_15px_rgba(217,119,6,0.6)] disabled:opacity-50 active:scale-95 transition-all cursor-pointer"
+                className="mc-btn-gold px-6 py-2.5 text-xl flex items-center gap-3 disabled:opacity-50"
               >
                 <span>⚒️ FORGE MYSTERY GEAR</span>
-                <span className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-[#fef08a]">
+                <span className="bg-black/50 px-2 py-0.5 text-base text-[#fef08a]">
                   💎 {blacksmithCost}
                 </span>
               </button>
 
               {/* Reveal Card */}
               {rewardReveal && rewardReveal.category !== 'artifact' && (
-                <div className="w-full bg-[#241f1a] p-4 rounded-xl border-2 border-[#fbbf24] shadow-[0_0_20px_rgba(251,191,36,0.4)] animate-in zoom-in-95 duration-200 flex items-center gap-4 text-left">
-                  <span className="text-4xl p-2 bg-[#1a1714] rounded-lg border border-[#4a3e32]">
+                <div className="w-full mc-panel-dark p-3 border-2 border-[#fbbf24] flex items-center gap-4 text-left animate-in zoom-in-95 duration-200">
+                  <span className="text-4xl p-2 mc-slot-dark">
                     {rewardReveal.icon}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-black text-[#fef08a] truncate">
+                      <span className="text-lg font-bold text-[#fef08a] truncate">
                         {rewardReveal.name}
                       </span>
-                      <span className="text-[10px] font-mono font-bold text-[#38bdf8] bg-[#102a43] px-1.5 py-0.5 rounded border border-[#38bdf8]">
+                      <span className="text-sm font-mono text-[#38bdf8] bg-black px-1.5 py-0.5 border border-[#38bdf8]">
                         ◆ {rewardReveal.power}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-300 mt-1 line-clamp-2">
+                    <p className="text-sm text-gray-300 mt-1 line-clamp-2">
                       {rewardReveal.description}
                     </p>
-                    <span className="text-[10px] text-emerald-400 font-bold mt-1 block">
-                      Added to your inventory! Open [I] to equip or enchant.
+                    <span className="text-sm text-emerald-400 font-bold mt-1 block">
+                      Added to inventory! Press [I] to equip or enchant.
                     </span>
                   </div>
                 </div>
@@ -225,47 +239,47 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
 
           {/* TRADER VIEW */}
           {activeTab === 'trader' && (
-            <div className="flex flex-col items-center text-center max-w-xl mx-auto space-y-3 sm:space-y-4">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#162536] border-2 border-[#38bdf8] rounded-2xl flex items-center justify-center text-3xl sm:text-4xl shadow-[0_0_20px_rgba(56,189,248,0.4)]">
+            <div className="flex flex-col items-center text-center max-w-lg mx-auto space-y-4">
+              <div className="w-20 h-20 mc-slot-dark border-2 border-sky-500 flex items-center justify-center text-4xl shadow-md">
                 🔮
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-[#38bdf8]">The Wandering Mystery Trader</h2>
-              <p className="text-xs text-gray-300">
-                Purchase enchanted artifacts powered by souls and cooldowns: Death Cap Mushrooms,
-                Fireworks Rockets, Boots of Swiftness, Corrupted Beacons, and Iron Hide Amulets.
+              <h2 className="text-2xl text-[#38bdf8] font-bold">The Wandering Mystery Trader</h2>
+              <p className="text-base text-gray-300">
+                Purchase enchanted artifacts: Death Cap Mushrooms, Fireworks Rockets, Boots of Swiftness,
+                Corrupted Beacons, and Iron Hide Amulets.
               </p>
 
               <button
                 onClick={handleRollTrader}
                 disabled={stats.emeralds < traderCost}
-                className="px-6 py-3 bg-[#0284c7] hover:bg-[#0369a1] border-2 border-[#7dd3fc] rounded-xl text-white font-black text-sm flex items-center gap-2 shadow-[0_0_15px_rgba(2,132,199,0.6)] disabled:opacity-50 active:scale-95 transition-all cursor-pointer"
+                className="mc-btn-gold px-6 py-2.5 text-xl flex items-center gap-3 disabled:opacity-50"
               >
                 <span>🔮 ACQUIRE MYSTERY ARTIFACT</span>
-                <span className="bg-black/40 px-2 py-0.5 rounded text-xs font-mono text-[#7dd3fc]">
+                <span className="bg-black/50 px-2 py-0.5 text-base text-[#7dd3fc]">
                   💎 {traderCost}
                 </span>
               </button>
 
               {/* Reveal Card */}
               {rewardReveal && rewardReveal.category === 'artifact' && (
-                <div className="w-full bg-[#182333] p-4 rounded-xl border-2 border-[#38bdf8] shadow-[0_0_20px_rgba(56,189,248,0.4)] animate-in zoom-in-95 duration-200 flex items-center gap-4 text-left">
-                  <span className="text-4xl p-2 bg-[#121820] rounded-lg border border-[#2b4461]">
+                <div className="w-full mc-panel-dark p-3 border-2 border-[#38bdf8] flex items-center gap-4 text-left animate-in zoom-in-95 duration-200">
+                  <span className="text-4xl p-2 mc-slot-dark">
                     {rewardReveal.icon}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-black text-[#7dd3fc] truncate">
+                      <span className="text-lg font-bold text-[#7dd3fc] truncate">
                         {rewardReveal.name}
                       </span>
-                      <span className="text-[10px] font-mono font-bold text-[#fbbf24] bg-[#362a12] px-1.5 py-0.5 rounded border border-[#fbbf24]">
+                      <span className="text-sm font-mono text-[#fbbf24] bg-black px-1.5 py-0.5 border border-[#fbbf24]">
                         ◆ {rewardReveal.power}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-300 mt-1 line-clamp-2">
+                    <p className="text-sm text-gray-300 mt-1 line-clamp-2">
                       {rewardReveal.description}
                     </p>
-                    <span className="text-[10px] text-emerald-400 font-bold mt-1 block">
-                      Added to your inventory! Equip it into Artifact Slots 1, 2, or 3.
+                    <span className="text-sm text-emerald-400 font-bold mt-1 block">
+                      Added to inventory! Equip into Artifact Slots 1, 2, or 3.
                     </span>
                   </div>
                 </div>
@@ -275,25 +289,44 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
 
           {/* CAMPFIRE VIEW */}
           {activeTab === 'campfire' && (
-            <div className="flex flex-col items-center text-center max-w-xl mx-auto space-y-3 sm:space-y-4">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#361a12] border-2 border-[#f97316] rounded-2xl flex items-center justify-center text-3xl sm:text-4xl shadow-[0_0_20px_rgba(249,115,22,0.5)]">
+            <div className="flex flex-col items-center text-center max-w-lg mx-auto space-y-4">
+              <div className="w-20 h-20 mc-slot-dark border-2 border-orange-500 flex items-center justify-center text-4xl shadow-md">
                 🔥
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-[#fed7aa]">The Warm Campfire Hearth</h2>
-              <p className="text-xs text-gray-300">
-                Rest by the crackling campfire to fully restore Health Points and replenish your Quiver of arrows.
-                Check the Mission Map when you are ready to set out again!
+              <h2 className="text-2xl text-[#fed7aa] font-bold">The Warm Campfire Hearth</h2>
+              <p className="text-base text-gray-300">
+                Rest by the crackling embers to soothe your battle wounds and restore Health Points.
+                Resting requires calm recuperation with a cooldown to recover your vitality.
               </p>
+
+              {/* Health status */}
+              <div className="w-full mc-slot-dark p-3 flex justify-between items-center text-lg">
+                <span className="text-gray-300">HERO HEALTH:</span>
+                <span className={`font-bold ${stats.hp < stats.maxHp ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {stats.hp} / {stats.maxHp} HP {stats.hp >= stats.maxHp ? '(FULL)' : ''}
+                </span>
+              </div>
 
               <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
                 <button
-                  onClick={() => {
-                    onRestAtCamp();
-                    dungeonsAudio.playCampfireRest();
-                  }}
-                  className="px-6 py-3 bg-[#ea580c] hover:bg-[#c2410c] border-2 border-[#fed7aa] rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"
+                  onClick={handleCampfireRest}
+                  disabled={restCooldown > 0 || stats.hp >= stats.maxHp}
+                  className={`mc-btn px-6 py-2.5 text-xl flex items-center justify-center gap-2 ${
+                    restCooldown > 0 || stats.hp >= stats.maxHp
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'mc-btn-green'
+                  }`}
                 >
-                  <span>🔥 REST & RESTORE HP (FULL HEAL)</span>
+                  {restCooldown > 0 ? (
+                    <>
+                      <Clock className="w-5 h-5 animate-spin" />
+                      <span>RESTING EXHAUSTION ({restCooldown}s)</span>
+                    </>
+                  ) : stats.hp >= stats.maxHp ? (
+                    <span>✨ VITALITY ALREADY FULL</span>
+                  ) : (
+                    <span>🔥 REST AT CAMPFIRE (FULL HEAL)</span>
+                  )}
                 </button>
 
                 <button
@@ -301,11 +334,16 @@ export const DungeonsCamp: React.FC<DungeonsCampProps> = ({
                     onClose();
                     onOpenMissionMap();
                   }}
-                  className="px-6 py-3 bg-[#2563eb] hover:bg-[#1d4ed8] border-2 border-[#93c5fd] rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"
+                  className="mc-btn px-6 py-2.5 text-xl flex items-center justify-center gap-2 mc-btn-gold"
                 >
-                  <span>🗺️ OPEN MISSION MAP</span>
+                  <MapIcon className="w-5 h-5" />
+                  <span>MISSION MAP</span>
                 </button>
               </div>
+
+              <p className="text-xs text-gray-400">
+                ⚠️ Fair Play Mechanic: Resting at camp requires a 45-second recovery rest period between sessions to maintain game balance.
+              </p>
             </div>
           )}
         </div>

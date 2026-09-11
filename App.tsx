@@ -675,6 +675,7 @@ const GameLoopController: React.FC<{
     isDodging: boolean;
     dodgeEndTime: number;
     lastAttackTime: number;
+    lastHurtTime?: number;
   }>;
   activeCampfirePos: Position | null;
   activePerks?: {
@@ -753,11 +754,13 @@ const GameLoopController: React.FC<{
       playerCombatRef.current.stamina + stamRegenRate * dt
     );
 
-    // Campfire Warmth Health Regeneration (+7 HP / sec boosted by Verdant Vitality)
+    // Campfire Warmth Health Regeneration (+2.5 HP / sec boosted by Verdant Vitality)
+    // Anti-exploit: Suppressed if player took damage within the last 4 seconds
     if (activeCampfirePos) {
       const dCamp = Math.hypot(p.x - activeCampfirePos.x, p.y - activeCampfirePos.y);
-      if (dCamp < 4.5) {
-        const campHealRate = 7 * (activePerks?.campfireHealMultiplier || 1.0);
+      const isCombatSuppressed = (now - (playerCombatRef.current.lastHurtTime || 0)) < 4000;
+      if (dCamp < 4.5 && !isCombatSuppressed) {
+        const campHealRate = 2.5 * (activePerks?.campfireHealMultiplier || 1.0);
         playerCombatRef.current.hp = Math.min(
           playerCombatRef.current.maxHp,
           playerCombatRef.current.hp + campHealRate * dt
@@ -979,6 +982,7 @@ const GameLoopController: React.FC<{
           if (now - m.lastAttackTime > 1300) {
             m.lastAttackTime = now;
             if (!isDodging) {
+              playerCombatRef.current.lastHurtTime = now;
               const newHp = Math.max(0, playerCombatRef.current.hp - m.damage);
               playerCombatRef.current.hp = newHp;
               onPlayerHurt(m.damage, newHp);
@@ -1472,7 +1476,13 @@ export const App: React.FC = () => {
     isDodging: false,
     dodgeEndTime: 0,
     lastAttackTime: 0,
+    lastHurtTime: 0,
   });
+
+  // Anti-Cheat & Anti-Exploit Cooldown Tracking
+  const lastPotionTimeRef = useRef<number>(0);
+  const lastCampfirePitchTimeRef = useRef<number>(0);
+  const lastShelterRestTimeRef = useRef<number>(0);
 
   // Weapon Attack Swing Animation Ref
   const attackAnimRef = useRef({
@@ -2403,11 +2413,18 @@ export const App: React.FC = () => {
       showToast('⚠️ Out of Healing Flasks! Defeat monsters or brew at Campfire.');
       return;
     }
+    const now = performance.now();
+    if (now - lastPotionTimeRef.current < 3500) {
+      const cdLeft = ((3500 - (now - lastPotionTimeRef.current)) / 1000).toFixed(1);
+      showToast(`⚠️ Healing Flask on cooldown (${cdLeft}s)`);
+      return;
+    }
     if (playerCombatRef.current.hp >= playerCombatRef.current.maxHp) {
       showToast('✨ Health is already full!');
       return;
     }
 
+    lastPotionTimeRef.current = now;
     const healAmount = 55 + (activePerks.potionHealBonus || 0);
     const restoredHp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + healAmount);
     playerCombatRef.current.hp = restoredHp;
@@ -2680,6 +2697,7 @@ export const App: React.FC = () => {
 
   // 5. Player Hurt Feedback & Respawn
   const handlePlayerHurt = useCallback((amount: number, newHp: number) => {
+    playerCombatRef.current.lastHurtTime = performance.now();
     setIsHurtFlash(true);
     setTimeout(() => setIsHurtFlash(false), 240);
 
@@ -3146,6 +3164,34 @@ export const App: React.FC = () => {
 
   // Campfire Rest & Alchemy actions
   const handleSleepUntilDawn = () => {
+    // Anti-cheat: Can only sleep at night
+    if (!isNight && (timeOfDay < 0.75 && timeOfDay > 0.25)) {
+      showToast('⚠️ You can only sleep at night!');
+      return;
+    }
+    // Anti-cheat: Check for nearby hostile monsters
+    const nearbyHostile = monstersRef.current.some(
+      m => m.hp > 0 && m.state !== 'dead' && m.type !== 'villager' && m.type !== 'trader' &&
+           Math.hypot(m.x - charPos.x, m.y - charPos.y) < 16
+    );
+    if (nearbyHostile) {
+      showToast('⚠️ You may not rest now; there are monsters nearby!');
+      return;
+    }
+    // Anti-cheat: Out of combat check
+    const now = performance.now();
+    if (now - playerCombatRef.current.lastHurtTime < 5000) {
+      showToast('⚠️ You cannot sleep while under attack!');
+      return;
+    }
+    // Anti-cheat: Cooldown check (45s)
+    if (now - lastShelterRestTimeRef.current < 45000) {
+      const waitSec = Math.ceil((45000 - (now - lastShelterRestTimeRef.current)) / 1000);
+      showToast(`⚠️ You are not tired yet. Sleep available in ${waitSec}s.`);
+      return;
+    }
+
+    lastShelterRestTimeRef.current = now;
     setTimeOfDay(0.2); // Morning dawn
     playerCombatRef.current.hp = playerCombatRef.current.maxHp;
     playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
@@ -3154,6 +3200,7 @@ export const App: React.FC = () => {
       hp: playerCombatRef.current.maxHp,
       stamina: playerCombatRef.current.maxStamina,
     }));
+    setDungeonsStats(prev => ({ ...prev, hp: playerCombatRef.current.maxHp }));
     sounds.playCampfireIgnite();
     showToast('🌅 Slept until Dawn!', 'Awoke fully rested with complete vitality.');
   };
@@ -3233,15 +3280,37 @@ export const App: React.FC = () => {
         showToast('📦 Storage Cache', 'Review gathered looted materials and construction supplies');
         return;
       } else if (st.type === 'house' || st.type === 'tent') {
-        playerCombatRef.current.hp = playerCombatRef.current.maxHp;
+        const nearbyHostile = monstersRef.current.some(
+          m => m.hp > 0 && m.state !== 'dead' && m.type !== 'villager' && m.type !== 'trader' &&
+               Math.hypot(m.x - charPos.x, m.y - charPos.y) < 16
+        );
+        if (nearbyHostile) {
+          showToast('⚠️ You may not rest now; there are monsters nearby!');
+          return;
+        }
+        const now = performance.now();
+        if (now - playerCombatRef.current.lastHurtTime < 5000) {
+          showToast('⚠️ You cannot rest while under attack!');
+          return;
+        }
+        if (now - lastShelterRestTimeRef.current < 30000) {
+          const waitSec = Math.ceil((30000 - (now - lastShelterRestTimeRef.current)) / 1000);
+          showToast(`⚠️ You are not tired yet. Shelter rest ready in ${waitSec}s.`);
+          return;
+        }
+        lastShelterRestTimeRef.current = now;
+        const healAmount = Math.round(playerCombatRef.current.maxHp * 0.5);
+        const restoredHp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + healAmount);
+        playerCombatRef.current.hp = restoredHp;
         playerCombatRef.current.stamina = playerCombatRef.current.maxStamina;
         setStats(prev => ({
           ...prev,
-          hp: playerCombatRef.current.maxHp,
+          hp: Math.round(restoredHp),
           stamina: playerCombatRef.current.maxStamina,
         }));
+        setDungeonsStats(prev => ({ ...prev, hp: Math.round(restoredHp) }));
         sounds.playCampfireRest();
-        showToast(`🏡 Rested in ${st.customName || 'Shelter'}!`, 'HP and Stamina fully restored');
+        showToast(`🏡 Rested in ${st.customName || 'Shelter'}!`, `Recovered +${healAmount} HP & full Stamina.`);
         return;
       }
     }
@@ -3260,19 +3329,64 @@ export const App: React.FC = () => {
 
   // Campfire Toggle
   const toggleCampfire = () => {
-    sounds.playCampfireRest();
     if (activeCampfirePos) {
       setActiveCampfirePos(null);
-      showToast('🏕️ Camp packed up. Ready to wander.');
+      // Packing up camp returns 1 wood
+      setStats(prev => ({
+        ...prev,
+        resources: {
+          ...prev.resources,
+          wood: (prev.resources?.wood || 0) + 1,
+        },
+      }));
+      sounds.playCampfireRest();
+      showToast('🏕️ Camp packed up (+1 Wood recovered). Ready to wander.');
     } else {
+      // Anti-cheat: Check nearby monsters
+      const nearbyHostile = monstersRef.current.some(
+        m => m.hp > 0 && m.state !== 'dead' && m.type !== 'villager' && m.type !== 'trader' &&
+             Math.hypot(m.x - charPos.x, m.y - charPos.y) < 16
+      );
+      if (nearbyHostile) {
+        showToast('⚠️ You may not rest now; there are monsters nearby!');
+        return;
+      }
+      // Anti-cheat: Check combat damage
+      const now = performance.now();
+      if (now - playerCombatRef.current.lastHurtTime < 4000) {
+        showToast('⚠️ You cannot pitch camp while under attack!');
+        return;
+      }
+      // Anti-cheat: Cooldown
+      if (now - lastCampfirePitchTimeRef.current < 30000) {
+        const waitSec = Math.ceil((30000 - (now - lastCampfirePitchTimeRef.current)) / 1000);
+        showToast(`⚠️ Campfire pitch recharging. Available in ${waitSec}s.`);
+        return;
+      }
+      // Anti-cheat: Resource cost (2 wood)
+      const woodCount = stats.resources?.wood || 0;
+      if (woodCount < 2) {
+        showToast('⚠️ Need 2 Wood to pitch a Campfire! Chop trees or gather logs.');
+        return;
+      }
+
+      lastCampfirePitchTimeRef.current = now;
+      setStats(prev => ({
+        ...prev,
+        resources: {
+          ...prev.resources,
+          wood: Math.max(0, woodCount - 2),
+        },
+      }));
       setActiveCampfirePos({ x: charPos.x, y: charPos.y });
+      sounds.playCampfireRest();
       // Warms companion, speeds time to morning if night
       setCompanion(prev => ({ ...prev, happiness: Math.min(100, prev.happiness + 20), mood: 'happy' }));
       if (isNight) {
         setTimeOfDay(0.2); // Dawn
-        showToast('🏕️ Campfire pitched!', 'Rested until dawn. Companion is warmly rested.');
+        showToast('🏕️ Campfire pitched (-2 Wood)!', 'Rested until dawn. Companion is warmly rested.');
       } else {
-        showToast('🏕️ Cozy Campfire lit!', 'Rested by the warm flames. Companion happiness +20%');
+        showToast('🏕️ Cozy Campfire lit (-2 Wood)!', 'Warm flames kindle. Companion happiness +20%');
       }
     }
   };
@@ -3738,111 +3852,129 @@ export const App: React.FC = () => {
       {/* --- MODALS & PANELS --- */}
 
       {/* 1. Explorer Journal & Compendium Modal */}
+      {/* --- EXPLORER COMPENDIUM (JOURNAL) MODAL --- */}
       {isJournalOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs"
+          id="explorer-compendium-overlay"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => setIsJournalOpen(false)}
         >
           <div
-            className="w-full max-w-2xl max-h-[90vh] mc-panel p-4 sm:p-6 bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col gap-4 overflow-hidden"
+            id="explorer-compendium-modal"
+            className="w-full max-w-3xl max-h-[92vh] mc-panel-dark text-white flex flex-col overflow-hidden"
+            style={{ fontFamily: "'VT323', monospace" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b-2 border-black/20 pb-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-6 h-6 text-[#2d5a27]" />
-                <h2 className="text-2xl sm:text-3xl text-black">Explorer's Compendium</h2>
+            <div className="flex justify-between items-center px-4 py-3 bg-[#181818] border-b-2 border-black">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 mc-slot-dark flex items-center justify-center text-xl text-emerald-400">
+                  📖
+                </div>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-wider text-emerald-400 leading-tight">
+                    EXPLORER'S COMPENDIUM
+                  </h2>
+                  <p className="text-xs text-gray-400 font-mono">
+                    Ancient relics, monoliths, alchemy & wilderness field notes
+                  </p>
+                </div>
               </div>
               <button
+                id="close-compendium-btn"
                 onClick={() => setIsJournalOpen(false)}
-                className="mc-btn w-8 h-8 flex items-center justify-center"
+                className="mc-btn px-2.5 py-1 text-sm cursor-pointer"
+                title="Close (ESC)"
               >
-                <X />
+                <X className="w-5 h-5 inline" />
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-1.5 sm:gap-2 border-b border-[#888] pb-1 overflow-x-auto text-xs sm:text-base">
+            {/* Navigation Tabs */}
+            <div className="flex border-b-2 border-black bg-[#151515] px-3 pt-2 gap-1.5 overflow-x-auto text-sm">
               {[
-                { id: 'relics', label: `Relics (${inventory.length}/${ALL_RELICS.length})` },
-                { id: 'armory', label: `Arsenal & Mobs` },
-                { id: 'waystones', label: `⚡ Waystones (${awakenedObelisks.length})` },
-                { id: 'camp', label: `🏕️ Camp Forge` },
-                { id: 'quests', label: 'Quests' },
-                { id: 'stats', label: 'Stats' },
+                { id: 'relics', label: `Relics (${inventory.length}/${ALL_RELICS.length})`, icon: '💎' },
+                { id: 'armory', label: `Arsenal & Mobs`, icon: '⚔️' },
+                { id: 'waystones', label: `Waystones (${awakenedObelisks.length})`, icon: '⚡' },
+                { id: 'camp', label: `Camp Forge`, icon: '🏕️' },
+                { id: 'quests', label: 'Quests', icon: '📜' },
+                { id: 'stats', label: 'Stats', icon: '📊' },
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`mc-btn px-2 sm:px-3 py-1 text-sm sm:text-lg whitespace-nowrap ${
-                    activeTab === tab.id ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-base font-bold border-t-2 border-x-2 cursor-pointer transition-none whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'mc-panel text-black border-black font-bold'
+                      : 'mc-btn text-gray-300'
                   }`}
                 >
-                  {tab.label}
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
                 </button>
               ))}
             </div>
 
             {/* Tab 1: Relics Collection Grid */}
             {activeTab === 'relics' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4">
                 {/* Active Perks Banner */}
-                <div className="bg-[#fef9c3] p-2.5 sm:p-3 border-2 border-[#ca8a04] text-black">
-                  <div className="flex items-center gap-1.5 font-bold text-base sm:text-lg text-[#854d0e] mb-1">
-                    <Sparkles className="w-4 h-4 text-[#eab308]" />
-                    <span>Active Relic Blessings ({inventory.length} Relics Unlocked)</span>
+                <div className="mc-slot-dark p-3.5 border-2 border-amber-600/60 bg-[#1e1a12]">
+                  <div className="flex items-center gap-2 font-bold text-lg text-amber-400 mb-2">
+                    <Sparkles className="w-5 h-5 text-yellow-400" />
+                    <span>ACTIVE RELIC BLESSINGS ({inventory.length} Relics Discovered)</span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-1.5 text-xs sm:text-sm font-mono">
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      ❤️ Max HP: <span className="font-bold text-red-600">+{activePerks.maxHpBonus}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm font-mono">
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      ❤️ Max HP: <span className="font-bold text-red-400">+{activePerks.maxHpBonus}</span>
                     </div>
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      ⚡ Max Stamina: <span className="font-bold text-yellow-600">+{activePerks.maxStaminaBonus}</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      ⚡ Max Stamina: <span className="font-bold text-yellow-400">+{activePerks.maxStaminaBonus}</span>
                     </div>
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      👟 Move Speed: <span className="font-bold text-emerald-600">{Math.round(activePerks.speedMultiplier * 100)}%</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      👟 Move Speed: <span className="font-bold text-emerald-400">{Math.round(activePerks.speedMultiplier * 100)}%</span>
                     </div>
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      🪙 Gold Yield: <span className="font-bold text-amber-600">{Math.round(activePerks.goldMultiplier * 100)}%</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      🪙 Gold Yield: <span className="font-bold text-amber-400">{Math.round(activePerks.goldMultiplier * 100)}%</span>
                     </div>
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      🧪 Flask Boost: <span className="font-bold text-rose-600">+{activePerks.potionHealBonus} HP</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      🧪 Flask Boost: <span className="font-bold text-rose-400">+{activePerks.potionHealBonus} HP</span>
                     </div>
-                    <div className="bg-white/80 p-1 rounded border border-amber-300">
-                      🎯 Crit Bonus: <span className="font-bold text-indigo-600">+{Math.round(activePerks.critChanceBonus * 100)}%</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      🎯 Crit Bonus: <span className="font-bold text-indigo-400">+{Math.round(activePerks.critChanceBonus * 100)}%</span>
                     </div>
                   </div>
                 </div>
 
-                <p className="text-xs sm:text-sm text-[#333]">
-                  Ancient relics unearthed from ruins, chests, and mountain peaks. Tap a relic to read its forgotten lore.
+                <p className="text-sm text-gray-400 font-mono">
+                  Ancient relics unearthed from ruins, chests, and mountain peaks. Select any discovered relic to inspect its lore:
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {ALL_RELICS.map(r => {
                     const found = inventory.find(item => item.id === r.id);
                     return (
                       <div
                         key={r.id}
                         onClick={() => setSelectedRelicDetail(found ? found : r)}
-                        className={`p-2.5 sm:p-3 border-2 cursor-pointer transition-transform hover:scale-102 flex flex-col items-center text-center ${
+                        className={`p-3 border-2 cursor-pointer transition-transform hover:scale-102 flex flex-col items-center text-center ${
                           found
-                            ? 'bg-[#dedede] border-[#333] shadow-sm'
-                            : 'bg-[#9e9e9e] border-[#777] opacity-60'
+                            ? 'mc-slot-dark border-[#555] hover:border-amber-400'
+                            : 'mc-slot-dark opacity-40 border-black'
                         }`}
                       >
-                        <span className="text-3xl sm:text-4xl mb-1">{found ? r.icon : '❓'}</span>
-                        <span className="text-base sm:text-lg font-bold text-black truncate w-full">
-                          {found ? r.name : 'Unknown Relic'}
+                        <span className="text-4xl mb-1.5">{found ? r.icon : '❓'}</span>
+                        <span className="text-base font-bold text-white truncate w-full">
+                          {found ? r.name : 'Undiscovered'}
                         </span>
                         <span
-                          className={`text-xs uppercase px-1.5 py-0.2 rounded mt-1 ${
+                          className={`text-xs uppercase px-2 py-0.5 mt-1 font-mono font-bold ${
                             r.rarity === 'legendary'
-                              ? 'bg-[#ffd700] text-black font-bold'
+                              ? 'bg-yellow-500 text-black'
                               : r.rarity === 'epic'
-                              ? 'bg-[#a855f7] text-white'
+                              ? 'bg-purple-600 text-white'
                               : r.rarity === 'rare'
-                              ? 'bg-[#3b82f6] text-white'
-                              : 'bg-[#6b7280] text-white'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-600 text-white'
                           }`}
                         >
                           {r.rarity}
@@ -3856,23 +3988,23 @@ export const App: React.FC = () => {
 
             {/* Tab: Waystones (Celestial Monolith Fast Travel Network) */}
             {activeTab === 'waystones' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-3 text-black">
-                <div className="bg-[#e0f2fe] p-3 border-2 border-[#0284c7]">
-                  <h3 className="text-lg sm:text-xl font-bold text-[#0369a1] flex items-center gap-1.5">
-                    <Radio className="w-5 h-5 text-[#0284c7]" />
-                    <span>Celestial Obelisk Sanctuary Network</span>
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4">
+                <div className="mc-slot-dark p-3.5 border-2 border-sky-600/60 bg-[#121c24]">
+                  <h3 className="text-xl font-bold text-sky-400 flex items-center gap-2">
+                    <Radio className="w-5 h-5 text-sky-400" />
+                    <span>CELESTIAL MONOLITH LEYLINE NETWORK</span>
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#0c4a6e] mt-1">
-                    Awakened monoliths cast a protective aura (+5 HP/s, +10 STM/s, monsters cannot enter) and link to ancient leyline wormholes for instant Fast Travel!
+                  <p className="text-xs sm:text-sm text-gray-300 font-mono mt-1">
+                    Awakened monoliths cast a protective sanctuary aura (+5 HP/s, +10 STM/s, monsters cannot enter) and link to ancient leyline wormholes for instant Fast Travel!
                   </p>
                 </div>
 
                 {features.filter(f => f.type === 'obelisk').length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 font-mono">
+                  <div className="text-center py-10 text-gray-500 font-mono text-base">
                     No Monoliths sighted yet. Explore further or use Sonar Pulse [C] to ping ancient signals!
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {features
                       .filter(f => f.type === 'obelisk')
                       .map((ob, idx) => {
@@ -3880,47 +4012,47 @@ export const App: React.FC = () => {
                         return (
                           <div
                             key={ob.id}
-                            className={`p-3 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                            className={`p-3 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                               ob.active
-                                ? 'bg-[#dcfce7] border-[#22c55e]'
-                                : 'bg-[#f1f5f9] border-[#94a3b8]'
+                                ? 'mc-slot-dark border-emerald-500/80 bg-[#122416]'
+                                : 'mc-slot-dark border-gray-700 opacity-80'
                             }`}
                           >
                             <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-2xl">{ob.active ? '⚡' : '🗿'}</span>
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-3xl">{ob.active ? '⚡' : '🗿'}</span>
                                 <div>
-                                  <h4 className="font-bold text-base sm:text-lg">
-                                    Monolith Waystone #{idx + 1}
+                                  <h4 className="font-bold text-lg text-white">
+                                    Monolith Sanctuary #{idx + 1}
                                   </h4>
-                                  <span className="text-xs font-mono text-gray-600">
-                                    Coords: ({Math.round(ob.x)}, {Math.round(ob.y)}) • {Math.round(dist)}m away
+                                  <span className="text-xs font-mono text-gray-400">
+                                    Coordinates: ({Math.round(ob.x)}, {Math.round(ob.y)}) • {Math.round(dist)}m away
                                   </span>
                                 </div>
                               </div>
-                              <div className="text-xs mt-1 font-mono">
+                              <div className="text-xs mt-1.5 font-mono">
                                 Status:{' '}
                                 {ob.active ? (
-                                  <span className="text-emerald-700 font-bold">
-                                    ✓ Awakened Sanctuary (Active Leyline)
+                                  <span className="text-emerald-400 font-bold">
+                                    ✓ Awakened Sanctuary (Fast Travel Linked)
                                   </span>
                                 ) : (
-                                  <span className="text-amber-700 font-bold">
-                                    ⚠️ Dormant (Approach and Awaken)
+                                  <span className="text-amber-400 font-bold">
+                                    ⚠️ Dormant (Approach in world and press [E] to awaken)
                                   </span>
                                 )}
                               </div>
                             </div>
 
                             {ob.active ? (
-                              <McButton
+                              <button
                                 onClick={() => handleFastTravel(ob.x, ob.y)}
-                                className="px-3 py-1.5 text-sm bg-[#16a34a]! text-white border-[#86efac]! flex items-center justify-center gap-1 shadow-md"
+                                className="mc-btn px-4 py-2 text-base font-bold bg-[#16a34a]! text-white border-[#86efac]! flex items-center justify-center gap-2 cursor-pointer shadow-md"
                               >
                                 <Zap className="w-4 h-4" /> Fast Travel
-                              </McButton>
+                              </button>
                             ) : (
-                              <span className="text-xs italic text-gray-500 px-2 py-1">
+                              <span className="text-xs font-mono text-gray-500 italic px-2 py-1">
                                 Awaken in world to activate
                               </span>
                             )}
@@ -3934,106 +4066,106 @@ export const App: React.FC = () => {
 
             {/* Tab: Campfire Forge & Alchemy */}
             {activeTab === 'camp' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-3 text-black">
-                <div className="bg-[#ffedd5] p-3 border-2 border-[#ea580c]">
-                  <h3 className="text-lg sm:text-xl font-bold text-[#c2410c] flex items-center gap-1.5">
-                    <Flame className="w-5 h-5 text-[#ea580c]" />
-                    <span>Campfire Forge & Field Alchemy</span>
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4">
+                <div className="mc-slot-dark p-3.5 border-2 border-orange-600/60 bg-[#241a12]">
+                  <h3 className="text-xl font-bold text-orange-400 flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-orange-400" />
+                    <span>CAMPFIRE FORGE & FIELD ALCHEMY</span>
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#9a3412] mt-1">
-                    Harness the warm embers of your campfire to brew restorative draughts, roast companion delicacies, or permanently hone your weapon blades!
+                  <p className="text-xs sm:text-sm text-gray-300 font-mono mt-1">
+                    Harness the warm embers of your campfire to brew restorative draughts, roast companion delicacies, or permanently hone weapon blades!
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Rest Until Dawn */}
-                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                  <div className="p-3.5 mc-slot-dark border-2 border-gray-700 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2.5 mb-1.5">
                         <span className="text-3xl">🌅</span>
                         <div>
-                          <h4 className="font-bold text-base sm:text-lg">Rest Until Dawn</h4>
-                          <span className="text-xs text-gray-600 font-mono">Free Vitality Refill</span>
+                          <h4 className="font-bold text-lg text-yellow-400">Sleep Until Dawn</h4>
+                          <span className="text-xs text-gray-400 font-mono">Night rest (Requires campfire & safety)</span>
                         </div>
                       </div>
-                      <p className="text-xs text-[#333] mb-2">
-                        Sleep peacefully through the perilous night. Fully restores both HP and Stamina instantly.
+                      <p className="text-xs text-gray-300 font-mono mb-3">
+                        Sleep peacefully until morning. Restores 100% HP and Stamina. Cannot sleep with monsters nearby or during combat.
                       </p>
                     </div>
-                    <McButton
+                    <button
                       onClick={handleSleepUntilDawn}
-                      className="w-full py-1.5 text-sm bg-[#3b82f6]! text-white border-[#93c5fd]!"
+                      className="mc-btn w-full py-2 text-base font-bold bg-[#2563eb]! text-white border-[#93c5fd]!"
                     >
                       Sleep Until Dawn
-                    </McButton>
+                    </button>
                   </div>
 
                   {/* Brew Healing Flask */}
-                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                  <div className="p-3.5 mc-slot-dark border-2 border-gray-700 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2.5 mb-1.5">
                         <span className="text-3xl">🧪</span>
                         <div>
-                          <h4 className="font-bold text-base sm:text-lg">Brew Healing Flask</h4>
-                          <span className="text-xs text-red-600 font-mono font-bold">Cost: 15 Gold</span>
+                          <h4 className="font-bold text-lg text-red-400">Brew Healing Flask</h4>
+                          <span className="text-xs text-amber-400 font-mono font-bold">Cost: 15 Gold</span>
                         </div>
                       </div>
-                      <p className="text-xs text-[#333] mb-2">
-                        Concoct a powerful restorative potion from wild herbs and gold reagents (+55 HP).
+                      <p className="text-xs text-gray-300 font-mono mb-3">
+                        Concoct a potent restorative draught from wild herbs and gold reagents (+55 HP).
                       </p>
                     </div>
-                    <McButton
+                    <button
                       onClick={handleBrewPotion}
-                      className="w-full py-1.5 text-sm bg-[#dc2626]! text-white border-[#fca5a5]!"
+                      className="mc-btn w-full py-2 text-base font-bold bg-[#dc2626]! text-white border-[#fca5a5]!"
                     >
                       Brew Flask (15 🪙)
-                    </McButton>
+                    </button>
                   </div>
 
                   {/* Roast Companion Treat */}
-                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                  <div className="p-3.5 mc-slot-dark border-2 border-gray-700 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2.5 mb-1.5">
                         <span className="text-3xl">🍖</span>
                         <div>
-                          <h4 className="font-bold text-base sm:text-lg">Roast Companion Feast</h4>
-                          <span className="text-xs text-amber-600 font-mono font-bold">Cost: 10 Gold</span>
+                          <h4 className="font-bold text-lg text-amber-400">Roast Companion Feast</h4>
+                          <span className="text-xs text-amber-400 font-mono font-bold">Cost: 10 Gold</span>
                         </div>
                       </div>
-                      <p className="text-xs text-[#333] mb-2">
-                        Roast a succulent campfire meal for {companion.name}. Maxes out happiness (100%) and grants +25 XP.
+                      <p className="text-xs text-gray-300 font-mono mb-3">
+                        Roast a succulent campfire meal for {companion.name}. Maxes out companion happiness (100%) and grants +25 XP.
                       </p>
                     </div>
-                    <McButton
+                    <button
                       onClick={handleFeedCompanionTreat}
-                      className="w-full py-1.5 text-sm bg-[#f59e0b]! text-black font-bold border-[#fde047]!"
+                      className="mc-btn w-full py-2 text-base font-bold bg-[#d97706]! text-white border-[#fde047]!"
                     >
                       Roast Treat (10 🪙)
-                    </McButton>
+                    </button>
                   </div>
 
                   {/* Forge & Hone Weapons */}
-                  <div className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
+                  <div className="p-3.5 mc-slot-dark border-2 border-gray-700 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2.5 mb-1.5">
                         <span className="text-3xl">⚔️</span>
                         <div>
-                          <h4 className="font-bold text-base sm:text-lg">Hone Weapons</h4>
-                          <span className="text-xs text-emerald-700 font-mono font-bold">
+                          <h4 className="font-bold text-lg text-emerald-400">Hone Weapons</h4>
+                          <span className="text-xs text-emerald-400 font-mono font-bold">
                             Cost: {35 + weaponBonusDmg * 20} Gold
                           </span>
                         </div>
                       </div>
-                      <p className="text-xs text-[#333] mb-2">
+                      <p className="text-xs text-gray-300 font-mono mb-3">
                         Quench and sharpen all blades on the campfire forge. Adds +4 damage permanently! (Current bonus: +{weaponBonusDmg})
                       </p>
                     </div>
-                    <McButton
+                    <button
                       onClick={handleHoneWeapons}
-                      className="w-full py-1.5 text-sm bg-[#059669]! text-white border-[#6ee7b7]!"
+                      className="mc-btn w-full py-2 text-base font-bold bg-[#059669]! text-white border-[#6ee7b7]!"
                     >
                       Hone Blades ({35 + weaponBonusDmg * 20} 🪙)
-                    </McButton>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -4041,34 +4173,34 @@ export const App: React.FC = () => {
 
             {/* Tab 2: Quests */}
             {activeTab === 'quests' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-3">
                 {quests.map(q => (
                   <div
                     key={q.id}
-                    className={`p-3 border-2 ${
+                    className={`p-3.5 border-2 ${
                       q.completed
-                        ? 'bg-[#d1fae5] border-[#10b981]'
-                        : 'bg-[#dedede] border-[#555]'
+                        ? 'mc-slot-dark border-emerald-500/80 bg-[#122416]'
+                        : 'mc-slot-dark border-gray-700'
                     }`}
                   >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-lg sm:text-xl font-bold text-black flex items-center gap-1.5">
-                        {q.completed ? <CheckCircle2 className="w-5 h-5 text-[#059669]" /> : '📍'}
+                    <div className="flex justify-between items-start mb-1.5">
+                      <span className="text-xl font-bold text-white flex items-center gap-2">
+                        {q.completed ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : '📍'}
                         {q.title}
                       </span>
-                      <span className="text-xs sm:text-sm font-mono bg-[#ffd700] text-black px-1.5 py-0.5 border border-[#c69214]">
+                      <span className="text-xs font-mono font-bold bg-yellow-500 text-black px-2 py-0.5 border border-yellow-300">
                         +{q.xpReward} XP
                       </span>
                     </div>
-                    <p className="text-sm sm:text-base text-[#333] mb-2">{q.description}</p>
-                    <div className="w-full bg-[#bbb] h-3 border border-[#444] overflow-hidden">
+                    <p className="text-sm text-gray-300 font-mono mb-2.5">{q.description}</p>
+                    <div className="w-full bg-[#111] h-3.5 border-2 border-black overflow-hidden">
                       <div
                         className="bg-[#22c55e] h-full transition-all duration-300"
                         style={{ width: `${Math.min(100, (q.progress / q.target) * 100)}%` }}
                       />
                     </div>
-                    <div className="text-right text-xs font-mono text-[#333] mt-1">
-                      {q.progress} / {q.target} {q.completed && '(Done!)'}
+                    <div className="text-right text-xs font-mono text-gray-400 mt-1">
+                      {q.progress} / {q.target} {q.completed && '(Completed!)'}
                     </div>
                   </div>
                 ))}
@@ -4077,44 +4209,48 @@ export const App: React.FC = () => {
 
             {/* Tab 3: Explorer Stats */}
             {activeTab === 'stats' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-3 text-black">
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <h3 className="text-xl font-bold border-b border-[#888] pb-1">Wanderer Record</h3>
-                  <div className="grid grid-cols-2 gap-2 text-base sm:text-lg">
-                    <div>
-                      Level: <span className="font-bold">{stats.level}</span>
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4">
+                <div className="mc-slot-dark p-4 border-2 border-gray-700 space-y-3">
+                  <h3 className="text-xl font-bold text-yellow-400 border-b-2 border-black pb-1.5">
+                    Wanderer Record
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 text-lg font-mono">
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      Level: <span className="font-bold text-emerald-400">{stats.level}</span>
                     </div>
-                    <div>
-                      Experience: <span className="font-bold">{stats.xp} XP</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      Experience: <span className="font-bold text-yellow-400">{stats.xp} XP</span>
                     </div>
-                    <div>
+                    <div className="mc-slot-dark p-2 text-gray-200">
                       Relics Unearthed:{' '}
-                      <span className="font-bold">
+                      <span className="font-bold text-cyan-400">
                         {stats.relicsFound} / {ALL_RELICS.length}
                       </span>
                     </div>
-                    <div>
+                    <div className="mc-slot-dark p-2 text-gray-200">
                       Monoliths Awakened:{' '}
-                      <span className="font-bold text-[#0284c7]">{stats.obelisksLit}</span>
+                      <span className="font-bold text-sky-400">{stats.obelisksLit}</span>
                     </div>
-                    <div>
+                    <div className="mc-slot-dark p-2 text-gray-200">
                       Paces Explored:{' '}
-                      <span className="font-bold">{stats.stepsWalked}</span>
+                      <span className="font-bold text-white">{stats.stepsWalked}</span>
                     </div>
-                    <div>
-                      Secrets Dug: <span className="font-bold">{stats.secretsDug}</span>
+                    <div className="mc-slot-dark p-2 text-gray-200">
+                      Secrets Dug: <span className="font-bold text-amber-400">{stats.secretsDug}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-1">
-                  <h3 className="text-xl font-bold border-b border-[#888] pb-1">Nomad Companion</h3>
-                  <div className="flex justify-between items-center text-base sm:text-lg">
-                    <span>Name: {companion.name} ({settings.companionType ?? 'fox'})</span>
-                    <span className="text-[#db2777] font-bold">Happiness: {companion.happiness}%</span>
+                <div className="mc-slot-dark p-4 border-2 border-gray-700 space-y-2">
+                  <h3 className="text-xl font-bold text-pink-400 border-b-2 border-black pb-1.5">
+                    Nomad Companion
+                  </h3>
+                  <div className="flex justify-between items-center text-lg font-mono">
+                    <span className="text-gray-200">Name: {companion.name} ({settings.companionType ?? 'fox'})</span>
+                    <span className="text-pink-400 font-bold">Happiness: {companion.happiness}%</span>
                   </div>
-                  <p className="text-xs text-[#555]">
-                    Keep your companion happy by petting them and resting at campfires. Happy companions sniff out buried treasures from farther away!
+                  <p className="text-xs text-gray-400 font-mono">
+                    Keep your companion happy by petting them [R] and resting at campfires. Happy companions sniff out buried treasures and vacuum dropped gems!
                   </p>
                 </div>
               </div>
@@ -4122,56 +4258,58 @@ export const App: React.FC = () => {
 
             {/* Tab 4: Armory & Bestiary */}
             {activeTab === 'armory' && (
-              <div className="overflow-y-auto flex-1 pr-1 space-y-4 text-black">
+              <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-5">
                 {/* Weapons Section */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 border-b-2 border-[#555] pb-1">
-                    <Sword className="w-5 h-5 text-[#dc2626]" />
-                    <h3 className="text-xl font-bold">Explorer's Arsenal</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 border-b-2 border-black pb-1.5">
+                    <Sword className="w-5 h-5 text-red-400" />
+                    <h3 className="text-xl font-bold text-yellow-400">Explorer's Arsenal</h3>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {ALL_WEAPONS.map((w, idx) => {
                       const isEquipped = activeWeaponIndex === idx;
                       return (
                         <div
                           key={w.id}
-                          className={`p-3 border-2 flex flex-col justify-between ${
-                            isEquipped ? 'bg-[#fef08a] border-[#ca8a04]' : 'bg-[#dedede] border-[#777]'
+                          className={`p-3.5 border-2 flex flex-col justify-between ${
+                            isEquipped
+                              ? 'mc-slot-dark border-yellow-500 bg-[#242012]'
+                              : 'mc-slot-dark border-gray-700'
                           }`}
                         >
                           <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5">
                               <span className="text-3xl">{w.icon}</span>
                               <div>
-                                <h4 className="font-bold text-lg leading-tight">{w.name}</h4>
-                                <span className="text-xs uppercase px-1.5 py-0.5 bg-black/10 rounded font-mono">
+                                <h4 className="font-bold text-lg text-white leading-tight">{w.name}</h4>
+                                <span className="text-xs uppercase px-1.5 py-0.5 bg-black/40 text-gray-300 font-mono">
                                   {w.type} • Key [{idx + 1}]
                                 </span>
                               </div>
                             </div>
                             {isEquipped && (
-                              <span className="text-xs font-bold bg-[#16a34a] text-white px-2 py-0.5 rounded">
+                              <span className="text-xs font-bold bg-[#16a34a] text-white px-2 py-0.5 rounded font-mono">
                                 ACTIVE
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-[#333] my-2 italic">{w.description}</p>
-                          <div className="grid grid-cols-2 gap-1 text-xs font-mono bg-white/70 p-1.5 border border-black/15 mb-2">
-                            <div>Damage: <span className="font-bold text-red-600">{w.damage}</span></div>
-                            <div>Range: <span className="font-bold text-blue-600">{w.range}m</span></div>
-                            <div>Cooldown: <span className="font-bold">{w.cooldown}s</span></div>
-                            <div>Stamina: <span className="font-bold text-amber-600">{w.staminaCost}</span></div>
+                          <p className="text-xs text-gray-300 font-mono my-2 italic">{w.description}</p>
+                          <div className="grid grid-cols-2 gap-1.5 text-xs font-mono mc-slot-dark p-2 border-black mb-2.5">
+                            <div>Damage: <span className="font-bold text-red-400">{w.damage}</span></div>
+                            <div>Range: <span className="font-bold text-blue-400">{w.range}m</span></div>
+                            <div>Cooldown: <span className="font-bold text-yellow-400">{w.cooldown}s</span></div>
+                            <div>Stamina: <span className="font-bold text-amber-400">{w.staminaCost}</span></div>
                           </div>
                           {!isEquipped && (
-                            <McButton
+                            <button
                               onClick={() => {
                                 setActiveWeaponIndex(idx);
                                 showToast(`⚔️ Equipped: ${w.name}`);
                               }}
-                              className="w-full py-1 text-sm bg-[#55aa55]! text-white border-[#88ff88]!"
+                              className="mc-btn w-full py-1.5 text-base font-bold bg-[#16a34a]! text-white border-[#86efac]!"
                             >
                               Equip Weapon [{idx + 1}]
-                            </McButton>
+                            </button>
                           )}
                         </div>
                       );
@@ -4180,12 +4318,12 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* Bestiary Section */}
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-2 border-b-2 border-[#555] pb-1">
-                    <Skull className="w-5 h-5 text-[#475569]" />
-                    <h3 className="text-xl font-bold">Wilderness Bestiary</h3>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-2 border-b-2 border-black pb-1.5">
+                    <Skull className="w-5 h-5 text-gray-400" />
+                    <h3 className="text-xl font-bold text-red-400">Wilderness Bestiary</h3>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       {
                         name: 'Bouncing Slime',
@@ -4195,7 +4333,7 @@ export const App: React.FC = () => {
                         damage: 10,
                         speed: 'Medium Leap',
                         range: 'Melee Bump',
-                        lore: 'Gelatinous organisms roaming the lush grasslands. They leap toward intruders, absorbing light.',
+                        lore: 'Gelatinous organisms roaming lush grasslands. They leap toward intruders and drop slime gel.',
                         loot: 'Slime Gel, Small Gems, Health Potions',
                       },
                       {
@@ -4206,7 +4344,7 @@ export const App: React.FC = () => {
                         damage: 14,
                         speed: 'Kiting Distance',
                         range: '14m Arrow Sniping',
-                        lore: 'Ancient guardians animated by moonlight. They keep distance and volley bone arrows.',
+                        lore: 'Ancient guardians animated by moonlight. They keep distance and volley piercing bone arrows.',
                         loot: 'Bone Shards, Gold, Stamina Elixirs',
                       },
                       {
@@ -4232,20 +4370,20 @@ export const App: React.FC = () => {
                         loot: 'Spider Silk, Venom Sacs, Gold',
                       },
                     ].map(mob => (
-                      <div key={mob.name} className="p-3 bg-[#dedede] border-2 border-[#777] flex flex-col justify-between">
-                        <div className="flex items-center gap-2">
+                      <div key={mob.name} className="p-3.5 mc-slot-dark border-2 border-gray-700 flex flex-col justify-between">
+                        <div className="flex items-center gap-2.5">
                           <span className="text-3xl">{mob.icon}</span>
                           <div>
-                            <h4 className="font-bold text-lg leading-tight">{mob.name}</h4>
-                            <span className="text-xs uppercase px-1.5 py-0.5 bg-black/10 rounded font-mono">
+                            <h4 className="font-bold text-lg text-white leading-tight">{mob.name}</h4>
+                            <span className="text-xs uppercase px-1.5 py-0.5 bg-black/40 text-gray-300 font-mono">
                               HP: {mob.hp} • Atk: {mob.damage}
                             </span>
                           </div>
                         </div>
-                        <p className="text-xs text-[#333] my-2">{mob.lore}</p>
-                        <div className="text-xs font-mono bg-white/70 p-1.5 border border-black/15 space-y-0.5">
-                          <div><span className="font-bold">Combat Style:</span> {mob.range} ({mob.speed})</div>
-                          <div><span className="font-bold text-amber-700">Drops:</span> {mob.loot}</div>
+                        <p className="text-xs text-gray-300 font-mono my-2">{mob.lore}</p>
+                        <div className="text-xs font-mono mc-slot-dark p-2 border-black space-y-1">
+                          <div><span className="font-bold text-gray-400">Combat Style:</span> {mob.range} ({mob.speed})</div>
+                          <div><span className="font-bold text-amber-400">Drops:</span> {mob.loot}</div>
                         </div>
                       </div>
                     ))}
@@ -4260,33 +4398,36 @@ export const App: React.FC = () => {
       {/* 2. Unlocked Relic Discovery Modal (With Confetti celebration) */}
       {unlockedRelicModal && (
         <div
+          id="relic-discovery-overlay"
           className="fixed inset-0 z-[150] flex items-center justify-center p-4 pointer-events-auto bg-black/90 animate-in fade-in"
           onClick={() => setUnlockedRelicModal(null)}
         >
           <div
-            className="w-full max-w-md mc-panel p-6 bg-[#dedede]! border-4! border-[#ffd700]! shadow-[0_0_0_4px_black] flex flex-col items-center text-center gap-3 relative"
+            id="relic-discovery-modal"
+            className="w-full max-w-md mc-panel-dark text-white p-6 border-4 border-yellow-400 flex flex-col items-center text-center gap-3 relative shadow-[0_0_20px_rgba(234,179,8,0.4)]"
+            style={{ fontFamily: "'VT323', monospace" }}
             onClick={e => e.stopPropagation()}
           >
             <span className="text-6xl animate-bounce">{unlockedRelicModal.icon}</span>
-            <span className="text-xs uppercase font-bold px-2 py-0.5 bg-[#ffd700] text-black">
+            <span className="text-sm uppercase font-bold px-3 py-0.5 bg-yellow-500 text-black font-mono">
               New {unlockedRelicModal.rarity} Relic Discovered!
             </span>
-            <h2 className="text-3xl text-black font-bold">{unlockedRelicModal.name}</h2>
-            <p className="text-lg text-black font-mono leading-tight bg-white/70 p-3 border border-black/20">
+            <h2 className="text-3xl text-yellow-400 font-bold tracking-wider">{unlockedRelicModal.name}</h2>
+            <p className="text-base text-gray-200 font-mono leading-tight mc-slot-dark p-3 border-black w-full">
               "{unlockedRelicModal.description}"
             </p>
-            <p className="text-sm text-[#444] italic">
+            <p className="text-sm text-gray-400 italic">
               {unlockedRelicModal.lore}
             </p>
-            <div className="text-xs font-mono text-[#555] mt-1">
-              Recorded into Explorer Journal (+100 XP)
+            <div className="text-xs font-mono text-emerald-400 mt-1">
+              ✓ Recorded into Explorer Journal (+100 XP)
             </div>
-            <McButton
+            <button
               onClick={() => setUnlockedRelicModal(null)}
-              className="mt-2 px-6 py-1.5 text-xl bg-[#55aa55]! text-white border-[#88ff88]!"
+              className="mc-btn w-full mt-2 py-2 text-xl font-bold bg-[#16a34a]! text-white border-[#86efac]! cursor-pointer"
             >
               Collect Relic
-            </McButton>
+            </button>
           </div>
         </div>
       )}
@@ -4294,197 +4435,216 @@ export const App: React.FC = () => {
       {/* 3. Single Relic Detail View */}
       {selectedRelicDetail && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 pointer-events-auto bg-black/80"
+          id="relic-detail-overlay"
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 pointer-events-auto bg-black/80 animate-in fade-in duration-100"
           onClick={() => setSelectedRelicDetail(null)}
         >
           <div
-            className="w-full max-w-sm mc-panel p-5 bg-[#dedede]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col items-center text-center gap-2"
+            id="relic-detail-modal"
+            className="w-full max-w-sm mc-panel-dark text-white p-5 border-4 border-black flex flex-col items-center text-center gap-2.5"
+            style={{ fontFamily: "'VT323', monospace" }}
             onClick={e => e.stopPropagation()}
           >
             <span className="text-5xl">{selectedRelicDetail.icon}</span>
-            <h3 className="text-2xl text-black font-bold">{selectedRelicDetail.name}</h3>
-            <span className="text-xs uppercase px-2 py-0.5 bg-[#333] text-white">
+            <h3 className="text-2xl text-yellow-400 font-bold tracking-wider">{selectedRelicDetail.name}</h3>
+            <span className="text-xs uppercase px-2 py-0.5 bg-black/60 text-gray-300 font-mono">
               {selectedRelicDetail.rarity} • {selectedRelicDetail.biome}
             </span>
-            <p className="text-base text-black bg-white/70 p-2.5 border border-black/20 text-left w-full mt-2 font-mono">
+            <p className="text-sm text-gray-200 mc-slot-dark p-3 border-black text-left w-full mt-1 font-mono">
               {selectedRelicDetail.description}
             </p>
-            <p className="text-xs text-[#555] italic text-left w-full">
+            <p className="text-xs text-gray-400 italic text-left w-full font-mono">
               {selectedRelicDetail.lore}
             </p>
             {selectedRelicDetail.foundAt && (
-              <div className="text-xs font-mono text-[#444] w-full text-left pt-1 border-t border-[#aaa]">
+              <div className="text-xs font-mono text-gray-400 w-full text-left pt-1.5 border-t border-gray-700">
                 Unearthed at X: {selectedRelicDetail.foundAt.x}, Z: {selectedRelicDetail.foundAt.z} on{' '}
                 {selectedRelicDetail.foundAt.date}
               </div>
             )}
-            <McButton onClick={() => setSelectedRelicDetail(null)} className="w-full mt-2 py-1 text-lg">
+            <button
+              onClick={() => setSelectedRelicDetail(null)}
+              className="mc-btn w-full mt-2 py-1.5 text-lg font-bold cursor-pointer"
+            >
               Close
-            </McButton>
+            </button>
           </div>
         </div>
       )}
 
-      {/* 4. Game Settings Modal */}
+      {/* 4. Game Settings & Options Modal */}
       {isSettingsOpen && (
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-auto bg-black/75 backdrop-blur-xs"
+          id="game-settings-overlay"
+          className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => setIsSettingsOpen(false)}
         >
           <div
-            className="w-full max-w-lg max-h-[92vh] overflow-y-auto mc-panel p-4 sm:p-6 bg-[#c6c6c6]! border-4! border-white! shadow-[0_0_0_4px_black] flex flex-col gap-3 text-black"
+            id="game-settings-modal"
+            className="w-full max-w-xl max-h-[92vh] mc-panel-dark text-white flex flex-col overflow-hidden"
+            style={{ fontFamily: "'VT323', monospace" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header with Title & Close */}
-            <div className="flex justify-between items-center border-b-2 border-black/20 pb-2">
-              <h2 className="text-2xl sm:text-3xl text-black flex items-center gap-2 font-bold">
-                {settingsTab === 'tutorial' ? (
-                  <>
-                    <HelpCircle className="w-6 h-6 text-[#059669]" /> Field Guide & Tutorial
-                  </>
-                ) : (
-                  <>
-                    <Settings className="w-6 h-6" /> Game Settings
-                  </>
-                )}
-              </h2>
+            <div className="flex justify-between items-center px-4 py-3 bg-[#181818] border-b-2 border-black">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 mc-slot-dark flex items-center justify-center text-xl text-yellow-400">
+                  {settingsTab === 'tutorial' ? '📖' : '⚙️'}
+                </div>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-wider text-yellow-400 leading-tight">
+                    {settingsTab === 'tutorial' ? 'FIELD GUIDE & TUTORIAL' : 'GAME OPTIONS & SETTINGS'}
+                  </h2>
+                  <p className="text-xs text-gray-400 font-mono">
+                    Controls, gameplay options, world configuration & biome controls
+                  </p>
+                </div>
+              </div>
               <button
+                id="close-settings-btn"
                 onClick={() => setIsSettingsOpen(false)}
-                className="mc-btn w-8 h-8 flex items-center justify-center cursor-pointer"
+                className="mc-btn px-2.5 py-1 text-sm cursor-pointer"
+                title="Close (ESC)"
               >
-                <X />
+                <X className="w-5 h-5 inline" />
               </button>
             </div>
 
-            {/* Modal Sub-Tabs: Settings Options vs Controls & Navigation Tutorial */}
-            <div className="flex gap-2 border-b border-[#888] pb-1">
+            {/* Modal Sub-Tabs */}
+            <div className="flex border-b-2 border-black bg-[#151515] px-3 pt-2 gap-1.5 overflow-x-auto text-sm">
               <button
                 onClick={() => setSettingsTab('options')}
-                className={`mc-btn flex-1 py-1.5 text-base sm:text-lg flex items-center justify-center gap-1.5 ${
-                  settingsTab === 'options' ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-base font-bold border-t-2 border-x-2 cursor-pointer transition-none ${
+                  settingsTab === 'options'
+                    ? 'mc-panel text-black border-black font-bold'
+                    : 'mc-btn text-gray-300'
                 }`}
               >
-                <Settings className="w-4 h-4" /> Preferences
+                <Settings className="w-4 h-4" />
+                <span>PREFERENCES</span>
               </button>
               <button
                 onClick={() => setSettingsTab('tutorial')}
-                className={`mc-btn flex-1 py-1.5 text-base sm:text-lg flex items-center justify-center gap-1.5 ${
-                  settingsTab === 'tutorial' ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-base font-bold border-t-2 border-x-2 cursor-pointer transition-none ${
+                  settingsTab === 'tutorial'
+                    ? 'mc-panel text-black border-black font-bold'
+                    : 'mc-btn text-gray-300'
                 }`}
               >
-                <BookOpen className="w-4 h-4" /> Controls & Guide
+                <BookOpen className="w-4 h-4" />
+                <span>CONTROLS & GUIDE</span>
               </button>
             </div>
 
             {/* TAB 1: TUTORIAL VIEW */}
             {settingsTab === 'tutorial' ? (
-              <div className="space-y-4 overflow-y-auto pr-1 text-black">
+              <div className="space-y-4 overflow-y-auto p-4 sm:p-5 flex-1 text-white">
                 {/* Mobile Touch & Gesture Controls */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#1e3a8a]">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
+                  <h3 className="text-xl font-bold border-b-2 border-black pb-1 flex items-center gap-2 text-sky-400">
                     <span>📱 Mobile Touch Controls</span>
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm font-mono">
-                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
-                      <span className="font-bold text-black block mb-0.5">🕹️ Virtual Joystick (Bottom Left)</span>
+                    <div className="mc-slot-dark p-2 border-black">
+                      <span className="font-bold text-yellow-400 block mb-1">🕹️ Virtual Joystick (Bottom Left)</span>
                       Drag your thumb across the bottom-left disk to smoothly run in any 360° direction.
                     </div>
-                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
-                      <span className="font-bold text-black block mb-0.5">🖐️ Camera Pan & Pinch Zoom</span>
+                    <div className="mc-slot-dark p-2 border-black">
+                      <span className="font-bold text-yellow-400 block mb-1">🖐️ Camera Pan & Pinch Zoom</span>
                       Drag across the terrain to pan your view. Pinch with two fingers (or scroll wheel) to zoom camera in/out.
                     </div>
-                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
-                      <span className="font-bold text-black block mb-0.5">⚔️ Action Pads (Bottom Right)</span>
-                      Tap <b className="text-red-700">ATTACK</b> to strike, <b className="text-amber-700">DASH</b> to evade, and <b className="text-emerald-700">DIG / ACT</b> to open chests, unearth relics, or light monoliths.
+                    <div className="mc-slot-dark p-2 border-black">
+                      <span className="font-bold text-yellow-400 block mb-1">⚔️ Action Pads (Bottom Right)</span>
+                      Tap <b className="text-red-400">ATTACK</b> to strike, <b className="text-amber-400">DASH</b> to evade, and <b className="text-emerald-400">DIG / ACT</b> to open chests, unearth relics, or light monoliths.
                     </div>
-                    <div className="bg-white/80 p-2 border border-gray-300 rounded-xs">
-                      <span className="font-bold text-black block mb-0.5">🎒 Hotbar & Secondary Actions</span>
-                      Tap any weapon slot in the bottom hotbar to equip it. Tap <b className="text-rose-700">HEAL</b>, <b className="text-sky-700">PULSE</b>, or <b className="text-orange-700">CAMP</b> for rapid field survival.
+                    <div className="mc-slot-dark p-2 border-black">
+                      <span className="font-bold text-yellow-400 block mb-1">🎒 Hotbar & Secondary Actions</span>
+                      Tap any weapon slot in the bottom hotbar to equip it. Tap <b className="text-rose-400">HEAL</b>, <b className="text-sky-400">PULSE</b>, or <b className="text-orange-400">CAMP</b> for rapid field survival.
                     </div>
                   </div>
                 </div>
 
                 {/* PC Keyboard & Mouse Reference */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#065f46]">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
+                  <h3 className="text-xl font-bold border-b-2 border-black pb-1 flex items-center gap-2 text-emerald-400">
                     <span>⌨️ Keyboard & Mouse Controls</span>
                   </h3>
                   <div className="space-y-1.5 text-xs sm:text-sm font-mono">
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Wanderer Movement</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[W] [A] [S] [D] / Click Ground</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Wanderer Movement</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[W] [A] [S] [D] / Click Ground</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Primary Weapon Strike</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Spacebar]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Primary Weapon Strike</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[Spacebar]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Dodge Dash (Invulnerable Evade)</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Shift]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Dodge Dash (Invulnerable Evade)</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[Shift]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Switch Weapons (Blade, Bow, Staff, Glaive)</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[1] [2] [3] [4]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Switch Weapons (Blade, Bow, Staff, Glaive)</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[1] [2] [3] [4]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Drink Healing Flask</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[Q]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Drink Healing Flask</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[Q]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Dig Ground / Loot Chest / Awaken Monolith</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[E]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Dig Ground / Loot Chest / Awaken Monolith</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[E]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Sonar Pulse Echo (Detect Nearby Secrets)</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[C]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Sonar Pulse Echo (Detect Nearby Secrets)</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[C]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Pitch / Pack Cozy Campfire</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[F]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Pitch / Pack Cozy Campfire</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[F]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Pet Faithful Companion</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[R]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Pet Faithful Companion</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[R]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Wilderness Build & Craft Forge</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[B]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Wilderness Build & Craft Forge</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[B]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Open Explorer Compendium</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[J]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Open Explorer Compendium</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[J]</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white/80 p-1.5 border border-gray-300">
-                      <span>Field Guide & Tutorial</span>
-                      <span className="bg-black/10 px-2 py-0.5 font-bold rounded">[H]</span>
+                    <div className="flex justify-between items-center mc-slot-dark p-2 border-black">
+                      <span className="text-gray-200">Field Guide & Tutorial</span>
+                      <span className="bg-black/60 px-2 py-0.5 font-bold text-yellow-400 rounded">[H]</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Interconnected Game Mechanics Guide */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <h3 className="text-xl font-bold border-b border-[#888] pb-1 flex items-center gap-1.5 text-[#9a3412]">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
+                  <h3 className="text-xl font-bold border-b-2 border-black pb-1 flex items-center gap-2 text-orange-400">
                     <span>✨ Interconnected Game Systems</span>
                   </h3>
-                  <div className="space-y-2 text-xs sm:text-sm">
-                    <div className="bg-white/80 p-2 border border-green-300">
-                      <b className="text-green-800 block text-sm mb-0.5">🏗️ Progressive Monster Looting & Construction</b>
-                      You start with simple survival gear. Vanquish slimes, skeletons, spiders, and ancient golems to harvest Wood, Stone, Iron, Bone, Silk, and Arcane Crystals. Press <kbd className="px-1 bg-gray-200 border rounded font-mono">[B]</kbd> to build houses, watchtowers, workbenches, defense turrets, and forge mighty armaments!
+                  <div className="space-y-2 text-xs sm:text-sm font-mono">
+                    <div className="mc-slot-dark p-2.5 border-black">
+                      <b className="text-emerald-400 block text-sm mb-1">🏗️ Progressive Monster Looting & Construction</b>
+                      You start with simple survival gear. Vanquish slimes, skeletons, spiders, and ancient golems to harvest Wood, Stone, Iron, Bone, Silk, and Arcane Crystals. Press <kbd className="px-1.5 py-0.5 bg-black/60 border rounded font-mono text-yellow-400">[B]</kbd> to build houses, watchtowers, workbenches, defense turrets, and forge mighty armaments!
                     </div>
-                    <div className="bg-white/80 p-2 border border-amber-300">
-                      <b className="text-amber-800 block text-sm mb-0.5">🌟 Relic Perks & Passives</b>
+                    <div className="mc-slot-dark p-2.5 border-black">
+                      <b className="text-amber-400 block text-sm mb-1">🌟 Relic Perks & Passives</b>
                       Every discovered relic permanently enchants your character! Relics grant extra Max HP, stamina regeneration, movement speed, critical hit chance, and loot multipliers. Check your Journal to view active passives.
                     </div>
-                    <div className="bg-white/80 p-2 border border-sky-300">
-                      <b className="text-sky-800 block text-sm mb-0.5">⚡ Monolith Sanctuaries & Fast Travel</b>
+                    <div className="mc-slot-dark p-2.5 border-black">
+                      <b className="text-sky-400 block text-sm mb-1">⚡ Monolith Sanctuaries & Fast Travel</b>
                       Awakening ancient monoliths protects you in a celestial sanctuary (+5 HP/s, +10 STM/s, monsters cannot enter) and connects to the Leyline network for 1-tap Fast Travel via your Journal.
                     </div>
-                    <div className="bg-white/80 p-2 border border-orange-300">
-                      <b className="text-orange-800 block text-sm mb-0.5">🏕️ Campfire Forge & Field Alchemy</b>
+                    <div className="mc-slot-dark p-2.5 border-black">
+                      <b className="text-orange-400 block text-sm mb-1">🏕️ Campfire Forge & Field Alchemy</b>
                       Pitch a campfire to sleep until dawn, brew Healing Flasks, roast feasts for your companion, and permanently hone weapon base damage on the field forge!
                     </div>
-                    <div className="bg-white/80 p-2 border border-emerald-300">
-                      <b className="text-emerald-800 block text-sm mb-0.5">🦊 Faithful Companion Synergies</b>
+                    <div className="mc-slot-dark p-2.5 border-black">
+                      <b className="text-pink-400 block text-sm mb-1">🦊 Faithful Companion Synergies</b>
                       Your companion barks and flashes a radar ping whenever buried treasures or monoliths are near. A happy companion vacuums dropped gems and gold coins straight into your pouch!
                     </div>
                   </div>
@@ -4492,32 +4652,32 @@ export const App: React.FC = () => {
               </div>
             ) : (
               /* TAB 2: SETTINGS OPTIONS VIEW */
-              <div className="space-y-4 overflow-y-auto pr-1 text-black">
+              <div className="space-y-4 overflow-y-auto p-4 sm:p-5 flex-1 text-white">
                 {/* Audio Toggle */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-lg sm:text-xl">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 flex justify-between items-center">
+                  <div className="flex items-center gap-2.5 text-lg sm:text-xl">
                     {settings.soundEnabled ? (
-                      <Volume2 className="w-5 h-5 text-[#2d5a27]" />
+                      <Volume2 className="w-5 h-5 text-emerald-400" />
                     ) : (
-                      <VolumeX className="w-5 h-5 text-[#c53030]" />
+                      <VolumeX className="w-5 h-5 text-red-400" />
                     )}
-                    <span>Sound FX</span>
+                    <span>Sound Effects</span>
                   </div>
-                  <McButton
+                  <button
                     onClick={() =>
                       setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))
                     }
-                    className={`px-3 py-1 text-base ${
-                      settings.soundEnabled !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
+                    className={`mc-btn px-4 py-1.5 text-base font-bold ${
+                      settings.soundEnabled !== false ? 'bg-[#16a34a]! text-white border-[#86efac]!' : 'opacity-60'
                     }`}
                   >
                     {settings.soundEnabled !== false ? 'ENABLED' : 'MUTED'}
-                  </McButton>
+                  </button>
                 </div>
 
                 {/* Companion Choice */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <span className="text-lg font-bold block">Nomad Companion</span>
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
+                  <span className="text-lg font-bold text-yellow-400 block">Nomad Companion</span>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { id: 'fox', label: '🦊 Fox' },
@@ -4529,10 +4689,10 @@ export const App: React.FC = () => {
                         onClick={() =>
                           setSettings(s => ({ ...s, companionType: p.id as CompanionType }))
                         }
-                        className={`mc-btn text-base py-1.5 text-center ${
+                        className={`mc-btn text-base py-2 text-center font-bold ${
                           (settings.companionType ?? 'fox') === p.id
-                            ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
-                            : ''
+                            ? 'bg-[#16a34a]! text-white border-[#86efac]!'
+                            : 'text-gray-300'
                         }`}
                       >
                         {p.label}
@@ -4542,8 +4702,8 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* Biome Presets */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
-                  <span className="text-lg font-bold block">Biome Presets</span>
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
+                  <span className="text-lg font-bold text-yellow-400 block">Biome Presets</span>
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { id: 'hills', label: 'Rolling Hills' },
@@ -4556,8 +4716,8 @@ export const App: React.FC = () => {
                         onClick={() =>
                           setSettings(s => ({ ...s, terrainType: b.id as TerrainType }))
                         }
-                        className={`mc-btn text-sm py-1.5 ${
-                          settings.terrainType === b.id ? 'bg-[#55aa55]! text-white border-[#88ff88]!' : ''
+                        className={`mc-btn text-base py-2 font-bold ${
+                          settings.terrainType === b.id ? 'bg-[#16a34a]! text-white border-[#86efac]!' : 'text-gray-300'
                         }`}
                       >
                         {b.label}
@@ -4567,25 +4727,25 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* Day/Night Cycle Toggle */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] flex justify-between items-center">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 flex justify-between items-center">
                   <span className="text-lg font-bold">Day & Night Cycle</span>
-                  <McButton
+                  <button
                     onClick={() =>
                       setSettings(s => ({ ...s, dayNightCycle: !s.dayNightCycle }))
                     }
-                    className={`px-3 py-1 text-base ${
-                      settings.dayNightCycle !== false ? 'bg-[#55aa55]! text-white' : 'opacity-60'
+                    className={`mc-btn px-4 py-1.5 text-base font-bold ${
+                      settings.dayNightCycle !== false ? 'bg-[#16a34a]! text-white border-[#86efac]!' : 'opacity-60'
                     }`}
                   >
                     {settings.dayNightCycle !== false ? 'DYNAMIC' : 'FROZEN'}
-                  </McButton>
+                  </button>
                 </div>
 
                 {/* Render Distance */}
-                <div className="bg-[#dedede] p-3 border-2 border-[#555] space-y-2">
+                <div className="mc-slot-dark p-3.5 border-2 border-gray-700 space-y-2.5">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-bold">Infinite Render Chunks</span>
-                    <span className="text-xs font-mono text-[#444]">
+                    <span className="text-xs font-mono text-gray-400">
                       {settings.renderDistance === 1
                         ? '3x3 (Fast)'
                         : settings.renderDistance === 3
@@ -4593,7 +4753,7 @@ export const App: React.FC = () => {
                         : '5x5 (Balanced)'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-3 gap-2">
                     {[
                       { d: 1, l: 'Fast (3x3)' },
                       { d: 2, l: 'Balanced' },
@@ -4602,10 +4762,10 @@ export const App: React.FC = () => {
                       <button
                         key={opt.d}
                         onClick={() => setSettings(s => ({ ...s, renderDistance: opt.d }))}
-                        className={`mc-btn text-xs py-1 ${
+                        className={`mc-btn text-sm py-1.5 font-bold ${
                           (settings.renderDistance ?? 2) === opt.d
-                            ? 'bg-[#55aa55]! text-white border-[#88ff88]!'
-                            : ''
+                            ? 'bg-[#16a34a]! text-white border-[#86efac]!'
+                            : 'text-gray-300'
                         }`}
                       >
                         {opt.l}
@@ -4615,8 +4775,8 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* Reset / Warp to Origin */}
-                <div className="pt-1 flex gap-2">
-                  <McButton
+                <div className="pt-2 flex gap-2">
+                  <button
                     onClick={() => {
                       charPosRef.current = { x: 0, y: 0 };
                       targetPosRef.current = { x: 0, y: 0 };
@@ -4637,10 +4797,10 @@ export const App: React.FC = () => {
                       setIsSettingsOpen(false);
                       showToast('🧭 Teleported back to Origin (0, 0)');
                     }}
-                    className="flex-1 py-1.5 bg-[#3b82f6]! text-white border-[#93c5fd]! text-base"
+                    className="mc-btn flex-1 py-2 bg-[#2563eb]! text-white border-[#93c5fd]! text-base font-bold cursor-pointer"
                   >
-                    <Compass className="w-4 h-4 inline mr-1" /> Return to Origin (0, 0)
-                  </McButton>
+                    <Compass className="w-4 h-4 inline mr-1.5" /> Return to Origin (0, 0)
+                  </button>
                 </div>
               </div>
             )}

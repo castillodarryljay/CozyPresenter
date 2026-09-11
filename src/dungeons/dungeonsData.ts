@@ -155,7 +155,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     effect: 'death_cap_mushroom',
     cooldownSec: 15,
     durationSec: 9,
-    salvageEmeralds: 75,
+    salvageEmeralds: 28,
   },
   {
     id: 'fireworks_arrow',
@@ -168,7 +168,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     description: 'Places a TNT-loaded rocket into your quiver. Your next ranged shot detonates on impact in a massive colorful explosion!',
     effect: 'fireworks_arrow',
     cooldownSec: 18,
-    salvageEmeralds: 85,
+    salvageEmeralds: 30,
   },
   {
     id: 'corrupted_beacon',
@@ -183,7 +183,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     cooldownSec: 2,
     soulCost: 10,
     durationSec: 3,
-    salvageEmeralds: 140,
+    salvageEmeralds: 50,
   },
   {
     id: 'boots_of_swiftness',
@@ -197,7 +197,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     effect: 'boots_of_swiftness',
     cooldownSec: 10,
     durationSec: 4.5,
-    salvageEmeralds: 45,
+    salvageEmeralds: 14,
   },
   {
     id: 'iron_hide_amulet',
@@ -211,7 +211,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     effect: 'iron_hide_amulet',
     cooldownSec: 20,
     durationSec: 10,
-    salvageEmeralds: 90,
+    salvageEmeralds: 30,
   },
   {
     id: 'harvester',
@@ -225,7 +225,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     effect: 'harvester',
     cooldownSec: 5,
     soulCost: 15,
-    salvageEmeralds: 95,
+    salvageEmeralds: 32,
   },
   {
     id: 'wind_horn',
@@ -238,7 +238,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     description: 'Blow the enchanted horn to push enemies away with a gale force gust and temporarily slow their movement.',
     effect: 'wind_horn',
     cooldownSec: 12,
-    salvageEmeralds: 50,
+    salvageEmeralds: 16,
   },
   {
     id: 'tasty_bone',
@@ -251,7 +251,7 @@ export const ALL_ARTIFACTS: DungeonsArtifact[] = [
     description: 'Summons a fearless and loyal Wolf companion that actively attacks hostile mobs alongside you.',
     effect: 'tasty_bone',
     cooldownSec: 30,
-    salvageEmeralds: 80,
+    salvageEmeralds: 28,
   },
 ];
 
@@ -294,7 +294,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'sharpness', tier: 1 },
       { id: 'critical_hit', tier: 0 },
     ],
-    salvageEmeralds: 150,
+    salvageEmeralds: 48,
   },
   {
     id: 'fighters_bindings',
@@ -315,7 +315,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'swirling', tier: 1 },
       { id: 'critical_hit', tier: 1 },
     ],
-    salvageEmeralds: 200,
+    salvageEmeralds: 55,
   },
   {
     id: 'cursed_axe',
@@ -336,7 +336,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'sharpness', tier: 1 },
       { id: 'fire_aspect', tier: 0 },
     ],
-    salvageEmeralds: 180,
+    salvageEmeralds: 52,
   },
   {
     id: 'suns_grace',
@@ -357,7 +357,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'critical_hit', tier: 0 },
       { id: 'sharpness', tier: 0 },
     ],
-    salvageEmeralds: 140,
+    salvageEmeralds: 45,
   },
   {
     id: 'broadsword',
@@ -376,7 +376,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'sharpness', tier: 0 },
       { id: 'fire_aspect', tier: 0 },
     ],
-    salvageEmeralds: 35,
+    salvageEmeralds: 12,
   },
   {
     id: 'claymore',
@@ -396,7 +396,7 @@ export const ALL_MELEE_WEAPONS: DungeonsGearItem[] = [
       { id: 'swirling', tier: 0 },
       { id: 'critical_hit', tier: 0 },
     ],
-    salvageEmeralds: 70,
+    salvageEmeralds: 26,
   },
 ];
 
@@ -441,7 +441,7 @@ export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
       { id: 'ricochet', tier: 1 },
       { id: 'infinity', tier: 0 },
     ],
-    salvageEmeralds: 180,
+    salvageEmeralds: 55,
   },
   {
     id: 'firebolt_bow',
@@ -463,7 +463,7 @@ export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
       { id: 'infinity', tier: 0 },
       { id: 'ricochet', tier: 0 },
     ],
-    salvageEmeralds: 160,
+    salvageEmeralds: 50,
   },
   {
     id: 'red_snake',
@@ -484,7 +484,7 @@ export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
       { id: 'power', tier: 1 },
       { id: 'infinity', tier: 0 },
     ],
-    salvageEmeralds: 140,
+    salvageEmeralds: 46,
   },
   {
     id: 'hunters_bow',
@@ -504,7 +504,7 @@ export const ALL_RANGED_WEAPONS: DungeonsGearItem[] = [
       { id: 'power', tier: 0 },
       { id: 'infinity', tier: 0 },
     ],
-    salvageEmeralds: 30,
+    salvageEmeralds: 10,
   },
 ];
 
@@ -545,7 +545,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'thorns', tier: 1 },
       { id: 'potion_barrier', tier: 0 },
     ],
-    salvageEmeralds: 160,
+    salvageEmeralds: 50,
   },
   {
     id: 'evocation_robe',
@@ -567,7 +567,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'protection', tier: 0 },
       { id: 'potion_barrier', tier: 0 },
     ],
-    salvageEmeralds: 175,
+    salvageEmeralds: 52,
   },
   {
     id: 'titans_shroud',
@@ -587,7 +587,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'thorns', tier: 1 },
       { id: 'potion_barrier', tier: 1 },
     ],
-    salvageEmeralds: 190,
+    salvageEmeralds: 58,
   },
   {
     id: 'champion_armor',
@@ -608,7 +608,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'thorns', tier: 2 },
       { id: 'potion_barrier', tier: 1 },
     ],
-    salvageEmeralds: 220,
+    salvageEmeralds: 65,
   },
   {
     id: 'golden_knight_armor',
@@ -627,7 +627,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'protection', tier: 1 },
       { id: 'potion_barrier', tier: 1 },
     ],
-    salvageEmeralds: 195,
+    salvageEmeralds: 60,
   },
   {
     id: 'grim_armor',
@@ -647,7 +647,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'protection', tier: 1 },
       { id: 'swiftfooted', tier: 0 },
     ],
-    salvageEmeralds: 110,
+    salvageEmeralds: 34,
   },
   {
     id: 'hunter_tunic',
@@ -665,7 +665,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
     enchantmentSlots: [
       { id: 'swiftfooted', tier: 0 },
     ],
-    salvageEmeralds: 35,
+    salvageEmeralds: 12,
   },
   {
     id: 'iron_plate',
@@ -682,7 +682,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
     enchantmentSlots: [
       { id: 'protection', tier: 0 },
     ],
-    salvageEmeralds: 40,
+    salvageEmeralds: 15,
   },
   {
     id: 'wolf_armor',
@@ -702,7 +702,7 @@ export const ALL_ARMOR: DungeonsGearItem[] = [
       { id: 'swiftfooted', tier: 0 },
       { id: 'protection', tier: 0 },
     ],
-    salvageEmeralds: 65,
+    salvageEmeralds: 26,
   },
 ];
 
