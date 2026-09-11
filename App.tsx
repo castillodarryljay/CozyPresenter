@@ -3086,16 +3086,9 @@ export const App: React.FC = () => {
 
       {/* --- UI HUD LAYER --- */}
       <div className="absolute inset-0 pointer-events-none">
-        {/* Virtual Joystick for Mobile (Bottom Left) */}
-        {!isJournalOpen && !isSettingsOpen && !unlockedRelicModal && (
-          <Joystick onMove={(x, y) => { inputVector.current = { x, y }; }} />
-        )}
-
-
-
         {/* Ancient Radar Compass (Non-overlapping positioning on both portrait & landscape) */}
         {nearbyFeature.feature && (
-          <div className="pointer-events-auto absolute top-20 sm:top-3 left-1/2 -translate-x-1/2 z-30 animate-in fade-in">
+          <div className="pointer-events-auto absolute top-16 sm:top-3 left-1/2 -translate-x-1/2 z-30 animate-in fade-in">
             <div
               className={`mc-panel px-2.5 py-0.5 sm:px-3 sm:py-1 flex items-center gap-1.5 shadow-xl border-2 whitespace-nowrap transition-all ${
                 nearbyFeature.dist < 3.5
@@ -3121,7 +3114,7 @@ export const App: React.FC = () => {
 
         {/* Floating Toast Notification */}
         {notification && (
-          <div className="fixed top-28 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="fixed top-24 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] animate-in fade-in slide-in-from-top-4 duration-200">
             <div className="mc-panel px-3 py-1.5 sm:px-4 sm:py-2 bg-[#2d3748] text-white border-2 border-[#ffd700] shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex flex-col items-center text-center">
               <span className="text-sm sm:text-xl font-bold text-[#ffd700]">{notification.text}</span>
               {notification.sub && (
@@ -3131,13 +3124,14 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Official Minecraft Dungeons HUD */}
+        {/* Responsive Minecraft Dungeons HUD */}
         <DungeonsHUD
           stats={dungeonsStats}
           currentMission={currentMission}
           onOpenInventory={() => setIsDungeonsInventoryOpen(true)}
           onOpenMissionMap={() => setIsDungeonsMapOpen(true)}
           onOpenCamp={() => setIsDungeonsCampOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onMeleeAttack={handlePlayerAttack}
           onRangedAttack={handleRangedAttack}
           onDodgeRoll={handleDodgeRoll}
@@ -3150,6 +3144,29 @@ export const App: React.FC = () => {
             sounds.enabled = next;
             dungeonsAudio.enabled = next;
           }}
+          onMoveJoystick={(x, y) => {
+            inputVector.current = { x, y };
+          }}
+          onInteract={interactContextAction}
+          canInteract={Boolean(
+            (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) ||
+            (nearbyFeature.feature && nearbyFeature.dist < 3.0)
+          )}
+          interactLabel={
+            nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
+              ? nearbyPlacedStructure.structure.type === 'workbench'
+                ? 'FORGE'
+                : nearbyPlacedStructure.structure.type === 'storage_chest'
+                ? 'CHEST'
+                : 'REST'
+              : nearbyFeature.feature && nearbyFeature.dist < 3.0
+              ? nearbyFeature.feature.type === 'obelisk'
+                ? 'AWAKEN'
+                : nearbyFeature.feature.type === 'chest'
+                ? 'OPEN'
+                : 'EXCAVATE'
+              : 'DIG'
+          }
         />
       </div>
 

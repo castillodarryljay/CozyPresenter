@@ -5,30 +5,29 @@ import {
   DungeonsGearItem,
   DungeonsArtifact,
   DungeonsItemCategory,
-  EnchantmentDefinition,
 } from './types';
 import { ENCHANTMENT_DEFINITIONS } from './dungeonsData';
 import { dungeonsAudio } from './dungeonsAudio';
 import {
   X,
   Sparkles,
-  Shield,
   Sword,
   Crosshair,
+  Shield,
   Trash2,
   Check,
-  ChevronRight,
-  Info,
+  RotateCcw,
+  Zap,
 } from 'lucide-react';
 
 interface DungeonsInventoryProps {
   isOpen: boolean;
   onClose: () => void;
   stats: DungeonsPlayerStats;
-  onEquipItem: (item: DungeonsItem, slotIndex?: number) => void;
-  onUpgradeEnchantment: (gearId: string, slotIndex: number) => void;
-  onRefundEnchantment: (gearId: string, slotIndex: number) => void;
+  onEquipItem: (item: DungeonsItem) => void;
   onSalvageItem: (item: DungeonsItem) => void;
+  onUpgradeEnchantment: (itemId: string, slotIndex: number) => void;
+  onRefundEnchantment: (itemId: string, slotIndex: number) => void;
 }
 
 export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
@@ -36,24 +35,17 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
   onClose,
   stats,
   onEquipItem,
+  onSalvageItem,
   onUpgradeEnchantment,
   onRefundEnchantment,
-  onSalvageItem,
 }) => {
   const [activeCategory, setActiveCategory] = useState<DungeonsItemCategory | 'all'>('all');
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(
-    stats.equippedMelee.id
-  );
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(() => stats.equippedMelee.id);
+  const [mobileTab, setMobileTab] = useState<'equipped' | 'backpack' | 'details'>('equipped');
 
   if (!isOpen) return null;
 
-  // Filter inventory items
-  const filteredItems = stats.inventory.filter((item) => {
-    if (activeCategory === 'all') return true;
-    return item.category === activeCategory;
-  });
-
-  // Find currently selected item (could be in inventory OR currently equipped)
+  // Find currently selected item (from equipped or inventory)
   const allKnownItems: DungeonsItem[] = [
     stats.equippedMelee,
     stats.equippedRanged,
@@ -62,63 +54,73 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
     ...stats.inventory,
   ];
 
-  const selectedItem: DungeonsItem | undefined =
-    allKnownItems.find((i) => i.id === selectedItemId) || stats.equippedMelee;
+  const selectedItem = allKnownItems.find((i) => i.id === selectedItemId) || stats.equippedMelee;
 
   const isEquipped =
-    selectedItem?.id === stats.equippedMelee.id ||
-    selectedItem?.id === stats.equippedRanged.id ||
-    selectedItem?.id === stats.equippedArmor.id ||
-    stats.equippedArtifacts.some((a) => a?.id === selectedItem?.id);
+    selectedItem.id === stats.equippedMelee.id ||
+    selectedItem.id === stats.equippedRanged.id ||
+    selectedItem.id === stats.equippedArmor.id ||
+    stats.equippedArtifacts.some((a) => a?.id === selectedItem.id);
+
+  const filteredItems = stats.inventory.filter((item) => {
+    if (activeCategory === 'all') return true;
+    return item.category === activeCategory;
+  });
+
+  const handleSelectItem = (id: string, switchToDetailsOnMobile = false) => {
+    setSelectedItemId(id);
+    if (switchToDetailsOnMobile) {
+      setMobileTab('details');
+    }
+  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md select-none font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
-      {/* Main Minecraft Dungeons Slate Window */}
       <div
-        className="relative w-full max-w-5xl h-[92vh] max-h-[750px] bg-[#1a1714] border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+        className="relative w-full max-w-5xl h-[94vh] sm:h-[90vh] max-h-[780px] bg-[#1a1714] border-3 sm:border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* --- WINDOW HEADER --- */}
-        <header className="flex justify-between items-center px-4 sm:px-6 py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl sm:text-3xl">🎒</span>
+        <header className="flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xl sm:text-2xl">🎒</span>
             <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-black tracking-widest text-[#f5ebd7] uppercase">
+              <h1 className="text-base sm:text-xl font-black tracking-wider sm:tracking-widest text-[#f5ebd7] uppercase">
                 Hero Inventory
               </h1>
-              <span className="text-xs text-[#b8a99a]">
+              <span className="hidden sm:inline text-xs text-[#b8a99a]">
                 Manage equipped gear, unlock enchantments, and salvage loot
               </span>
             </div>
           </div>
 
-          {/* Center: Power Level Badge & Enchantment Points */}
-          <div className="flex items-center gap-3 sm:gap-6">
+          {/* Right: Power Level & Enchantment Points & Close */}
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Power Diamond */}
             <div
-              className="flex items-center gap-1.5 bg-[#142338] px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-black text-sm sm:text-base shadow-[0_0_15px_rgba(56,189,248,0.5)]"
+              className="flex items-center gap-1 bg-[#142338] px-2 sm:px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-black text-xs sm:text-sm shadow-[0_0_12px_rgba(56,189,248,0.4)]"
               title="Overall Hero Power Level"
             >
               <span>◆</span>
-              <span>POWER {stats.powerLevel}</span>
+              <span>PL {stats.powerLevel}</span>
             </div>
 
             {/* Enchantment Points */}
             <div
-              className="flex items-center gap-1.5 bg-[#261633] px-3 py-1 rounded-lg border border-[#a855f7] text-[#e9d5ff] font-bold text-xs sm:text-sm shadow-[0_0_12px_rgba(168,85,247,0.4)] animate-pulse"
-              title="Available Enchantment Points (Earned on level up)"
+              className="flex items-center gap-1 bg-[#261633] px-2 sm:px-2.5 py-1 rounded-lg border border-[#a855f7] text-[#e9d5ff] font-bold text-xs shadow-sm"
+              title="Available Enchantment Points"
             >
               <span>🟣</span>
-              <span>{stats.enchantmentPoints} ENCHANTMENT POINT{stats.enchantmentPoints === 1 ? '' : 'S'}</span>
+              <span>{stats.enchantmentPoints} pts</span>
             </div>
 
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="w-9 h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
+              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
               title="Close [ESC] / [I]"
             >
               <X className="w-5 h-5" />
@@ -126,21 +128,60 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
           </div>
         </header>
 
-        {/* --- MAIN BODY: 2-COLUMN LAYOUT --- */}
+        {/* --- MOBILE TAB SWITCHER (< md screens) --- */}
+        <div className="flex md:hidden bg-[#1f1b17] border-b border-[#3d3329] p-1.5 gap-1">
+          <button
+            onClick={() => setMobileTab('equipped')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === 'equipped'
+                ? 'bg-[#d97706] text-white shadow'
+                : 'bg-[#2a241f] text-[#a8998a]'
+            }`}
+          >
+            ⚔️ Equipped
+          </button>
+          <button
+            onClick={() => setMobileTab('backpack')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === 'backpack'
+                ? 'bg-[#d97706] text-white shadow'
+                : 'bg-[#2a241f] text-[#a8998a]'
+            }`}
+          >
+            🎒 Bag ({stats.inventory.length})
+          </button>
+          <button
+            onClick={() => setMobileTab('details')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === 'details'
+                ? 'bg-[#d97706] text-white shadow'
+                : 'bg-[#2a241f] text-[#a8998a]'
+            }`}
+          >
+            ✨ Details
+          </button>
+        </div>
+
+        {/* --- MAIN BODY: 2-COLUMN LAYOUT (COLLAPSIBLE ON MOBILE) --- */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           
-          {/* --- LEFT COLUMN: PAPERDOLL EQUIPPED SLOTS (5 Cols on MD) --- */}
-          <div className="md:col-span-5 bg-[#1f1b17] p-3 sm:p-4 border-r-2 border-[#3d3329] flex flex-col gap-3 overflow-y-auto">
+          {/* ======================================================== */}
+          {/* LEFT COLUMN: PAPERDOLL EQUIPPED SLOTS (5 cols on desktop) */}
+          {/* ======================================================== */}
+          <div
+            className={`md:col-span-5 bg-[#1f1b17] p-3 sm:p-4 border-r-0 md:border-r-2 border-[#3d3329] flex flex-col gap-3 overflow-y-auto ${
+              mobileTab !== 'equipped' ? 'hidden md:flex' : 'flex'
+            }`}
+          >
             <h2 className="text-xs font-bold text-[#bcaaa4] tracking-wider uppercase border-b border-[#3d3329] pb-1">
               Equipped Equipment
             </h2>
 
             {/* Primary Equipment Slots */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2.5">
               {/* Melee Weapon Slot */}
               <div
-                onClick={() => setSelectedItemId(stats.equippedMelee.id)}
+                onClick={() => handleSelectItem(stats.equippedMelee.id, true)}
                 className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                   selectedItemId === stats.equippedMelee.id
                     ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
@@ -168,7 +209,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
 
               {/* Ranged Weapon Slot */}
               <div
-                onClick={() => setSelectedItemId(stats.equippedRanged.id)}
+                onClick={() => handleSelectItem(stats.equippedRanged.id, true)}
                 className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                   selectedItemId === stats.equippedRanged.id
                     ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
@@ -196,8 +237,8 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
 
               {/* Armor Slot */}
               <div
-                onClick={() => setSelectedItemId(stats.equippedArmor.id)}
-                className={`sm:col-span-2 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                onClick={() => handleSelectItem(stats.equippedArmor.id, true)}
+                className={`sm:col-span-2 md:col-span-1 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
                   selectedItemId === stats.equippedArmor.id
                     ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
                     : 'border-[#4a3e32] bg-[#241f1a] hover:border-[#786352]'
@@ -226,7 +267,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
             {/* 3 Dedicated Artifact Slots */}
             <div className="flex flex-col gap-1.5 mt-1">
               <span className="text-[11px] font-bold text-[#bcaaa4] tracking-wider uppercase">
-                Artifact Slots (Hotkeys [1], [2], [3])
+                Artifact Slots ([1], [2], [3])
               </span>
               <div className="grid grid-cols-3 gap-2">
                 {[0, 1, 2].map((slotIdx) => {
@@ -236,7 +277,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                   return (
                     <div
                       key={slotIdx}
-                      onClick={() => art && setSelectedItemId(art.id)}
+                      onClick={() => art && handleSelectItem(art.id, true)}
                       className={`p-2 rounded-xl border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                         isSelected
                           ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_12px_rgba(251,191,36,0.4)]'
@@ -282,76 +323,87 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
             </div>
           </div>
 
-          {/* --- RIGHT COLUMN: INVENTORY STORAGE & INSPECTOR (7 Cols on MD) --- */}
-          <div className="md:col-span-7 bg-[#171412] p-3 sm:p-5 flex flex-col gap-3 overflow-y-auto">
-            
-            {/* Category Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#3d3329]">
-              {(['all', 'melee', 'ranged', 'armor', 'artifact'] as const).map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer whitespace-nowrap ${
-                    activeCategory === cat
-                      ? 'bg-[#d97706] text-white shadow-md border border-[#fef08a]'
-                      : 'bg-[#241f1a] text-[#a8998a] hover:bg-[#352c24]'
-                  }`}
-                >
-                  {cat === 'all' ? 'All Items' : cat}
-                </button>
-              ))}
-            </div>
-
-            {/* Inventory Items Grid */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[220px] overflow-y-auto p-1 bg-[#120f0d] rounded-xl border border-[#352c24]">
-              {filteredItems.map((item) => {
-                const isSel = item.id === selectedItemId;
-                const isUnique = item.rarity === 'unique';
-                const isRare = item.rarity === 'rare';
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedItemId(item.id)}
-                    className={`relative p-2 rounded-xl border-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all ${
-                      isSel
-                        ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_12px_rgba(251,191,36,0.5)] scale-105 z-10'
-                        : isUnique
-                        ? 'border-[#f59e0b] bg-[#221c16] hover:border-[#fbbf24]'
-                        : isRare
-                        ? 'border-[#38bdf8] bg-[#18202b] hover:border-[#60a5fa]'
-                        : 'border-[#4a3e32] bg-[#1a1714] hover:border-[#786352]'
+          {/* ======================================================== */}
+          {/* RIGHT COLUMN: INVENTORY BAG & DETAILS (7 cols on desktop) */}
+          {/* ======================================================== */}
+          <div
+            className={`md:col-span-7 bg-[#171412] p-3 sm:p-4 flex flex-col gap-3 overflow-y-auto ${
+              mobileTab === 'equipped' ? 'hidden md:flex' : 'flex'
+            }`}
+          >
+            {/* Inventory Bag Section (hidden on mobile if user specifically is in 'details' tab) */}
+            <div className={`${mobileTab === 'details' ? 'hidden md:block' : 'block'}`}>
+              {/* Category Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#3d3329] mb-2">
+                {(['all', 'melee', 'ranged', 'armor', 'artifact'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer whitespace-nowrap ${
+                      activeCategory === cat
+                        ? 'bg-[#d97706] text-white shadow-md border border-[#fef08a]'
+                        : 'bg-[#241f1a] text-[#a8998a] hover:bg-[#352c24]'
                     }`}
                   >
-                    {/* Power Level Diamond */}
-                    <div className="w-full flex justify-between items-center text-[9px] font-mono">
-                      <span className="text-[#38bdf8] font-black">◆{item.power}</span>
-                      {isUnique && <span className="text-amber-400 font-bold">★</span>}
+                    {cat === 'all' ? 'All Items' : cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Inventory Items Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[220px] overflow-y-auto p-1 bg-[#120f0d] rounded-xl border border-[#352c24]">
+                {filteredItems.map((item) => {
+                  const isSel = item.id === selectedItemId;
+                  const isUnique = item.rarity === 'unique';
+                  const isRare = item.rarity === 'rare';
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectItem(item.id, true)}
+                      className={`relative p-2 rounded-xl border-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all ${
+                        isSel
+                          ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_12px_rgba(251,191,36,0.5)] scale-102 z-10'
+                          : isUnique
+                          ? 'border-[#f59e0b] bg-[#221c16] hover:border-[#fbbf24]'
+                          : isRare
+                          ? 'border-[#38bdf8] bg-[#18202b] hover:border-[#60a5fa]'
+                          : 'border-[#4a3e32] bg-[#1a1714] hover:border-[#786352]'
+                      }`}
+                    >
+                      {/* Power Level Diamond */}
+                      <div className="w-full flex justify-between items-center text-[9px] font-mono">
+                        <span className="text-[#38bdf8] font-black">◆{item.power}</span>
+                        {isUnique && <span className="text-amber-400 font-bold">★</span>}
+                      </div>
+
+                      <span className="text-2xl sm:text-3xl my-1">{item.icon}</span>
+                      <span className="text-[10px] font-bold text-[#f5ebd7] truncate w-full">
+                        {item.name}
+                      </span>
                     </div>
+                  );
+                })}
 
-                    <span className="text-2xl sm:text-3xl my-1">{item.icon}</span>
-                    <span className="text-[10px] font-bold text-[#f5ebd7] truncate w-full">
-                      {item.name}
-                    </span>
+                {filteredItems.length === 0 && (
+                  <div className="col-span-full py-6 text-center text-xs text-gray-500">
+                    No items in this category. Slay monsters and open chests to loot more!
                   </div>
-                );
-              })}
-
-              {filteredItems.length === 0 && (
-                <div className="col-span-full py-8 text-center text-xs text-gray-500">
-                  No items in this category. Slay monsters and open chests to loot more!
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* --- SELECTED ITEM INSPECTOR & ENCHANTMENT UPGRADES --- */}
             {selectedItem && (
-              <div className="bg-[#241f1a] p-3 sm:p-4 rounded-xl border-2 border-[#4a3f35] flex flex-col gap-3 shadow-lg">
-                
+              <div
+                className={`bg-[#241f1a] p-3 sm:p-4 rounded-xl border-2 border-[#4a3f35] flex flex-col gap-3 shadow-lg ${
+                  mobileTab === 'backpack' ? 'hidden md:flex' : 'flex'
+                }`}
+              >
                 {/* Header: Name, Rarity & Action Buttons */}
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-3xl sm:text-4xl p-2 bg-[#171412] rounded-lg border border-[#4a3e32]">
+                <div className="flex justify-between items-start flex-wrap gap-2">
+                  <div className="flex items-center gap-2 sm:gap-2.5">
+                    <span className="text-2xl sm:text-4xl p-2 bg-[#171412] rounded-lg border border-[#4a3e32]">
                       {selectedItem.icon}
                     </span>
                     <div className="flex flex-col">
@@ -371,7 +423,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                           {selectedItem.rarity}
                         </span>
                       </div>
-                      <span className="text-xs text-[#94a3b8] font-mono">
+                      <span className="text-[11px] sm:text-xs text-[#94a3b8] font-mono">
                         Power ◆ {selectedItem.power} • {selectedItem.category.toUpperCase()}
                       </span>
                     </div>
@@ -397,7 +449,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                           onSalvageItem(selectedItem);
                           dungeonsAudio.playEmeraldPickup();
                         }}
-                        className="px-3 py-1.5 bg-[#b91c1c] hover:bg-[#dc2626] border border-[#fca5a5] text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                        className="px-2.5 sm:px-3 py-1.5 bg-[#b91c1c] hover:bg-[#dc2626] border border-[#fca5a5] text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
                         title={`Salvage into ${selectedItem.salvageEmeralds} Emeralds`}
                       >
                         <Trash2 className="w-3.5 h-3.5" /> SALVAGE (+{selectedItem.salvageEmeralds} 💎)
@@ -485,7 +537,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                               {currentTier > 0 && (
                                 <button
                                   onClick={() => onRefundEnchantment(selectedItem.id, slotIdx)}
-                                  className="px-1.5 py-1 bg-[#374151] hover:bg-[#4b5563] text-gray-300 font-bold text-[10px] rounded border border-gray-500"
+                                  className="px-1.5 py-1 bg-[#374151] hover:bg-[#4b5563] text-gray-300 font-bold text-[10px] rounded border border-gray-500 cursor-pointer"
                                   title="Refund points back"
                                 >
                                   Refund

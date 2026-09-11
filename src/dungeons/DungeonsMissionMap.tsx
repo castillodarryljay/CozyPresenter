@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DungeonsMission, DungeonsPlayerStats } from './types';
 import { DUNGEONS_MISSIONS } from './dungeonsData';
-import { X, MapPin, Play, ShieldAlert, Award, Skull } from 'lucide-react';
+import { X, Play, Skull, Shield, Map as MapIcon, ChevronRight } from 'lucide-react';
 
 interface DungeonsMissionMapProps {
   isOpen: boolean;
@@ -20,60 +20,93 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
 }) => {
   const [selectedMission, setSelectedMission] = useState<DungeonsMission>(currentMission);
   const [selectedDifficulty, setSelectedDifficulty] = useState<'Default' | 'Adventure' | 'Apocalypse'>('Default');
+  const [mobileTab, setMobileTab] = useState<'list' | 'briefing'>('list');
 
   if (!isOpen) return null;
 
+  const handleSelect = (mission: DungeonsMission) => {
+    setSelectedMission(mission);
+    setMobileTab('briefing');
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md select-none font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl h-[88vh] max-h-[720px] bg-[#1a1714] border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+        className="relative w-full max-w-4xl h-[94vh] sm:h-[88vh] max-h-[740px] bg-[#1a1714] border-3 sm:border-4 border-[#4a3f35] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white font-sans"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <header className="flex justify-between items-center px-4 sm:px-6 py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🗺️</span>
+        <header className="flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xl sm:text-2xl">🗺️</span>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-widest text-[#f5ebd7] uppercase">
-                Mission Select Map
+              <h1 className="text-base sm:text-xl font-black tracking-wider sm:tracking-widest text-[#f5ebd7] uppercase">
+                Mission Map
               </h1>
-              <span className="text-xs text-[#b8a99a]">
-                Choose your dungeon expedition, select threat difficulty, and hunt for unique artifacts
+              <span className="hidden sm:inline text-xs text-[#b8a99a]">
+                Select an adventure to hunt loot and conquer bosses
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 bg-[#142338] px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-black text-sm">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1 bg-[#142338] px-2 sm:px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-bold text-xs sm:text-sm">
               <span>◆</span>
-              <span>HERO POWER {stats.powerLevel}</span>
+              <span>HERO PL {stats.powerLevel}</span>
             </div>
 
             <button
               onClick={onClose}
-              className="w-9 h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white"
+              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </header>
 
+        {/* Mobile Tab Switcher */}
+        <div className="flex md:hidden bg-[#1f1b17] border-b border-[#3d3329] p-1.5 gap-1">
+          <button
+            onClick={() => setMobileTab('list')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === 'list'
+                ? 'bg-[#2563eb] text-white shadow'
+                : 'bg-[#2a241f] text-[#a8998a]'
+            }`}
+          >
+            🗺️ Missions
+          </button>
+          <button
+            onClick={() => setMobileTab('briefing')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === 'briefing'
+                ? 'bg-[#2563eb] text-white shadow'
+                : 'bg-[#2a241f] text-[#a8998a]'
+            }`}
+          >
+            📜 Briefing & Launch
+          </button>
+        </div>
+
         {/* 2-Column: Map Missions List & Mission Detail Panel */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           
           {/* LEFT: MISSIONS MAP NODES (7 Cols) */}
-          <div className="md:col-span-7 p-4 sm:p-5 overflow-y-auto bg-[#141210] flex flex-col gap-3">
-            
+          <div
+            className={`md:col-span-7 p-3 sm:p-5 overflow-y-auto bg-[#141210] flex flex-col gap-3 ${
+              mobileTab !== 'list' ? 'hidden md:flex' : 'flex'
+            }`}
+          >
             {/* Difficulty Toggle */}
-            <div className="flex items-center gap-2 p-1 bg-[#221c16] rounded-xl border border-[#3d3329]">
+            <div className="flex items-center gap-1.5 p-1 bg-[#221c16] rounded-xl border border-[#3d3329]">
               {(['Default', 'Adventure', 'Apocalypse'] as const).map((diff) => (
                 <button
                   key={diff}
                   onClick={() => setSelectedDifficulty(diff)}
-                  className={`flex-1 py-1.5 text-xs font-black uppercase rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 text-[11px] sm:text-xs font-black uppercase rounded-lg transition-all cursor-pointer ${
                     selectedDifficulty === diff
                       ? diff === 'Apocalypse'
                         ? 'bg-[#b91c1c] text-white border border-[#f87171] shadow-md'
@@ -89,7 +122,7 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
             </div>
 
             {/* Mission Nodes Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
               {DUNGEONS_MISSIONS.map((mission) => {
                 const isSelected = selectedMission.id === mission.id;
                 const isPowerSufficient = stats.powerLevel >= mission.recommendedPower;
@@ -97,10 +130,10 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                 return (
                   <div
                     key={mission.id}
-                    onClick={() => setSelectedMission(mission)}
+                    onClick={() => handleSelect(mission)}
                     className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-2 ${
                       isSelected
-                        ? 'border-[#fbbf24] bg-[#2a221a] shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-[1.02]'
+                        ? 'border-[#fbbf24] bg-[#2a221a] shadow-[0_0_15px_rgba(251,191,36,0.4)] scale-[1.01]'
                         : 'border-[#3d3329] bg-[#1e1b18] hover:border-[#635343]'
                     }`}
                   >
@@ -114,6 +147,7 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                           <span className="text-[10px] text-gray-400">{mission.region}</span>
                         </div>
                       </div>
+                      <ChevronRight className="w-4 h-4 text-gray-500 md:hidden" />
                     </div>
 
                     <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-[#332b23]">
@@ -137,31 +171,35 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
           </div>
 
           {/* RIGHT: MISSION BRIEFING & LAUNCH (5 Cols) */}
-          <div className="md:col-span-5 p-4 sm:p-5 bg-[#1a1714] border-t-2 md:border-t-0 md:border-l-2 border-[#3d3329] flex flex-col justify-between gap-4 overflow-y-auto">
+          <div
+            className={`md:col-span-5 p-3 sm:p-5 bg-[#1a1714] border-t-0 md:border-l-2 border-[#3d3329] flex flex-col justify-between gap-3 overflow-y-auto ${
+              mobileTab !== 'briefing' ? 'hidden md:flex' : 'flex'
+            }`}
+          >
             <div className="space-y-3">
               {/* Mission Header */}
-              <div className="flex items-center gap-3">
-                <span className="text-4xl p-2 bg-[#221c16] rounded-xl border border-[#4a3e32]">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <span className="text-3xl sm:text-4xl p-2 bg-[#221c16] rounded-xl border border-[#4a3e32]">
                   {selectedMission.icon}
                 </span>
                 <div>
-                  <h2 className="text-lg sm:text-xl font-black text-[#fef08a]">
+                  <h2 className="text-base sm:text-lg font-black text-[#fef08a]">
                     {selectedMission.name}
                   </h2>
                   <span className="text-xs text-[#38bdf8] font-mono">
-                    {selectedMission.region} • {selectedDifficulty} Difficulty
+                    {selectedMission.region} • {selectedDifficulty}
                   </span>
                 </div>
               </div>
 
               {/* Description */}
-              <p className="text-xs text-[#cbd5e1] leading-relaxed bg-[#141210] p-3 rounded-xl border border-[#332b23]">
+              <p className="text-xs text-[#cbd5e1] leading-relaxed bg-[#141210] p-2.5 sm:p-3 rounded-xl border border-[#332b23]">
                 {selectedMission.description}
               </p>
 
               {/* Objectives */}
-              <div className="space-y-1.5">
-                <span className="text-xs font-bold text-[#bcaaa4] uppercase tracking-wider">
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-[#bcaaa4] uppercase tracking-wider">
                   Expedition Objectives
                 </span>
                 <div className="bg-[#141210] p-2.5 rounded-xl border border-[#332b23] text-xs space-y-1 text-gray-300">
@@ -176,22 +214,22 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                   {selectedMission.bossName && (
                     <div className="flex items-center gap-2 text-rose-300 font-bold">
                       <span>💀</span>
-                      <span>Vanquish the {selectedMission.bossName}!</span>
+                      <span>Vanquish {selectedMission.bossName}!</span>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Potential Gear Drops Preview */}
-              <div className="space-y-1.5">
-                <span className="text-xs font-bold text-[#bcaaa4] uppercase tracking-wider">
-                  Potential Equipment Rewards
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-[#bcaaa4] uppercase tracking-wider">
+                  Potential Rewards
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedMission.potentialDrops.map((drop, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-1 bg-[#261f19] border border-[#544333] text-[#fef08a] rounded-lg text-xs font-mono font-bold"
+                      className="px-2 py-0.5 bg-[#261f19] border border-[#544333] text-[#fef08a] rounded-lg text-[11px] font-mono font-bold"
                     >
                       ★ {drop}
                     </span>
@@ -206,9 +244,9 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
                 onSelectMission({ ...selectedMission, difficulty: selectedDifficulty });
                 onClose();
               }}
-              className="w-full py-3.5 bg-[#15803d] hover:bg-[#16a34a] border-2 border-[#86efac] rounded-xl text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(21,128,61,0.6)] cursor-pointer active:scale-95 transition-all"
+              className="w-full py-3 sm:py-3.5 bg-[#15803d] hover:bg-[#16a34a] border-2 border-[#86efac] rounded-xl text-white font-black text-xs sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(21,128,61,0.6)] cursor-pointer active:scale-95 transition-all mt-2"
             >
-              <Play className="w-5 h-5 fill-white" />
+              <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
               <span>EMBARK ON MISSION</span>
             </button>
           </div>
