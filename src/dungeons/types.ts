@@ -70,6 +70,14 @@ export interface DungeonsGearItem {
   soulGathering?: number; // e.g. +1, +2
   moveSpeedBonus?: number; // percentage
   
+  // Detailed weapon & item metadata
+  dps?: number;
+  comboType?: string;
+  reachDescription?: string;
+  knockback?: 'Low' | 'Medium' | 'High' | 'Colossal';
+  element?: 'physical' | 'radiant' | 'void' | 'fire' | 'frost' | 'lightning';
+  loreQuote?: string;
+  
   // Available enchantment slots (up to 3)
   enchantmentSlots: AppliedEnchantment[];
   salvageEmeralds: number;

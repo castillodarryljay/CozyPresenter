@@ -239,11 +239,11 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
       <div className="fixed inset-0 pointer-events-none z-10 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]" />
 
       {/* Top Bar with Branding & Quick Navigation */}
-      <div className="w-full flex justify-between items-center px-4 py-3 z-20 pointer-events-auto bg-black/40 backdrop-blur-xs border-b border-white/10">
-        <div className="flex items-center gap-2 text-sm sm:text-base text-gray-300">
+      <div className="w-full flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 z-20 pointer-events-auto bg-black/50 backdrop-blur-sm border-b border-white/10">
+        <div className="flex items-center gap-2 text-xs sm:text-base text-gray-300">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
           <span className="tracking-wider font-bold text-yellow-400">
-            MINECRAFT DUNGEONS: VOXEL EXPLORER
+            COZYWORLD: VOXEL ADVENTURE
           </span>
         </div>
 
@@ -296,7 +296,7 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
       {/* ========================================================= */}
       {view === 'title' && (
         <div className="flex-1 flex flex-col items-center justify-center w-full max-w-lg px-4 py-6 z-20 animate-in fade-in duration-200">
-          {/* Minecraft 3D Extruded Title Logo */}
+          {/* CozyWorld 3D Extruded Title Logo */}
           <div className="relative mb-8 text-center flex flex-col items-center">
             <h1
               className="text-5xl sm:text-7xl font-black tracking-widest uppercase leading-none drop-shadow-2xl"
@@ -313,7 +313,7 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
                 `,
               }}
             >
-              MINECRAFT
+              COZYWORLD
             </h1>
             <div
               className="text-2xl sm:text-4xl font-bold tracking-widest uppercase text-[#fbbf24] -mt-1 sm:-mt-2"
@@ -326,7 +326,7 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
                 `,
               }}
             >
-              VOXEL EXPLORER
+              VOXEL DUNGEONS
             </div>
 
             {/* Bouncing Yellow Splash Text */}
@@ -755,7 +755,7 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
 
       {/* Footer Version & Info */}
       <div className="w-full flex justify-between items-center px-4 py-2 text-xs text-gray-400 z-20 pointer-events-none bg-black/40 backdrop-blur-xs border-t border-white/5">
-        <span>Minecraft Dungeons: Voxel Explorer • v1.21.4</span>
+        <span>CozyWorld: Voxel Dungeons • v1.21.4</span>
         <span>Procedural Realms & Infinite Adventures</span>
       </div>
     </div>

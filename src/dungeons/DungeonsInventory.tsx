@@ -499,10 +499,93 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                   </div>
                 </div>
 
-                {/* Description & Unique Perks */}
+                {/* Detailed Combat Metadata (Damage, DPS, Attack Speed, Reach, Knockback, Element) */}
+                {'damage' in selectedItem && typeof selectedItem.damage === 'number' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-2 bg-[#1a1714] border border-[#3e342a] text-xs font-mono">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Damage</span>
+                      <span className="text-red-400 font-bold text-sm">
+                        ⚔️ {selectedItem.damage}
+                        {selectedItem.dps && (
+                          <span className="text-[10px] text-gray-400 font-normal ml-1">
+                            ({selectedItem.dps} DPS)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Speed & Combo</span>
+                      <span className="text-yellow-400 font-bold">
+                        ⚡ {selectedItem.attackSpeed ? `${selectedItem.attackSpeed}/s` : 'Normal'}
+                      </span>
+                      {selectedItem.comboType && (
+                        <span className="text-[9px] text-gray-400 truncate">
+                          {selectedItem.comboType}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Reach & Impact</span>
+                      <span className="text-sky-300 font-bold">
+                        🎯 {selectedItem.range ? `${selectedItem.range}m` : 'Normal'}
+                      </span>
+                      {selectedItem.knockback && (
+                        <span className="text-[9px] text-gray-400 truncate">
+                          KB: {selectedItem.knockback}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Affinity & Class</span>
+                      <span className="text-emerald-400 font-bold capitalize truncate">
+                        ✨ {selectedItem.element || selectedItem.subType || 'Physical'}
+                      </span>
+                      {selectedItem.reachDescription && (
+                        <span className="text-[9px] text-gray-400 truncate">
+                          {selectedItem.reachDescription}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Armor Specific Defense Stats */}
+                {'damageReduction' in selectedItem && typeof selectedItem.damageReduction === 'number' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2 bg-[#1a1714] border border-[#3e342a] text-xs font-mono">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Damage Reduction</span>
+                      <span className="text-sky-400 font-bold text-sm">
+                        🛡️ {Math.round(selectedItem.damageReduction * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Bonus Health</span>
+                      <span className="text-emerald-400 font-bold text-sm">
+                        ❤️ +{selectedItem.hpBonus || 0} HP
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-400 uppercase">Movement Agility</span>
+                      <span className="text-yellow-400 font-bold text-sm">
+                        👟 {selectedItem.moveSpeedBonus ? `+${Math.round(selectedItem.moveSpeedBonus * 100)}%` : 'Standard'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Description & Lore Quote */}
                 <p className="text-xs text-gray-300 leading-relaxed font-mono">
                   {selectedItem.description}
                 </p>
+
+                {'loreQuote' in selectedItem && selectedItem.loreQuote && (
+                  <p className="text-[11px] text-amber-300/90 italic font-mono border-l-2 border-amber-500/70 pl-2 py-0.5">
+                    "{selectedItem.loreQuote}"
+                  </p>
+                )}
 
                 {'uniquePerk' in selectedItem && selectedItem.uniquePerk && (
                   <div className="mc-slot-dark p-2 border-2 border-amber-600/60 bg-[#1e1a12] text-xs text-yellow-300 flex items-center gap-2 font-mono">

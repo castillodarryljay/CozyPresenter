@@ -224,85 +224,329 @@ const MoundMesh: React.FC<{ feature: WorldFeature; isNearby: boolean; onInteract
 const VillageWellMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
   return (
     <group position={[feature.x, feature.elevation, feature.y]}>
-      {/* Cobblestone Rim */}
-      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.4, 0.9, 2.4]} />
-        <meshStandardMaterial color="#64748b" roughness={0.9} />
+      {/* Deep Ground Cobblestone Foundation (Prevents hovering on slopes) */}
+      <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.8, 1.2, 2.8]} />
+        <meshStandardMaterial color="#475569" roughness={0.9} />
       </mesh>
-      {/* Water pool inside */}
-      <mesh position={[0, 0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[1.6, 1.6]} />
-        <meshStandardMaterial color="#0284c7" roughness={0.1} metalness={0.8} />
+      {/* Upper Cobblestone Well Rim */}
+      <mesh position={[0, 0.8, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.4, 0.5, 2.4]} />
+        <meshStandardMaterial color="#64748b" roughness={0.85} />
       </mesh>
-      {/* Wooden corner pillars */}
-      <mesh position={[-0.9, 1.4, -0.9]} castShadow>
-        <boxGeometry args={[0.2, 1.8, 0.2]} />
+      {/* Water pool inside with depth */}
+      <mesh position={[0, 0.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.7, 1.7]} />
+        <meshStandardMaterial color="#0284c7" roughness={0.1} metalness={0.85} />
+      </mesh>
+      {/* 4 Sturdy Spruce Corner Support Pillars */}
+      {[-0.95, 0.95].map((x) =>
+        [-0.95, 0.95].map((z) => (
+          <mesh key={`post_${x}_${z}`} position={[x, 1.6, z]} castShadow>
+            <boxGeometry args={[0.22, 1.7, 0.22]} />
+            <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+          </mesh>
+        ))
+      )}
+      {/* Timber Crossbeams connecting the pillars */}
+      <mesh position={[0, 2.4, -0.95]} castShadow>
+        <boxGeometry args={[2.1, 0.18, 0.18]} />
         <meshStandardMaterial color="#78350f" roughness={0.8} />
       </mesh>
-      <mesh position={[0.9, 1.4, -0.9]} castShadow>
-        <boxGeometry args={[0.2, 1.8, 0.2]} />
+      <mesh position={[0, 2.4, 0.95]} castShadow>
+        <boxGeometry args={[2.1, 0.18, 0.18]} />
         <meshStandardMaterial color="#78350f" roughness={0.8} />
       </mesh>
-      <mesh position={[-0.9, 1.4, 0.9]} castShadow>
-        <boxGeometry args={[0.2, 1.8, 0.2]} />
+      <mesh position={[-0.95, 2.4, 0]} castShadow>
+        <boxGeometry args={[0.18, 0.18, 2.1]} />
         <meshStandardMaterial color="#78350f" roughness={0.8} />
       </mesh>
-      <mesh position={[0.9, 1.4, 0.9]} castShadow>
-        <boxGeometry args={[0.2, 1.8, 0.2]} />
+      <mesh position={[0.95, 2.4, 0]} castShadow>
+        <boxGeometry args={[0.18, 0.18, 2.1]} />
         <meshStandardMaterial color="#78350f" roughness={0.8} />
       </mesh>
-      {/* Shingled Roof */}
-      <mesh position={[0, 2.45, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-        <coneGeometry args={[1.9, 1.0, 4]} />
-        <meshStandardMaterial color="#92400e" roughness={0.7} />
+
+      {/* Stepped Timber Hip Roof (Perfect Alignment - No diamond cone distortion!) */}
+      {/* Tier 1 - Base Overhang */}
+      <mesh position={[0, 2.56, 0]} castShadow>
+        <boxGeometry args={[2.5, 0.24, 2.5]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
       </mesh>
-      {/* Hanging Golden Bell */}
-      <mesh position={[0, 1.8, 0]}>
-        <cylinderGeometry args={[0.12, 0.2, 0.28, 8]} />
+      {/* Tier 2 - Mid Step */}
+      <mesh position={[0, 2.8, 0]} castShadow>
+        <boxGeometry args={[1.85, 0.24, 1.85]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+      {/* Tier 3 - Top Tier */}
+      <mesh position={[0, 3.04, 0]} castShadow>
+        <boxGeometry args={[1.15, 0.24, 1.15]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      {/* Roof Peak Finial */}
+      <mesh position={[0, 3.26, 0]} castShadow>
+        <boxGeometry args={[0.4, 0.24, 0.4]} />
+        <meshStandardMaterial color="#451a03" roughness={0.8} />
+      </mesh>
+
+      {/* Hanging Golden Village Bell */}
+      <mesh position={[0, 2.05, 0]}>
+        <cylinderGeometry args={[0.14, 0.24, 0.32, 8]} />
         <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.2} />
+      </mesh>
+      {/* Bell Rope */}
+      <mesh position={[0, 1.6, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.6, 6]} />
+        <meshStandardMaterial color="#d97706" roughness={0.9} />
       </mesh>
     </group>
   );
 };
 
-// 2. Village Hut (NPC Cottage)
+// 2. Village Hut (NPC Cottage with Authentic Minecraft Stepped Gable Roof)
 const VillageHutMesh: React.FC<{ feature: WorldFeature }> = ({ feature }) => {
   return (
     <group position={[feature.x, feature.elevation, feature.y]}>
-      {/* Cobblestone Foundation */}
-      <mesh position={[0, 0.25, 0]} castShadow receiveShadow>
-        <boxGeometry args={[3.6, 0.5, 3.6]} />
-        <meshStandardMaterial color="#475569" roughness={0.9} />
+      {/* Deep Cobblestone Sub-Foundation (Anchors into slopes, prevents hovering) */}
+      <mesh position={[0, -0.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.8, 1.0, 3.8]} />
+        <meshStandardMaterial color="#475569" roughness={0.95} />
       </mesh>
+      {/* Upper Cobblestone Foundation */}
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.5, 0.4, 3.5]} />
+        <meshStandardMaterial color="#64748b" roughness={0.9} />
+      </mesh>
+
+      {/* 4 Corner Spruce Log Pillars */}
+      {[-1.45, 1.45].map((x) =>
+        [-1.45, 1.45].map((z) => (
+          <mesh key={`hut_corner_${x}_${z}`} position={[x, 1.5, z]} castShadow>
+            <boxGeometry args={[0.42, 1.9, 0.42]} />
+            <meshStandardMaterial color="#5c3a21" roughness={0.85} />
+          </mesh>
+        ))
+      )}
+
       {/* Oak Plank Walls */}
-      <mesh position={[0, 1.4, 0]} castShadow receiveShadow>
-        <boxGeometry args={[3.2, 1.8, 3.2]} />
-        <meshStandardMaterial color="#a16207" roughness={0.8} />
+      <mesh position={[0, 1.5, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.0, 1.7, 3.0]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
       </mesh>
-      {/* Pitched Roof */}
-      <mesh position={[0, 2.7, 0]} rotation={[0, 0, 0]} castShadow>
-        <coneGeometry args={[2.7, 1.2, 4]} />
-        <meshStandardMaterial color="#78350f" roughness={0.8} />
+
+      {/* Doorway Step & Wooden Door */}
+      <mesh position={[0, 0.35, 1.62]} castShadow receiveShadow>
+        <boxGeometry args={[1.1, 0.2, 0.4]} />
+        <meshStandardMaterial color="#64748b" roughness={0.9} />
       </mesh>
-      {/* Cobblestone Chimney */}
-      <mesh position={[1.1, 2.4, 0.8]} castShadow>
-        <boxGeometry args={[0.5, 2.0, 0.5]} />
-        <meshStandardMaterial color="#475569" roughness={0.9} />
+      <mesh position={[0, 1.15, 1.52]}>
+        <boxGeometry args={[0.82, 1.4, 0.08]} />
+        <meshStandardMaterial color="#451a03" roughness={0.85} />
       </mesh>
-      {/* Front Door */}
-      <mesh position={[0, 0.9, 1.62]}>
-        <boxGeometry args={[0.8, 1.4, 0.08]} />
-        <meshStandardMaterial color="#451a03" roughness={0.9} />
+      {/* Door Iron Handle */}
+      <mesh position={[0.26, 1.1, 1.58]}>
+        <boxGeometry args={[0.06, 0.12, 0.04]} />
+        <meshStandardMaterial color="#e2e8f0" metalness={0.8} roughness={0.3} />
       </mesh>
-      {/* Glowing Warm Window */}
-      <mesh position={[1.0, 1.3, 1.62]}>
-        <boxGeometry args={[0.6, 0.6, 0.05]} />
+
+      {/* Front Door Porch Awning */}
+      <mesh position={[0, 2.05, 1.8]} castShadow>
+        <boxGeometry args={[1.3, 0.12, 0.65]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+      {/* Hanging Porch Lantern with Warm Glow */}
+      <mesh position={[0, 1.82, 1.95]}>
+        <boxGeometry args={[0.18, 0.24, 0.18]} />
+        <meshStandardMaterial color="#fef08a" emissive="#f59e0b" emissiveIntensity={1.2} />
+      </mesh>
+      <pointLight position={[0, 1.8, 2.1]} color="#ffedd5" intensity={2.2} distance={6} />
+
+      {/* Glowing Leaded Glass Windows with Wooden Sills */}
+      {/* Front Right Window */}
+      <mesh position={[0.95, 1.45, 1.52]}>
+        <boxGeometry args={[0.65, 0.65, 0.06]} />
         <meshStandardMaterial color="#fde047" emissive="#eab308" emissiveIntensity={0.8} />
       </mesh>
-      {/* Flower Box */}
-      <mesh position={[1.0, 0.9, 1.7]}>
-        <boxGeometry args={[0.7, 0.2, 0.2]} />
+      {/* Flower Planter Box under Front Window */}
+      <mesh position={[0.95, 1.05, 1.62]} castShadow>
+        <boxGeometry args={[0.75, 0.2, 0.25]} />
         <meshStandardMaterial color="#713f12" roughness={0.9} />
+      </mesh>
+      <mesh position={[0.85, 1.22, 1.62]}>
+        <boxGeometry args={[0.12, 0.18, 0.12]} />
+        <meshStandardMaterial color="#ef4444" roughness={0.6} />
+      </mesh>
+      <mesh position={[1.05, 1.22, 1.62]}>
+        <boxGeometry args={[0.12, 0.18, 0.12]} />
+        <meshStandardMaterial color="#eab308" roughness={0.6} />
+      </mesh>
+
+      {/* Left Side Window */}
+      <mesh position={[-1.52, 1.45, 0]}>
+        <boxGeometry args={[0.06, 0.65, 0.65]} />
+        <meshStandardMaterial color="#fde047" emissive="#eab308" emissiveIntensity={0.8} />
+      </mesh>
+      {/* Right Side Window */}
+      <mesh position={[1.52, 1.45, 0]}>
+        <boxGeometry args={[0.06, 0.65, 0.65]} />
+        <meshStandardMaterial color="#fde047" emissive="#eab308" emissiveIntensity={0.8} />
+      </mesh>
+
+      {/* --- AUTHENTIC MINECRAFT STEPPED GABLE ROOF --- */}
+      {/* 1. Interior Attic Ceiling Slab (Prevents looking into voids from below) */}
+      <mesh position={[0, 2.35, 0]}>
+        <boxGeometry args={[3.0, 0.12, 3.0]} />
+        <meshStandardMaterial color="#78350f" roughness={0.85} />
+      </mesh>
+
+      {/* 2. Eave Support Rafter Beams (Front & Back overhang bracing) */}
+      <mesh position={[0, 2.26, 1.7]} castShadow>
+        <boxGeometry args={[3.2, 0.14, 0.14]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 2.26, -1.7]} castShadow>
+        <boxGeometry args={[3.2, 0.14, 0.14]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.85} />
+      </mesh>
+
+      {/* 3. Stepped Spruce Plank Roof Tiers (Seamless X-overlap, no cracks) */}
+      {/* Tier 1 Eaves (Lowest Overhang, extending past wall) */}
+      <mesh position={[-1.70, 2.38, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+      <mesh position={[1.70, 2.38, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+
+      {/* Tier 2 Steps */}
+      <mesh position={[-1.25, 2.64, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      <mesh position={[1.25, 2.64, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+
+      {/* Tier 3 Steps */}
+      <mesh position={[-0.80, 2.90, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.80, 2.90, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#5c3a21" roughness={0.8} />
+      </mesh>
+
+      {/* Tier 4 Steps */}
+      <mesh position={[-0.35, 3.16, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.35, 3.16, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.9]} />
+        <meshStandardMaterial color="#78350f" roughness={0.8} />
+      </mesh>
+
+      {/* Peak Ridge Cap (Caps the apex smoothly with full overlap) */}
+      <mesh position={[0, 3.38, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.24, 4.0]} />
+        <meshStandardMaterial color="#451a03" roughness={0.8} />
+      </mesh>
+
+      {/* 4. Solid Triangular Gable End Wall Fillers (Front & Back - Zero Gaps) */}
+      {/* Front Gable Infill (Z = 1.48) */}
+      <mesh position={[0, 2.50, 1.48]}>
+        <boxGeometry args={[2.7, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 2.76, 1.48]}>
+        <boxGeometry args={[2.1, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 3.02, 1.48]}>
+        <boxGeometry args={[1.4, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 3.26, 1.48]}>
+        <boxGeometry args={[0.7, 0.26, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+
+      {/* Back Gable Infill (Z = -1.48) */}
+      <mesh position={[0, 2.50, -1.48]}>
+        <boxGeometry args={[2.7, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 2.76, -1.48]}>
+        <boxGeometry args={[2.1, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 3.02, -1.48]}>
+        <boxGeometry args={[1.4, 0.32, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 3.26, -1.48]}>
+        <boxGeometry args={[0.7, 0.26, 0.12]} />
+        <meshStandardMaterial color="#b47834" roughness={0.8} />
+      </mesh>
+
+      {/* 5. Complete Cobblestone Stair Bargeboard Rims along Front (Z=1.95) & Back (Z=-1.95) */}
+      {[1.95, -1.95].map((zEdge) => (
+        <group key={`bargeboard_${zEdge}`}>
+          {/* Tier 1 Rim */}
+          <mesh position={[-1.70, 2.38, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          <mesh position={[1.70, 2.38, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          {/* Tier 2 Rim */}
+          <mesh position={[-1.25, 2.64, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          <mesh position={[1.25, 2.64, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          {/* Tier 3 Rim */}
+          <mesh position={[-0.80, 2.90, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          <mesh position={[0.80, 2.90, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          {/* Tier 4 Rim */}
+          <mesh position={[-0.35, 3.16, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          <mesh position={[0.35, 3.16, zEdge]} castShadow>
+            <boxGeometry args={[0.56, 0.30, 0.18]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+          {/* Peak Rim Cap */}
+          <mesh position={[0, 3.39, zEdge]} castShadow>
+            <boxGeometry args={[0.54, 0.26, 0.20]} />
+            <meshStandardMaterial color="#475569" roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 6. Cobblestone Chimney with Stepped Top */}
+      <mesh position={[1.1, 2.95, -0.85]} castShadow>
+        <boxGeometry args={[0.58, 2.2, 0.58]} />
+        <meshStandardMaterial color="#475569" roughness={0.9} />
+      </mesh>
+      <mesh position={[1.1, 4.10, -0.85]} castShadow>
+        <boxGeometry args={[0.68, 0.16, 0.68]} />
+        <meshStandardMaterial color="#334155" roughness={0.9} />
       </mesh>
     </group>
   );
@@ -476,31 +720,36 @@ const HouseMesh: React.FC<{ structure: PlacedStructure; isGhost?: boolean; canAf
         }
       }}
     >
-      {/* Stone Foundation */}
-      <mesh position={[0, 0.2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[3.4, 0.4, 3.4]} />
+      {/* Deep Stone Foundation (Prevents hovering on uneven terrain) */}
+      <mesh position={[0, -0.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.6, 1.0, 3.6]} />
+        <meshStandardMaterial color={matColor || '#334155'} roughness={0.95} transparent={transparent} opacity={opacity} />
+      </mesh>
+      {/* Upper Stone Foundation Plinth */}
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.3, 0.4, 3.3]} />
         <meshStandardMaterial color={matColor || '#475569'} roughness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>
 
       {/* Timber Log Walls */}
-      <mesh position={[0, 1.25, 0]} castShadow receiveShadow>
+      <mesh position={[0, 1.45, 0]} castShadow receiveShadow>
         <boxGeometry args={[3.0, 1.7, 3.0]} />
         <meshStandardMaterial color={matColor || '#78350f'} roughness={0.8} transparent={transparent} opacity={opacity} />
       </mesh>
 
       {/* Front Door */}
-      <mesh position={[0, 0.8, 1.51]}>
-        <boxGeometry args={[0.7, 1.3, 0.08]} />
+      <mesh position={[0, 0.95, 1.51]}>
+        <boxGeometry args={[0.75, 1.35, 0.08]} />
         <meshStandardMaterial color={matColor || '#451a03'} roughness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>
       {/* Brass Doorknob */}
-      <mesh position={[0.22, 0.8, 1.56]}>
+      <mesh position={[0.22, 0.95, 1.56]}>
         <boxGeometry args={[0.06, 0.06, 0.06]} />
         <meshStandardMaterial color={matColor || '#fbbf24'} metalness={0.9} roughness={0.2} transparent={transparent} opacity={opacity} />
       </mesh>
 
       {/* Glowing Warm Windows (Left & Right) */}
-      <mesh position={[-1.51, 1.3, 0]}>
+      <mesh position={[-1.51, 1.45, 0]}>
         <boxGeometry args={[0.08, 0.7, 0.7]} />
         <meshStandardMaterial
           color={matColor || '#fef08a'}
@@ -510,7 +759,7 @@ const HouseMesh: React.FC<{ structure: PlacedStructure; isGhost?: boolean; canAf
           opacity={opacity}
         />
       </mesh>
-      <mesh position={[1.51, 1.3, 0]}>
+      <mesh position={[1.51, 1.45, 0]}>
         <boxGeometry args={[0.08, 0.7, 0.7]} />
         <meshStandardMaterial
           color={matColor || '#fef08a'}
@@ -521,18 +770,84 @@ const HouseMesh: React.FC<{ structure: PlacedStructure; isGhost?: boolean; canAf
         />
       </mesh>
 
-      {/* Peaked Roof (Gable Roof) */}
-      <mesh position={[0, 2.55, 0]} rotation={[0, 0, 0]} castShadow>
-        <boxGeometry args={[3.4, 0.9, 3.4]} />
-        <meshStandardMaterial color={matColor || '#451a03'} roughness={0.7} transparent={transparent} opacity={opacity} />
+      {/* Authentic Stepped Gable Roof */}
+      {/* 1. Interior Attic Ceiling Slab */}
+      <mesh position={[0, 2.30, 0]}>
+        <boxGeometry args={[3.0, 0.1, 3.0]} />
+        <meshStandardMaterial color={matColor || '#5c3a21'} roughness={0.85} transparent={transparent} opacity={opacity} />
       </mesh>
-      <mesh position={[0, 3.15, 0]} castShadow>
-        <boxGeometry args={[2.4, 0.5, 3.42]} />
-        <meshStandardMaterial color={matColor || '#3f1d0b'} roughness={0.7} transparent={transparent} opacity={opacity} />
+
+      {/* 2. Stepped Plank Tiers with Seamless Overlap */}
+      {/* Tier 1 Eaves */}
+      <mesh position={[-1.65, 2.32, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#451a03'} roughness={0.8} transparent={transparent} opacity={opacity} />
       </mesh>
+      <mesh position={[1.65, 2.32, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#451a03'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* Tier 2 Steps */}
+      <mesh position={[-1.20, 2.58, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#3f1d0b'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+      <mesh position={[1.20, 2.58, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#3f1d0b'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* Tier 3 Steps */}
+      <mesh position={[-0.72, 2.84, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#451a03'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+      <mesh position={[0.72, 2.84, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#451a03'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* Tier 4 Steps */}
+      <mesh position={[-0.28, 3.08, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#3f1d0b'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+      <mesh position={[0.28, 3.08, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 3.8]} />
+        <meshStandardMaterial color={matColor || '#3f1d0b'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* Ridge Cap with full overlap */}
+      <mesh position={[0, 3.30, 0]} castShadow>
+        <boxGeometry args={[0.48, 0.22, 3.9]} />
+        <meshStandardMaterial color={matColor || '#2b1508'} roughness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* 3. Solid Attic Gable Fillers (Front & Back - Zero Gaps) */}
+      {[1.48, -1.48].map((zPos) => (
+        <group key={`house_gable_${zPos}`}>
+          <mesh position={[0, 2.45, zPos]}>
+            <boxGeometry args={[2.6, 0.30, 0.1]} />
+            <meshStandardMaterial color={matColor || '#78350f'} roughness={0.8} transparent={transparent} opacity={opacity} />
+          </mesh>
+          <mesh position={[0, 2.72, zPos]}>
+            <boxGeometry args={[1.9, 0.30, 0.1]} />
+            <meshStandardMaterial color={matColor || '#78350f'} roughness={0.8} transparent={transparent} opacity={opacity} />
+          </mesh>
+          <mesh position={[0, 2.98, zPos]}>
+            <boxGeometry args={[1.2, 0.30, 0.1]} />
+            <meshStandardMaterial color={matColor || '#78350f'} roughness={0.8} transparent={transparent} opacity={opacity} />
+          </mesh>
+          <mesh position={[0, 3.20, zPos]}>
+            <boxGeometry args={[0.6, 0.24, 0.1]} />
+            <meshStandardMaterial color={matColor || '#78350f'} roughness={0.8} transparent={transparent} opacity={opacity} />
+          </mesh>
+        </group>
+      ))}
 
       {/* Cobblestone Chimney */}
-      <mesh position={[1.0, 2.6, -0.8]} castShadow>
+      <mesh position={[1.0, 2.7, -0.8]} castShadow>
         <boxGeometry args={[0.6, 2.2, 0.6]} />
         <meshStandardMaterial color={matColor || '#334155'} roughness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>

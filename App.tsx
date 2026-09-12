@@ -177,7 +177,15 @@ const Player3D: React.FC<{
   settings: MapSettings;
   isNight: boolean;
   activeWeapon?: Weapon;
-  attackAnimRef: React.MutableRefObject<{ isAttacking: boolean; startTime: number; duration: number }>;
+  equippedMelee?: DungeonsGearItem;
+  equippedRanged?: DungeonsGearItem;
+  attackAnimRef: React.MutableRefObject<{
+    isAttacking: boolean;
+    startTime: number;
+    duration: number;
+    attackType?: 'melee' | 'ranged';
+    comboStep?: number;
+  }>;
   isHurtFlash?: boolean;
   customization?: CharacterCustomization;
   equippedArmor?: DungeonsGearItem;
@@ -188,6 +196,8 @@ const Player3D: React.FC<{
   settings,
   isNight,
   activeWeapon,
+  equippedMelee,
+  equippedRanged,
   attackAnimRef,
   isHurtFlash,
   customization,
@@ -234,10 +244,11 @@ const Player3D: React.FC<{
           if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
             leftLeg.current.rotation.x = swing * 0.65;
             rightLeg.current.rotation.x = -swing * 0.65;
-            leftArm.current.rotation.x = -swing * 0.65;
             if (!attackAnimRef.current.isAttacking) {
+              leftArm.current.rotation.x = -swing * 0.65;
               rightArm.current.rotation.x = swing * 0.65;
               rightArm.current.rotation.z = 0;
+              rightArm.current.rotation.y = 0;
             }
           }
 
@@ -252,10 +263,11 @@ const Player3D: React.FC<{
           if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current) {
             leftLeg.current.rotation.x = THREE.MathUtils.lerp(leftLeg.current.rotation.x, 0, delta * 10);
             rightLeg.current.rotation.x = THREE.MathUtils.lerp(rightLeg.current.rotation.x, 0, delta * 10);
-            leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, delta * 10);
             if (!attackAnimRef.current.isAttacking) {
+              leftArm.current.rotation.x = THREE.MathUtils.lerp(leftArm.current.rotation.x, 0, delta * 10);
               rightArm.current.rotation.x = THREE.MathUtils.lerp(rightArm.current.rotation.x, 0, delta * 10);
               rightArm.current.rotation.z = THREE.MathUtils.lerp(rightArm.current.rotation.z, 0, delta * 10);
+              rightArm.current.rotation.y = THREE.MathUtils.lerp(rightArm.current.rotation.y, 0, delta * 10);
             }
           }
 
@@ -268,13 +280,75 @@ const Player3D: React.FC<{
         if (attackAnimRef.current.isAttacking && rightArm.current) {
           const elapsed = (now - attackAnimRef.current.startTime) / attackAnimRef.current.duration;
           if (elapsed < 1.0) {
+            const attackType = attackAnimRef.current.attackType || 'melee';
+            const comboStep = attackAnimRef.current.comboStep || 0;
             const swingProgress = Math.sin(elapsed * Math.PI);
-            rightArm.current.rotation.x = -Math.PI * 0.85 * swingProgress;
-            rightArm.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.45;
-            group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.12;
+
+            if (attackType === 'ranged') {
+              // Ranged Bow Draw & Release
+              if (leftArm.current) {
+                leftArm.current.rotation.x = -Math.PI * 0.48;
+                leftArm.current.rotation.y = Math.PI * 0.18;
+                leftArm.current.rotation.z = 0;
+              }
+              rightArm.current.rotation.x = -Math.PI * 0.46;
+              rightArm.current.rotation.y = -Math.PI * 0.22;
+              rightArm.current.position.z = Math.sin(elapsed * Math.PI) * -0.15;
+            } else if (equippedMelee?.subType === 'gauntlets') {
+              // Fighter's Bindings: Rapid 1-2 punch flurry
+              if (elapsed < 0.5) {
+                const p1 = Math.sin(elapsed * 2 * Math.PI);
+                if (leftArm.current) {
+                  leftArm.current.rotation.x = -Math.PI * 0.55 * p1;
+                  leftArm.current.rotation.z = p1 * 0.2;
+                }
+              } else {
+                const p2 = Math.sin((elapsed - 0.5) * 2 * Math.PI);
+                rightArm.current.rotation.x = -Math.PI * 0.6 * p2;
+                rightArm.current.rotation.z = -p2 * 0.2;
+              }
+              group.current.rotation.z = Math.sin(elapsed * Math.PI * 2) * 0.08;
+            } else if (equippedMelee?.subType === 'claymore') {
+              // Great Claymore: Two-Handed Heavy Cleave
+              const heavySwing = Math.sin(elapsed * Math.PI);
+              rightArm.current.rotation.x = -Math.PI * 1.1 * heavySwing;
+              rightArm.current.rotation.y = -Math.PI * 0.3 * heavySwing;
+              if (leftArm.current) {
+                leftArm.current.rotation.x = -Math.PI * 0.95 * heavySwing;
+                leftArm.current.rotation.y = Math.PI * 0.25 * heavySwing;
+              }
+              group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.16;
+              group.current.position.y += Math.sin(elapsed * Math.PI) * 0.08;
+            } else {
+              // 3-Step Combo Melee Swing
+              if (comboStep === 0) {
+                // Combo 1: Downward right-to-left cleave
+                rightArm.current.rotation.x = -Math.PI * 0.85 * swingProgress;
+                rightArm.current.rotation.y = -Math.PI * 0.4 * swingProgress;
+                rightArm.current.rotation.z = swingProgress * 0.35;
+                group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.1;
+              } else if (comboStep === 1) {
+                // Combo 2: Rising left-to-right slash
+                rightArm.current.rotation.x = -Math.PI * 0.7 * swingProgress;
+                rightArm.current.rotation.y = Math.PI * 0.45 * swingProgress;
+                rightArm.current.rotation.z = -swingProgress * 0.3;
+                group.current.rotation.z = -Math.sin(elapsed * Math.PI) * 0.1;
+              } else {
+                // Combo 3 (Finisher): Powerful overhead vertical smash
+                rightArm.current.rotation.x = -Math.PI * 1.25 * swingProgress;
+                rightArm.current.rotation.y = 0;
+                rightArm.current.rotation.z = 0;
+                group.current.position.y += Math.sin(elapsed * Math.PI) * 0.14;
+                group.current.rotation.x = -Math.sin(elapsed * Math.PI) * 0.12;
+              }
+            }
           } else {
             attackAnimRef.current.isAttacking = false;
             group.current.rotation.z = 0;
+            group.current.rotation.x = 0;
+            if (rightArm.current) {
+              rightArm.current.position.z = 0;
+            }
           }
         }
       }
@@ -478,11 +552,22 @@ const Player3D: React.FC<{
           </group>
         )}
 
-        {/* Gauntlet Wrist Guard */}
+        {/* Gauntlet Wrist Guard & Fighter's Bindings on Left Hand */}
         {showArmor && (
           <Box position={[0, -0.55, 0]} args={[0.22, 0.2, 0.27]}>
             <meshStandardMaterial color={armorHex} roughness={0.4} metalness={0.7} />
           </Box>
+        )}
+        {equippedMelee?.subType === 'gauntlets' && (
+          <group position={[0, -0.72, 0]}>
+            <Box args={[0.24, 0.16, 0.28]}>
+              <meshStandardMaterial color="#10b981" roughness={0.6} />
+            </Box>
+            <mesh position={[0, 0, 0.14]}>
+              <boxGeometry args={[0.18, 0.08, 0.04]} />
+              <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.2} />
+            </mesh>
+          </group>
         )}
 
         {/* Handheld Voxel Lantern */}
@@ -531,80 +616,219 @@ const Player3D: React.FC<{
           </Box>
         )}
 
-        {/* Equipped 3D Weapon Model */}
-        {activeWeapon && (
-          <group position={[0, -0.75, 0.2]} rotation={[-Math.PI / 4, 0, 0]}>
-            {/* Sword */}
-            {activeWeapon.type === 'sword' && (
-              <group position={[0, 0.2, 0]}>
-                <mesh position={[0, -0.15, 0]}>
-                  <boxGeometry args={[0.06, 0.16, 0.06]} />
-                  <meshStandardMaterial color="#475569" roughness={0.8} />
-                </mesh>
-                <mesh position={[0, -0.04, 0]}>
-                  <boxGeometry args={[0.22, 0.05, 0.08]} />
-                  <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.8} />
-                </mesh>
-                <mesh position={[0, 0.35, 0]}>
-                  <boxGeometry args={[0.1, 0.7, 0.04]} />
-                  <meshStandardMaterial color="#f1f5f9" roughness={0.2} metalness={0.9} />
-                </mesh>
-              </group>
-            )}
+        {/* Equipped 3D Weapon Model (High-Fidelity Voxel Craft) */}
+        <group position={[0, -0.75, 0.2]} rotation={[-Math.PI / 4, 0, 0]}>
+          {/* 1. Diamond Sword / Standard Sword */}
+          {((equippedMelee && equippedMelee.subType === 'sword') || (!equippedMelee && activeWeapon?.type === 'sword')) && (
+            <group position={[0, 0.2, 0]}>
+              {/* Pommel */}
+              <mesh position={[0, -0.22, 0]}>
+                <boxGeometry args={[0.08, 0.08, 0.08]} />
+                <meshStandardMaterial color="#f59e0b" roughness={0.3} metalness={0.8} />
+              </mesh>
+              {/* Grip */}
+              <mesh position={[0, -0.12, 0]}>
+                <boxGeometry args={[0.05, 0.16, 0.05]} />
+                <meshStandardMaterial color="#334155" roughness={0.8} />
+              </mesh>
+              {/* Crossguard with gold wing tips */}
+              <mesh position={[0, -0.02, 0]}>
+                <boxGeometry args={[0.26, 0.06, 0.09]} />
+                <meshStandardMaterial color="#0f172a" roughness={0.4} metalness={0.7} />
+              </mesh>
+              <mesh position={[-0.14, 0.01, 0]}>
+                <boxGeometry args={[0.05, 0.08, 0.07]} />
+                <meshStandardMaterial color="#f59e0b" roughness={0.2} metalness={0.9} />
+              </mesh>
+              <mesh position={[0.14, 0.01, 0]}>
+                <boxGeometry args={[0.05, 0.08, 0.07]} />
+                <meshStandardMaterial color="#f59e0b" roughness={0.2} metalness={0.9} />
+              </mesh>
+              {/* Diamond Blade Core */}
+              <mesh position={[0, 0.42, 0]}>
+                <boxGeometry args={[0.07, 0.84, 0.05]} />
+                <meshStandardMaterial color="#0891b2" roughness={0.2} metalness={0.5} />
+              </mesh>
+              {/* Diamond Blade Cutting Edge (Luminescent cyan) */}
+              <mesh position={[0, 0.42, 0]}>
+                <boxGeometry args={[0.12, 0.8, 0.03]} />
+                <meshStandardMaterial
+                  color="#a5f3fc"
+                  emissive="#22d3ee"
+                  emissiveIntensity={1.2}
+                  roughness={0.1}
+                />
+              </mesh>
+              {/* Pointed Tip */}
+              <mesh position={[0, 0.86, 0]} rotation={[0, 0, Math.PI / 4]}>
+                <boxGeometry args={[0.07, 0.07, 0.03]} />
+                <meshStandardMaterial color="#67e8f9" emissive="#22d3ee" emissiveIntensity={1.5} />
+              </mesh>
+            </group>
+          )}
 
-            {/* Bow */}
-            {activeWeapon.type === 'bow' && (
-              <group position={[0, 0.1, 0]} rotation={[0, 0, 0.15]}>
-                <mesh>
-                  <boxGeometry args={[0.06, 0.85, 0.06]} />
-                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
-                </mesh>
-                <mesh position={[-0.08, 0, 0]}>
-                  <boxGeometry args={[0.02, 0.8, 0.02]} />
-                  <meshBasicMaterial color="#fef08a" />
-                </mesh>
-              </group>
-            )}
+          {/* 2. Cursed Double-Headed Battleaxe */}
+          {equippedMelee?.subType === 'axe' && (
+            <group position={[0, 0.25, 0]}>
+              {/* Dark Wood / Obsidian Haft */}
+              <mesh position={[0, 0.1, 0]}>
+                <boxGeometry args={[0.06, 1.05, 0.06]} />
+                <meshStandardMaterial color="#1e1b18" roughness={0.9} />
+              </mesh>
+              {/* Spiked Pommel */}
+              <mesh position={[0, -0.44, 0]}>
+                <coneGeometry args={[0.05, 0.12, 4]} />
+                <meshStandardMaterial color="#475569" metalness={0.8} />
+              </mesh>
+              {/* Left Crescent Blade */}
+              <mesh position={[-0.15, 0.48, 0]}>
+                <boxGeometry args={[0.24, 0.36, 0.04]} />
+                <meshStandardMaterial color="#312e81" metalness={0.7} roughness={0.3} />
+              </mesh>
+              {/* Right Crescent Blade */}
+              <mesh position={[0.15, 0.48, 0]}>
+                <boxGeometry args={[0.24, 0.36, 0.04]} />
+                <meshStandardMaterial color="#312e81" metalness={0.7} roughness={0.3} />
+              </mesh>
+              {/* Glowing Void Runes */}
+              <mesh position={[0, 0.48, 0.02]}>
+                <boxGeometry args={[0.12, 0.24, 0.05]} />
+                <meshStandardMaterial
+                  color="#c084fc"
+                  emissive="#9333ea"
+                  emissiveIntensity={2.5}
+                  roughness={0.1}
+                />
+              </mesh>
+            </group>
+          )}
 
-            {/* Magic Staff */}
-            {activeWeapon.type === 'staff' && (
-              <group position={[0, 0.25, 0]}>
-                <mesh>
-                  <boxGeometry args={[0.06, 1.15, 0.06]} />
-                  <meshStandardMaterial color="#334155" roughness={0.8} />
-                </mesh>
-                <mesh position={[0, 0.62, 0]}>
-                  <sphereGeometry args={[0.13, 12, 12]} />
-                  <meshStandardMaterial
-                    color="#22d3ee"
-                    emissive="#06b6d4"
-                    emissiveIntensity={3}
-                    roughness={0.1}
-                  />
-                </mesh>
-              </group>
-            )}
+          {/* 3. Sun's Grace Radiant Solar Mace */}
+          {equippedMelee?.subType === 'mace' && (
+            <group position={[0, 0.25, 0]}>
+              {/* Golden Shaft */}
+              <mesh position={[0, 0.1, 0]}>
+                <boxGeometry args={[0.07, 0.95, 0.07]} />
+                <meshStandardMaterial color="#78350f" roughness={0.6} />
+              </mesh>
+              {/* Fluted Head Core */}
+              <mesh position={[0, 0.52, 0]}>
+                <boxGeometry args={[0.16, 0.24, 0.16]} />
+                <meshStandardMaterial color="#f59e0b" metalness={0.9} roughness={0.2} />
+              </mesh>
+              {/* Glowing Radiant Solar Core */}
+              <mesh position={[0, 0.52, 0]}>
+                <sphereGeometry args={[0.12, 12, 12]} />
+                <meshStandardMaterial
+                  color="#fde047"
+                  emissive="#f59e0b"
+                  emissiveIntensity={3.0}
+                  roughness={0.1}
+                />
+              </mesh>
+              {/* Cross Flanges */}
+              <mesh position={[0, 0.52, 0]}>
+                <boxGeometry args={[0.26, 0.18, 0.05]} />
+                <meshStandardMaterial color="#fbbf24" metalness={0.8} />
+              </mesh>
+              <mesh position={[0, 0.52, 0]}>
+                <boxGeometry args={[0.05, 0.18, 0.26]} />
+                <meshStandardMaterial color="#fbbf24" metalness={0.8} />
+              </mesh>
+            </group>
+          )}
 
-            {/* War Glaive / Halberd */}
-            {activeWeapon.type === 'halberd' && (
-              <group position={[0, 0.3, 0]}>
-                <mesh>
-                  <boxGeometry args={[0.06, 1.35, 0.06]} />
-                  <meshStandardMaterial color="#57534e" roughness={0.9} />
-                </mesh>
-                <mesh position={[0.1, 0.6, 0]}>
-                  <boxGeometry args={[0.26, 0.35, 0.04]} />
-                  <meshStandardMaterial
-                    color="#f97316"
-                    emissive="#c2410c"
-                    emissiveIntensity={1.5}
-                    roughness={0.3}
-                  />
-                </mesh>
-              </group>
-            )}
-          </group>
-        )}
+          {/* 4. Great Claymore (Colossal Two-Handed Blade) */}
+          {equippedMelee?.subType === 'claymore' && (
+            <group position={[0, 0.35, 0]}>
+              {/* Long 2-Handed Grip */}
+              <mesh position={[0, -0.22, 0]}>
+                <boxGeometry args={[0.07, 0.32, 0.07]} />
+                <meshStandardMaterial color="#451a03" roughness={0.8} />
+              </mesh>
+              {/* Heavy Crossguard */}
+              <mesh position={[0, -0.04, 0]}>
+                <boxGeometry args={[0.34, 0.07, 0.1]} />
+                <meshStandardMaterial color="#64748b" metalness={0.9} roughness={0.3} />
+              </mesh>
+              {/* Massive Double-Edged Blade */}
+              <mesh position={[0, 0.55, 0]}>
+                <boxGeometry args={[0.16, 1.15, 0.05]} />
+                <meshStandardMaterial color="#e2e8f0" metalness={0.95} roughness={0.15} />
+              </mesh>
+              {/* Fuller Groove */}
+              <mesh position={[0, 0.55, 0]}>
+                <boxGeometry args={[0.04, 0.95, 0.06]} />
+                <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.7} />
+              </mesh>
+            </group>
+          )}
+
+          {/* 5. Fighter's Bindings (Knuckle Gauntlets) */}
+          {equippedMelee?.subType === 'gauntlets' && (
+            <group position={[0, 0.03, -0.2]}>
+              <Box args={[0.24, 0.16, 0.28]}>
+                <meshStandardMaterial color="#10b981" roughness={0.6} />
+              </Box>
+              <mesh position={[0, 0, 0.14]}>
+                <boxGeometry args={[0.18, 0.08, 0.04]} />
+                <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.2} />
+              </mesh>
+            </group>
+          )}
+
+          {/* 6. Bow / Harp Crossbow / Firebolt Bow */}
+          {(!equippedMelee && activeWeapon?.type === 'bow') && (
+            <group position={[0, 0.1, 0]} rotation={[0, 0, 0.15]}>
+              <mesh>
+                <boxGeometry args={[0.06, 0.95, 0.06]} />
+                <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+              </mesh>
+              <mesh position={[-0.1, 0, 0]}>
+                <boxGeometry args={[0.02, 0.9, 0.02]} />
+                <meshBasicMaterial color="#fef08a" />
+              </mesh>
+            </group>
+          )}
+
+          {/* 7. Magic Staff */}
+          {(!equippedMelee && activeWeapon?.type === 'staff') && (
+            <group position={[0, 0.25, 0]}>
+              <mesh>
+                <boxGeometry args={[0.06, 1.15, 0.06]} />
+                <meshStandardMaterial color="#334155" roughness={0.8} />
+              </mesh>
+              <mesh position={[0, 0.62, 0]}>
+                <sphereGeometry args={[0.13, 12, 12]} />
+                <meshStandardMaterial
+                  color="#22d3ee"
+                  emissive="#06b6d4"
+                  emissiveIntensity={3}
+                  roughness={0.1}
+                />
+              </mesh>
+            </group>
+          )}
+
+          {/* 8. War Glaive / Halberd */}
+          {((!equippedMelee && activeWeapon?.type === 'halberd') || (equippedMelee && equippedMelee.subType === 'glaive')) && (
+            <group position={[0, 0.3, 0]}>
+              <mesh>
+                <boxGeometry args={[0.06, 1.35, 0.06]} />
+                <meshStandardMaterial color="#57534e" roughness={0.9} />
+              </mesh>
+              <mesh position={[0.1, 0.6, 0]}>
+                <boxGeometry args={[0.26, 0.35, 0.04]} />
+                <meshStandardMaterial
+                  color="#f97316"
+                  emissive="#c2410c"
+                  emissiveIntensity={1.5}
+                  roughness={0.3}
+                />
+              </mesh>
+            </group>
+          )}
+        </group>
       </group>
 
       {/* Legs & Armored Greaves */}
@@ -629,6 +853,48 @@ const Player3D: React.FC<{
           </Box>
         )}
       </group>
+
+      {/* Dynamic Melee Slash Arc Visual Effect */}
+      {attackAnimRef.current.isAttacking && attackAnimRef.current.attackType !== 'ranged' && (
+        <group
+          position={[0, 0.2, 0.55]}
+          rotation={[
+            attackAnimRef.current.comboStep === 2 ? -Math.PI * 0.45 : -Math.PI * 0.25,
+            0,
+            attackAnimRef.current.comboStep === 1 ? Math.PI * 0.2 : -Math.PI * 0.2,
+          ]}
+        >
+          <mesh>
+            <ringGeometry args={[0.85, 1.4, 24, 1, Math.PI * 0.15, Math.PI * 0.75]} />
+            <meshStandardMaterial
+              color={
+                equippedMelee?.element === 'void'
+                  ? '#c084fc'
+                  : equippedMelee?.element === 'radiant'
+                  ? '#fde047'
+                  : equippedMelee?.element === 'fire'
+                  ? '#f97316'
+                  : equippedMelee?.subType === 'sword' || equippedMelee?.id === 'diamond_sword'
+                  ? '#38bdf8'
+                  : '#f1f5f9'
+              }
+              emissive={
+                equippedMelee?.element === 'void'
+                  ? '#9333ea'
+                  : equippedMelee?.element === 'radiant'
+                  ? '#eab308'
+                  : equippedMelee?.element === 'fire'
+                  ? '#ea580c'
+                  : '#0284c7'
+              }
+              emissiveIntensity={2.5}
+              transparent
+              opacity={0.8}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 };
@@ -1554,11 +1820,20 @@ export const App: React.FC = () => {
   const lastShelterRestTimeRef = useRef<number>(0);
 
   // Weapon Attack Swing Animation Ref
-  const attackAnimRef = useRef({
+  const attackAnimRef = useRef<{
+    isAttacking: boolean;
+    startTime: number;
+    duration: number;
+    attackType?: 'melee' | 'ranged';
+    comboStep?: number;
+  }>({
     isAttacking: false,
     startTime: 0,
     duration: 250,
+    attackType: 'melee',
+    comboStep: 0,
   });
+  const comboStepRef = useRef<number>(0);
   const lastAttackTimeRef = useRef(0);
 
   // Screen Hurt Flash Vignette
@@ -2385,112 +2660,126 @@ export const App: React.FC = () => {
 
   // --- COMBAT ACTIONS ---
 
-  // 1. Primary Weapon Attack Action
+  // 1. Primary Weapon Attack Action with Dungeons Melee Weapon Scaling, Combo Swings & Special Perks
   const handlePlayerAttack = useCallback(() => {
-    const weapon = ALL_WEAPONS[activeWeaponIndex] || ALL_WEAPONS[0];
     const now = performance.now();
-    const effectiveCooldown = weapon.cooldown * (activePerks.cooldownMultiplier || 1.0);
+    const equippedMelee = dungeonsStats.equippedMelee;
+    const fallbackWeapon = ALL_WEAPONS[activeWeaponIndex] || ALL_WEAPONS[0];
+
+    // Compute effective attack speed and cooldown
+    const baseCooldown = equippedMelee
+      ? Math.max(160, 1000 / (equippedMelee.attackSpeed || 1.6))
+      : fallbackWeapon.cooldown;
+    const effectiveCooldown = baseCooldown * (activePerks.cooldownMultiplier || 1.0);
     if (now - lastAttackTimeRef.current < effectiveCooldown) return;
 
-    const stamCost = weapon.type === 'sword' ? 8 : weapon.type === 'halberd' ? 14 : 12;
+    const stamCost = equippedMelee?.subType === 'claymore' ? 12 : equippedMelee?.subType === 'gauntlets' ? 4 : 7;
     if (playerCombatRef.current.stamina < stamCost) {
       showToast('⚠️ Out of Stamina! Rest a moment.');
       return;
     }
 
+    // Reset combo if idle > 1.2s
+    if (now - lastAttackTimeRef.current > 1200) {
+      comboStepRef.current = 0;
+    }
+    const currentCombo = comboStepRef.current;
+    comboStepRef.current = (currentCombo + 1) % 3;
+
     // Deduct stamina & record attack time
     playerCombatRef.current.stamina -= stamCost;
     lastAttackTimeRef.current = now;
 
-    // Trigger arm swing animation
+    // Trigger arm swing & slash animation
     attackAnimRef.current = {
       isAttacking: true,
       startTime: now,
-      duration: Math.min(300, effectiveCooldown * 0.8),
+      duration: Math.min(320, effectiveCooldown * 0.9),
+      attackType: 'melee',
+      comboStep: currentCombo,
     };
 
     const p = playerMotionRef.current;
     const rot = p.rotation;
     const forwardX = Math.sin(rot);
     const forwardY = Math.cos(rot);
-    const totalWeaponDmg = weapon.damage + weaponBonusDmg;
 
-    if (weapon.type === 'sword' || weapon.type === 'halberd') {
-      sounds.playSwordSwing();
+    // Compute weapon damage based on equipped melee gear + power level + perks
+    const baseDmg = equippedMelee
+      ? (equippedMelee.damage || 35) * (1 + (dungeonsStats.powerLevel - 1) * 0.05) + weaponBonusDmg
+      : fallbackWeapon.damage + weaponBonusDmg;
 
-      // Hit detection in front cone
-      let hitCount = 0;
-      for (const m of monstersRef.current) {
-        if (m.state === 'dead') continue;
-        const dx = m.x - p.x;
-        const dy = m.y - p.y;
-        const dist = Math.hypot(dx, dy);
+    // Combo step 2 finisher deals +40% damage
+    const comboMult = currentCombo === 2 ? 1.4 : currentCombo === 1 ? 1.15 : 1.0;
+    const totalWeaponDmg = baseDmg * comboMult;
+    const weaponRange = equippedMelee ? (equippedMelee.range || 3.2) : fallbackWeapon.range;
 
-        if (dist <= weapon.range) {
-          const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
-          if (dot > -0.25 || dist < 1.4) {
-            hitCount++;
-            const isCrit = Math.random() < (0.22 + (activePerks.critChanceBonus || 0));
-            const dmg = Math.round(
-              (totalWeaponDmg + (Math.random() * 8 - 4)) * (isCrit ? 2.0 : 1.0)
-            );
-            m.hp -= dmg;
-            m.hurtUntilTime = now + 250;
+    sounds.playSwordSwing();
 
-            // Knockback push away from player
-            const kbDist = dist || 1;
-            m.x += (dx / kbDist) * 1.5;
-            m.y += (dy / kbDist) * 1.5;
-            sounds.playMonsterHit();
+    // Hit detection in front cone
+    let hitCount = 0;
+    const isSwirlingFinisher = currentCombo === 2 && equippedMelee?.enchantmentSlots?.some(s => s.id === 'swirling');
 
-            if (m.hp <= 0) {
-              m.state = 'dead';
-              sounds.playMonsterDeath();
-              handleMonsterDefeated(m);
+    for (const m of monstersRef.current) {
+      if (m.state === 'dead') continue;
+      const dx = m.x - p.x;
+      const dy = m.y - p.y;
+      const dist = Math.hypot(dx, dy);
+
+      // Swirling finisher hits 360 degrees around the player
+      const inRange = isSwirlingFinisher ? dist <= 3.6 : dist <= weaponRange;
+      const dot = (dx * forwardX + dy * forwardY) / (dist || 1);
+
+      if (inRange && (isSwirlingFinisher || dot > -0.25 || dist < 1.4)) {
+        hitCount++;
+        const isCrit = Math.random() < (0.22 + (activePerks.critChanceBonus || 0));
+        const critMult = isCrit ? 2.2 : 1.0;
+        const dmg = Math.round(
+          (totalWeaponDmg + (Math.random() * 8 - 4)) * critMult
+        );
+        m.hp -= dmg;
+        m.hurtUntilTime = now + 250;
+
+        // Knockback push away from player (stronger on finisher)
+        const kbStrength = currentCombo === 2 ? 2.4 : 1.5;
+        const kbDist = dist || 1;
+        m.x += (dx / kbDist) * kbStrength;
+        m.y += (dy / kbDist) * kbStrength;
+        sounds.playMonsterHit();
+
+        // Radiance healing burst perk
+        if (Math.random() < 0.25 && (equippedMelee?.id === 'suns_grace' || equippedMelee?.enchantmentSlots?.some(s => s.id === 'radiance'))) {
+          setDungeonsStats(prev => ({ ...prev, hp: Math.min(prev.maxHp, prev.hp + 18) }));
+          playerCombatRef.current.hp = Math.min(playerCombatRef.current.maxHp, playerCombatRef.current.hp + 18);
+          showToast('✨ Radiance! Healed +18 HP');
+        }
+
+        if (m.hp <= 0) {
+          m.state = 'dead';
+          sounds.playMonsterDeath();
+          handleMonsterDefeated(m);
+
+          // Cursed Axe exploding mob perk
+          if (equippedMelee?.id === 'cursed_axe') {
+            for (const other of monstersRef.current) {
+              if (other.state === 'dead' || other.id === m.id) continue;
+              const ox = other.x - m.x;
+              const oy = other.y - m.y;
+              if (Math.hypot(ox, oy) < 4.0) {
+                other.hp -= 45;
+                other.hurtUntilTime = now + 300;
+              }
             }
+            showToast('💥 Cursed Blast! Nearby foes damaged');
           }
         }
       }
-
-      if (hitCount > 0) {
-        setMonsters([...monstersRef.current]);
-      }
-    } else if (weapon.type === 'bow') {
-      sounds.playBowShoot();
-      projectilesRef.current.push({
-        id: `arrow_${now}`,
-        type: 'arrow',
-        x: p.x + forwardX * 0.7,
-        y: p.y + forwardY * 0.7,
-        z: p.elevation + 0.8,
-        vx: forwardX * (weapon.projectileSpeed || 25),
-        vy: forwardY * (weapon.projectileSpeed || 25),
-        vz: 0,
-        damage: totalWeaponDmg,
-        color: weapon.projectileColor || '#facc15',
-        distanceTraveled: 0,
-        maxDistance: weapon.range,
-      });
-      setProjectiles([...projectilesRef.current]);
-    } else if (weapon.type === 'staff') {
-      sounds.playMagicCast();
-      projectilesRef.current.push({
-        id: `magic_${now}`,
-        type: 'magic',
-        x: p.x + forwardX * 0.7,
-        y: p.y + forwardY * 0.7,
-        z: p.elevation + 0.8,
-        vx: forwardX * (weapon.projectileSpeed || 16),
-        vy: forwardY * (weapon.projectileSpeed || 16),
-        vz: 0,
-        damage: totalWeaponDmg,
-        color: weapon.projectileColor || '#38bdf8',
-        distanceTraveled: 0,
-        maxDistance: weapon.range,
-      });
-      setProjectiles([...projectilesRef.current]);
     }
-  }, [activeWeaponIndex, weaponBonusDmg, activePerks]);
+
+    if (hitCount > 0) {
+      setMonsters([...monstersRef.current]);
+    }
+  }, [activeWeaponIndex, weaponBonusDmg, activePerks, dungeonsStats.equippedMelee, dungeonsStats.powerLevel]);
 
   // 1b. Dungeons Ranged Weapon Attack Action (Bow / Crossbow)
   const handleRangedAttack = useCallback(() => {
@@ -2502,6 +2791,15 @@ export const App: React.FC = () => {
     const now = performance.now();
     const equippedBow = dungeonsStats.equippedRanged;
     const isFirework = dungeonsStats.buffs.fireworkLoaded;
+
+    // Trigger bow drawing & release animation
+    attackAnimRef.current = {
+      isAttacking: true,
+      startTime: now,
+      duration: 320,
+      attackType: 'ranged',
+      comboStep: 0,
+    };
 
     // Deduct 1 arrow
     setDungeonsStats(prev => ({
@@ -3819,6 +4117,8 @@ export const App: React.FC = () => {
             settings={settings}
             isNight={isNight}
             activeWeapon={activeWeapon}
+            equippedMelee={dungeonsStats.equippedMelee}
+            equippedRanged={dungeonsStats.equippedRanged}
             attackAnimRef={attackAnimRef}
             isHurtFlash={isHurtFlash}
             customization={characterCustomization}
@@ -3873,9 +4173,9 @@ export const App: React.FC = () => {
 
       {/* --- UI HUD LAYER --- */}
       <div className="absolute inset-0 pointer-events-none">
-        {/* Ancient Radar Compass (Non-overlapping positioning on both portrait & landscape) */}
+        {/* Ancient Radar Compass (Clean positioning below top header on both portrait & landscape) */}
         {nearbyFeature.feature && (
-          <div className="pointer-events-auto absolute top-16 sm:top-3 left-1/2 -translate-x-1/2 z-30 animate-in fade-in">
+          <div className="pointer-events-auto absolute top-13 sm:top-15 left-1/2 -translate-x-1/2 z-25 animate-in fade-in">
             <div
               className={`mc-panel px-2.5 py-0.5 sm:px-3 sm:py-1 flex items-center gap-1.5 shadow-xl border-2 whitespace-nowrap transition-all ${
                 nearbyFeature.dist < 3.5
@@ -3901,7 +4201,7 @@ export const App: React.FC = () => {
 
         {/* Floating Toast Notification */}
         {notification && (
-          <div className="fixed top-24 sm:top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="fixed top-24 sm:top-26 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] animate-in fade-in slide-in-from-top-4 duration-200">
             <div className="mc-panel px-3 py-1.5 sm:px-4 sm:py-2 bg-[#2d3748] text-white border-2 border-[#ffd700] shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex flex-col items-center text-center">
               <span className="text-sm sm:text-xl font-bold text-[#ffd700]">{notification.text}</span>
               {notification.sub && (

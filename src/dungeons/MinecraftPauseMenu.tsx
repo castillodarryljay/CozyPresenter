@@ -56,6 +56,9 @@ export const MinecraftPauseMenu: React.FC<MinecraftPauseMenuProps> = ({
         {/* Header */}
         <div className="w-full flex items-center justify-between border-b-2 border-black pb-2">
           <div className="text-left">
+            <span className="text-[11px] text-amber-300 font-bold tracking-widest uppercase block">
+              COZYWORLD
+            </span>
             <h2 className="text-3xl font-bold tracking-wider text-yellow-400 leading-none">
               GAME PAUSED
             </h2>

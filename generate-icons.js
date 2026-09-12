@@ -141,12 +141,12 @@ const createSvg = (size, isMaskable = false) => {
                fill="#ffffff"/>
     </g>
 
-    <!-- Bottom Emblem Text Pill: 'DUNGEONS' -->
+    <!-- Bottom Emblem Text Pill: 'COZYWORLD' -->
     <g transform="translate(${cx}, ${cy + innerSize * 0.40})">
-      <rect x="${-innerSize * 0.36}" y="${-innerSize * 0.07}" width="${innerSize * 0.72}" height="${innerSize * 0.14}" rx="${innerSize * 0.03}" 
+      <rect x="${-innerSize * 0.38}" y="${-innerSize * 0.07}" width="${innerSize * 0.76}" height="${innerSize * 0.14}" rx="${innerSize * 0.03}" 
             fill="#0f172a" stroke="#fbbf24" stroke-width="${size * 0.008}"/>
-      <text x="0" y="${innerSize * 0.035}" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="${innerSize * 0.11}" text-anchor="middle" letter-spacing="2">
-        DUNGEONS
+      <text x="0" y="${innerSize * 0.035}" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="${innerSize * 0.10}" text-anchor="middle" letter-spacing="1.5">
+        COZYWORLD
       </text>
     </g>
   </svg>`;

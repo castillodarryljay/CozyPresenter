@@ -99,7 +99,14 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
   }, []);
 
   const isLandscapeShort = windowHeight < 480;
-  const isCompact = windowWidth < 840 || forceTouchControls;
+  const isTouchDevice = typeof window !== 'undefined' && 
+    ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  const isFinePointer = typeof window !== 'undefined' && 
+    typeof window.matchMedia === 'function' && 
+    window.matchMedia('(pointer: fine)').matches;
+  
+  // Compact touch layout for mobile devices, or when window width is constrained
+  const isCompact = windowWidth < 900 || (isTouchDevice && !isFinePointer);
   const isNarrowMobile = windowWidth < 500 && !isLandscapeShort;
   const isUltraNarrow = windowWidth < 400;
 
@@ -128,32 +135,32 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
       {/* ========================================================= */}
       {/* 1. TOP HEADER BAR: HERO VITALS & ORGANIZED NAVIGATION     */}
       {/* ========================================================= */}
-      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-start z-30 pointer-events-none gap-2">
+      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-center z-30 pointer-events-none gap-1 sm:gap-2">
         {/* Left: Hero Profile & Power Level Diamond */}
         <div
           onClick={() => handleBtn(onOpenCharacterSheet)}
-          className="pointer-events-auto flex items-center gap-2 mc-panel-dark px-2.5 py-1.5 border-2 border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors"
+          className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 mc-panel-dark px-1.5 sm:px-2.5 py-1 sm:py-1.5 border-2 border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors flex-shrink-0 max-w-[42%] sm:max-w-none"
           title="Open Hero Stats & Customization (C)"
         >
           {/* Avatar Icon */}
-          <div className="relative w-8 h-8 sm:w-10 sm:h-10 mc-slot-dark flex items-center justify-center flex-shrink-0 text-base sm:text-xl">
+          <div className="relative w-7 h-7 sm:w-10 sm:h-10 mc-slot-dark flex items-center justify-center flex-shrink-0 text-sm sm:text-xl">
             <span>🗡️</span>
             {/* Level Badge */}
-            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[8px] sm:text-[10px] font-black px-1 border border-[#4ade80] shadow">
+            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[7px] sm:text-[10px] font-black px-0.5 sm:px-1 border border-[#4ade80] shadow leading-none">
               {stats.level}
             </div>
           </div>
 
           {/* Vitals Column */}
-          <div className="flex flex-col min-w-[85px] sm:min-w-[130px]">
+          <div className="flex flex-col min-w-[60px] sm:min-w-[125px]">
             <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-1">
-                HERO <Shield className="w-3 h-3 text-amber-400" />
+              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-0.5 truncate">
+                HERO <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 flex-shrink-0" />
               </span>
 
               {/* Power Level Diamond */}
               <div
-                className="flex items-center gap-0.5 sm:gap-1 bg-[#142338] px-1 sm:px-1.5 py-0.5 border border-[#38bdf8] text-[#38bdf8] font-black text-[9px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+                className="flex items-center gap-0.5 bg-[#142338] px-1 py-0.2 sm:px-1.5 sm:py-0.5 border border-[#38bdf8] text-[#38bdf8] font-black text-[8px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)] leading-none flex-shrink-0"
                 title="Overall Gear Power Level"
               >
                 <span>◆</span>
@@ -169,90 +176,143 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               />
             </div>
             <div className="flex justify-between items-center text-[7px] sm:text-[9px] text-[#a8998a] font-mono mt-0.5 leading-none">
-              <span>XP {Math.round(stats.xp)}/{stats.xpToNextLevel}</span>
+              <span className="truncate">XP {Math.round(stats.xp)}/{stats.xpToNextLevel}</span>
               {stats.enchantmentPoints > 0 && (
-                <span className="text-[#d8b4fe] font-bold animate-pulse">
-                  🟣 {stats.enchantmentPoints}pt
+                <span className="text-[#d8b4fe] font-bold animate-pulse ml-1">
+                  🟣{stats.enchantmentPoints}pt
                 </span>
               )}
             </div>
           </div>
         </div>
 
+        {/* Center: Mobile Compact Vitals Badge (Eliminates bottom center overlap) */}
+        {isCompact && (
+          <div className="pointer-events-auto flex items-center gap-1.5 mc-panel-dark px-2 py-1 border-2 border-[#5a483a] shadow-lg flex-shrink-0">
+            {/* The Iconic Minecraft Dungeons Red Heart Orb */}
+            <div
+              className={`relative w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#3b0d11] border-2 border-[#7f1d1d] shadow-[0_0_10px_rgba(239,68,68,0.6)] flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                isLowHp ? 'animate-bounce shadow-[0_0_20px_rgba(239,68,68,1)] border-red-500' : ''
+              }`}
+            >
+              <div
+                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#991b1b] via-[#dc2626] to-[#f87171] transition-all duration-300"
+                style={{ height: `${hpRatio * 100}%` }}
+              />
+              <span className="relative z-10 text-[10px] sm:text-xs drop-shadow">❤️</span>
+            </div>
+
+            <div className="flex flex-col leading-none">
+              <span className="font-mono font-black text-[11px] sm:text-xs text-red-300 tracking-tight">
+                {Math.round(stats.hp)}<span className="text-[8px] text-gray-400 font-normal">/{stats.maxHp}</span>
+              </span>
+              <span className="text-[7px] text-purple-300 font-mono mt-0.5">
+                👻 {stats.souls}
+              </span>
+            </div>
+
+            {/* Quick Potion Flask Button */}
+            <button
+              onClick={onDrinkPotion}
+              disabled={stats.potionCooldownRemaining > 0}
+              className="relative w-6 h-6 sm:w-7 sm:h-7 bg-[#261314] hover:bg-[#3f191b] border border-[#ef4444] rounded-lg flex items-center justify-center text-xs shadow-[0_0_6px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden flex-shrink-0 ml-0.5"
+              title="Drink Health Potion"
+            >
+              <span>🧪</span>
+              {potionRatio > 0 && (
+                <div
+                  className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[7px]"
+                  style={{ height: `${potionRatio * 100}%`, top: 0 }}
+                >
+                  {Math.ceil(stats.potionCooldownRemaining)}s
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Right: Currency & Clean Docked Navigation Bar */}
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Combined Currency Slot */}
           <div
             onClick={() => handleBtn(onOpenVillageTrade || onOpenCamp)}
-            className="flex items-center gap-2 mc-panel-dark px-2.5 py-1.5 border-2 border-[#5a483a] text-xs sm:text-sm shadow-md cursor-pointer hover:border-emerald-500 transition-colors"
+            className="flex items-center gap-1 sm:gap-2 mc-panel-dark px-1.5 sm:px-2.5 py-1 sm:py-1.5 border-2 border-[#5a483a] text-[10px] sm:text-sm shadow-md cursor-pointer hover:border-emerald-500 transition-colors"
             title="Emeralds & Arrows - Click to visit Camp or Trade"
           >
-            <div className="flex items-center gap-1 text-emerald-400 font-bold">
-              <span>💎</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 text-emerald-400 font-bold">
+              <span className="text-xs sm:text-sm">💎</span>
               <span className="font-mono">{stats.emeralds}</span>
             </div>
             <span className="text-gray-600">|</span>
-            <div className="flex items-center gap-1 text-amber-300 font-bold">
-              <span>🏹</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 text-amber-300 font-bold">
+              <span className="text-xs sm:text-sm">🏹</span>
               <span className="font-mono">{stats.arrows}</span>
             </div>
           </div>
 
           {/* Grouped Navigation Action Dock */}
-          <div className="flex items-center gap-1 mc-panel-dark p-1 border-2 border-[#5a483a] shadow-md">
-            {/* Inventory Button */}
+          <div className="flex items-center gap-0.5 sm:gap-1 mc-panel-dark p-0.5 sm:p-1 border-2 border-[#5a483a] shadow-md">
+            {/* Inventory Button - Always visible */}
             <button
               id="hud-inventory-btn"
               onClick={() => handleBtn(onOpenInventory)}
-              className="relative mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              className="relative mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
               title="Hero Inventory [I]"
             >
               <Backpack className="w-3.5 h-3.5 text-amber-300" />
               <span className="hidden sm:inline">INV</span>
               {stats.enchantmentPoints > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500 rounded-full animate-ping" />
               )}
             </button>
 
-            {/* Mission Map Button */}
+            {/* Mission Map Button - visible when width >= 460 */}
             <button
               id="hud-map-btn"
               onClick={() => handleBtn(onOpenMissionMap)}
-              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                windowWidth < 460 ? 'hidden' : 'flex'
+              }`}
               title="Mission Map [M]"
             >
               <MapIcon className="w-3.5 h-3.5 text-sky-300" />
-              <span className="hidden sm:inline">MAP</span>
+              <span className="hidden md:inline">MAP</span>
             </button>
 
-            {/* Camp Hub Button */}
+            {/* Camp Hub Button - visible when width >= 540 */}
             <button
               id="hud-camp-btn"
               onClick={() => handleBtn(onOpenCamp)}
-              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                windowWidth < 540 ? 'hidden' : 'flex'
+              }`}
               title="Camp & Blacksmith Forge [C]"
             >
               <Tent className="w-3.5 h-3.5 text-orange-300" />
-              <span className="hidden sm:inline">CAMP</span>
+              <span className="hidden md:inline">CAMP</span>
             </button>
 
-            {/* Build & Craft Drawer Button */}
+            {/* Build & Craft Drawer Button - visible when width >= 620 */}
             {onOpenBuildDrawer && (
               <button
                 id="hud-build-btn"
                 onClick={() => handleBtn(onOpenBuildDrawer)}
-                className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+                className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                  windowWidth < 620 ? 'hidden' : 'flex'
+                }`}
                 title="Build Structures & Craft [B]"
               >
                 <Hammer className="w-3.5 h-3.5 text-teal-300" />
-                <span className="hidden sm:inline">BUILD</span>
+                <span className="hidden md:inline">BUILD</span>
               </button>
             )}
 
-            {/* Sound Toggle Icon Button */}
+            {/* Sound Toggle Icon Button - visible when width >= 400 */}
             <button
               onClick={() => handleBtn(onToggleSound)}
-              className="mc-btn px-1.5 py-1 text-xs sm:text-sm flex items-center justify-center text-gray-300 cursor-pointer"
+              className={`mc-btn px-1 sm:px-1.5 py-1 text-xs sm:text-sm items-center justify-center text-gray-300 cursor-pointer ${
+                windowWidth < 400 ? 'hidden' : 'flex'
+              }`}
               title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
             >
               {soundEnabled ? (
@@ -262,15 +322,15 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               )}
             </button>
 
-            {/* In-Game Menu Button (Pause / Options / Save & Quit) */}
+            {/* In-Game Menu Button (Pause / Options / Save & Quit) - Always visible */}
             <button
               id="hud-menu-btn"
               onClick={() => handleBtn(onOpenPauseMenu || onOpenSettings)}
-              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 text-yellow-300 cursor-pointer"
+              className="mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 text-yellow-300 cursor-pointer"
               title="Game Menu & Pause [ESC]"
             >
               <Menu className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="hidden md:inline">MENU</span>
+              <span className="hidden lg:inline">MENU</span>
             </button>
           </div>
         </div>
@@ -278,13 +338,13 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
 
       {/* Contextual Village Merchant Prompt (Appears Prominently Without Shifting Top Nav) */}
       {isNearVillager && onOpenVillageTrade && (
-        <div className="absolute top-16 sm:top-20 right-3 sm:right-6 pointer-events-auto z-40 animate-bounce">
+        <div className="absolute top-16 sm:top-20 right-2 sm:right-4 pointer-events-auto z-40 animate-bounce">
           <button
             onClick={() => handleBtn(onOpenVillageTrade)}
-            className="mc-btn-green px-4 py-2 text-base sm:text-lg font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.8)] border-2 border-emerald-300 rounded cursor-pointer"
+            className="mc-btn-green px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.8)] border-2 border-emerald-300 rounded cursor-pointer"
             title="Trade with Merchant (E)"
           >
-            <Coins className="w-5 h-5 text-yellow-300" />
+            <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-300" />
             <span>TRADE WITH MERCHANT [E]</span>
           </button>
         </div>
@@ -300,104 +360,21 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
             <div className={`fixed ${
               isLandscapeShort
                 ? 'bottom-2 left-2 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
-                : isNarrowMobile
-                ? 'bottom-3 left-2 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
-                : 'bottom-3 left-3 sm:bottom-5 sm:left-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
+                : 'bottom-3 left-2.5 sm:bottom-5 sm:left-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]'
             } z-40`}>
               <VirtualJoystick
                 onMove={onMoveJoystick}
-                size={isLandscapeShort ? 76 : isNarrowMobile ? 84 : 94}
+                size={isLandscapeShort ? 74 : isNarrowMobile ? 80 : 92}
               />
             </div>
           )}
 
-          {/* --- BOTTOM-CENTER: Health Orb & Quick Potion --- */}
-          <div
-            className={`fixed ${
-              isLandscapeShort
-                ? 'bottom-1 left-1/2 -translate-x-1/2 scale-75 origin-bottom'
-                : isNarrowMobile
-                ? 'bottom-22 left-1/2 -translate-x-1/2 scale-90 origin-bottom'
-                : 'bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 pb-[env(safe-area-inset-bottom)]'
-            } z-30 pointer-events-auto flex flex-col items-center gap-1 transition-all`}
-          >
-            {/* Souls mini meter */}
-            <div
-              className="flex items-center gap-1 bg-[#150d1e]/90 px-2 py-0.5 rounded-full border border-[#581c87] text-[9px] text-[#c084fc] font-bold font-mono shadow-sm"
-              title="Souls gathered to power artifacts"
-            >
-              <span>👻</span>
-              <span>{stats.souls}/{stats.maxSouls}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* Potion Flask Button */}
-              <button
-                onClick={onDrinkPotion}
-                disabled={stats.potionCooldownRemaining > 0}
-                className="relative w-9 h-9 sm:w-11 sm:h-11 bg-[#261314] hover:bg-[#3f191b] border-2 border-[#ef4444] rounded-xl flex items-center justify-center text-base sm:text-lg shadow-[0_0_10px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
-                title="Drink Health Potion"
-              >
-                <span>🧪</span>
-                {potionRatio > 0 && (
-                  <div
-                    className="absolute inset-0 bg-black/80 flex items-center justify-center text-white font-mono font-bold text-[10px]"
-                    style={{ height: `${potionRatio * 100}%`, top: 0 }}
-                  >
-                    {Math.ceil(stats.potionCooldownRemaining)}s
-                  </div>
-                )}
-              </button>
-
-              {/* The Iconic Minecraft Dungeons Red Heart Orb */}
-              <div
-                className={`relative ${
-                  isLandscapeShort ? 'w-11 h-11' : isNarrowMobile ? 'w-13 h-13' : 'w-14 h-14 sm:w-15 sm:h-15'
-                } rounded-full bg-[#3b0d11] border-3 sm:border-4 border-[#7f1d1d] shadow-[0_0_16px_rgba(239,68,68,0.6)] flex items-center justify-center overflow-hidden ${
-                  isLowHp ? 'animate-bounce shadow-[0_0_25px_rgba(239,68,68,1)] border-red-500' : ''
-                }`}
-              >
-                {/* Liquid Level */}
-                <div
-                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#991b1b] via-[#dc2626] to-[#f87171] transition-all duration-300"
-                  style={{ height: `${hpRatio * 100}%` }}
-                />
-                <div className="relative z-10 flex flex-col items-center justify-center text-white text-center leading-none">
-                  <span className="text-xs sm:text-sm drop-shadow">❤️</span>
-                  <span className="font-mono font-black text-[9px] sm:text-[10px] tracking-tight text-white drop-shadow">
-                    {Math.round(stats.hp)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Dodge Roll Quick Button */}
-              <button
-                onClick={onDodgeRoll}
-                disabled={stats.rollCooldownRemaining > 0}
-                className="relative w-9 h-9 sm:w-11 sm:h-11 bg-[#1e2319] hover:bg-[#2a3421] border-2 border-[#84cc16] rounded-xl flex items-center justify-center text-base sm:text-lg shadow-[0_0_10px_rgba(132,204,22,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
-                title="Dodge Roll Evade"
-              >
-                <span>💨</span>
-                {rollRatio > 0 && (
-                  <div
-                    className="absolute inset-0 bg-black/80 flex items-center justify-center text-white font-mono font-bold text-[9px]"
-                    style={{ height: `${rollRatio * 100}%`, top: 0 }}
-                  >
-                    {stats.rollCooldownRemaining.toFixed(1)}s
-                  </div>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* --- BOTTOM-RIGHT: Action Pad Cluster (Combat & Artifacts) --- */}
+          {/* --- BOTTOM-RIGHT: Action Pad Cluster (Combat, Artifacts & Dodge Roll) --- */}
           <div
             className={`fixed ${
               isLandscapeShort
                 ? 'bottom-2 right-2 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
-                : isNarrowMobile
-                ? 'bottom-2 right-2 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
-                : 'bottom-3 right-3 sm:bottom-4 sm:right-4 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
+                : 'bottom-3 right-2 sm:bottom-4 sm:right-4 pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]'
             } z-40 pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2`}
           >
             {/* Row of 3 Equipped Artifacts */}
@@ -415,7 +392,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
                     key={slotIdx}
                     onClick={() => onActivateArtifact(slotIdx)}
                     disabled={!artifact || isOnCooldown || !hasEnoughSouls}
-                    className={`relative w-8 h-8 sm:w-10 sm:h-10 bg-[#1e1b18]/95 border-2 rounded-xl flex items-center justify-center text-sm sm:text-lg shadow-md active:scale-95 transition-all overflow-hidden cursor-pointer ${
+                    className={`relative w-8 h-8 sm:w-9 sm:h-9 bg-[#1e1b18]/95 border-2 rounded-xl flex items-center justify-center text-sm sm:text-base shadow-md active:scale-95 transition-all overflow-hidden cursor-pointer ${
                       artifact
                         ? artifact.rarity === 'unique'
                           ? 'border-[#fbbf24] shadow-[0_0_8px_rgba(251,191,36,0.4)]'
@@ -426,12 +403,12 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
                   >
                     {artifact ? <span>{artifact.icon}</span> : <span className="text-gray-600 text-xs">✦</span>}
                     {isOnCooldown && (
-                      <div className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[9px] sm:text-[10px]">
+                      <div className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[9px]">
                         {Math.ceil(cooldown)}s
                       </div>
                     )}
                     {artifact?.soulCost && (
-                      <span className="absolute top-0.5 right-0.5 text-[6px] sm:text-[7px] font-mono font-black text-purple-300 bg-purple-950/80 px-0.5 rounded">
+                      <span className="absolute top-0.5 right-0.5 text-[6px] font-mono font-black text-purple-300 bg-purple-950/80 px-0.5 rounded">
                         👻{artifact.soulCost}
                       </span>
                     )}
@@ -441,12 +418,30 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
             </div>
 
             {/* Combat Action Buttons Grid / Row */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {/* Dodge Roll Quick Button */}
+              <button
+                onClick={onDodgeRoll}
+                disabled={stats.rollCooldownRemaining > 0}
+                className="relative w-9 h-9 sm:w-11 sm:h-11 bg-[#1e2319] hover:bg-[#2a3421] border-2 border-[#84cc16] rounded-xl flex items-center justify-center text-base sm:text-lg shadow-[0_0_10px_rgba(132,204,22,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden"
+                title="Dodge Roll Evade"
+              >
+                <span>💨</span>
+                {rollRatio > 0 && (
+                  <div
+                    className="absolute inset-0 bg-black/80 flex items-center justify-center text-white font-mono font-bold text-[9px]"
+                    style={{ height: `${rollRatio * 100}%`, top: 0 }}
+                  >
+                    {stats.rollCooldownRemaining.toFixed(1)}s
+                  </div>
+                )}
+              </button>
+
               {/* Optional Contextual Action Button (Spire, Chest, Dig) */}
               {onInteract && (
                 <button
                   onClick={onInteract}
-                  className={`px-2 sm:px-2.5 h-10 sm:h-12 rounded-xl font-bold text-xs flex items-center gap-1 border-2 transition-all active:scale-95 cursor-pointer shadow-lg ${
+                  className={`px-2 sm:px-2.5 h-9 sm:h-11 rounded-xl font-bold text-xs flex items-center gap-1 border-2 transition-all active:scale-95 cursor-pointer shadow-lg ${
                     canInteract
                       ? 'bg-[#15803d] hover:bg-[#16a34a] border-[#86efac] text-white shadow-[0_0_15px_rgba(34,197,94,0.6)] animate-pulse'
                       : 'bg-[#2a241f] border-[#4a3e32] text-[#d4c5b9]'
@@ -462,10 +457,10 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               <button
                 onClick={onRangedAttack}
                 disabled={stats.arrows <= 0}
-                className="relative w-11 h-11 sm:w-13 sm:h-13 bg-gradient-to-br from-[#d97706] to-[#b45309] hover:from-[#b45309] hover:to-[#92400e] border-2 border-[#fef08a] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_15px_rgba(217,119,6,0.6)] active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                className="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#d97706] to-[#b45309] hover:from-[#b45309] hover:to-[#92400e] border-2 border-[#fef08a] rounded-xl sm:rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_12px_rgba(217,119,6,0.6)] active:scale-95 transition-all cursor-pointer disabled:opacity-40"
                 title="Shoot Bow / Crossbow"
               >
-                <Crosshair className="w-4 sm:w-5 h-4 sm:h-5 drop-shadow" />
+                <Crosshair className="w-4 sm:w-4.5 h-4 sm:h-4.5 drop-shadow" />
                 <span className="text-[7px] sm:text-[8px] font-black font-mono tracking-tight text-[#fef08a]">
                   🏹 {stats.arrows}
                 </span>
@@ -474,11 +469,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
               {/* Primary Melee Attack Button (Big, Ergonomic Strike Target) */}
               <button
                 onClick={onMeleeAttack}
-                className="w-13 h-13 sm:w-16 sm:h-16 bg-gradient-to-br from-[#dc2626] to-[#991b1b] hover:from-[#ef4444] hover:to-[#b91c1c] border-2 sm:border-3 border-[#fca5a5] rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.7)] active:scale-95 transition-all cursor-pointer"
+                className="w-12 h-12 sm:w-15 sm:h-15 bg-gradient-to-br from-[#dc2626] to-[#991b1b] hover:from-[#ef4444] hover:to-[#b91c1c] border-2 sm:border-3 border-[#fca5a5] rounded-xl sm:rounded-2xl flex flex-col items-center justify-center text-white shadow-[0_0_20px_rgba(220,38,38,0.7)] active:scale-95 transition-all cursor-pointer"
                 title="Primary Melee Strike"
               >
-                <Sword className="w-6 sm:w-7 h-6 sm:h-7 drop-shadow" />
-                <span className="text-[8px] sm:text-[9px] font-black font-mono uppercase tracking-wider text-white">
+                <Sword className="w-5 sm:w-6 h-5 sm:h-6 drop-shadow" />
+                <span className="text-[7px] sm:text-[8px] font-black font-mono uppercase tracking-wider text-white">
                   STRIKE
                 </span>
               </button>

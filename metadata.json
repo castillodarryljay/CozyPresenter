@@ -1,6 +1,6 @@
 {
-  "name": "Minecraft Dungeons: Voxel Explorer",
-  "description": "An action-packed Minecraft Dungeons crawler featuring iconic mechanics: Power Level scaling, cooldown-based Artifacts, tier-based Enchantments, Camp Blacksmith and Trader merchants, Emerald economy, and authentic Dungeons HUD.",
+  "name": "CozyWorld",
+  "description": "An action-packed Minecraft Dungeons-style voxel crawler and cozy adventure featuring hero progression, artifacts, enchantments, camp building, and endless exploration.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

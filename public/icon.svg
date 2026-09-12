@@ -124,12 +124,12 @@
                fill="#ffffff"/>
     </g>
 
-    <!-- Bottom Emblem Text Pill: 'DUNGEONS' -->
+    <!-- Bottom Emblem Text Pill: 'COZYWORLD' -->
     <g transform="translate(256, 444.41600000000005)">
-      <rect x="-169.5744" y="-32.97280000000001" width="339.1488" height="65.94560000000001" rx="14.1312" 
+      <rect x="-178.9952" y="-32.97280000000001" width="357.9904" height="65.94560000000001" rx="14.1312" 
             fill="#0f172a" stroke="#fbbf24" stroke-width="4.096"/>
-      <text x="0" y="16.486400000000003" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="51.8144" text-anchor="middle" letter-spacing="2">
-        DUNGEONS
+      <text x="0" y="16.486400000000003" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="47.104000000000006" text-anchor="middle" letter-spacing="1.5">
+        COZYWORLD
       </text>
     </g>
   </svg>
