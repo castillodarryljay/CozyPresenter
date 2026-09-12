@@ -107,8 +107,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
   
   // Compact touch layout for mobile devices, or when window width is constrained
   const isCompact = windowWidth < 900 || (isTouchDevice && !isFinePointer);
+  const isPortrait = windowHeight >= windowWidth || windowWidth < 680;
   const isNarrowMobile = windowWidth < 500 && !isLandscapeShort;
   const isUltraNarrow = windowWidth < 400;
+
+  const [isQuickNavOpen, setIsQuickNavOpen] = useState<boolean>(false);
 
   const hpRatio = Math.max(0, Math.min(1, stats.hp / stats.maxHp));
   const isLowHp = hpRatio <= 0.3;
@@ -135,217 +138,409 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
       {/* ========================================================= */}
       {/* 1. TOP HEADER BAR: HERO VITALS & ORGANIZED NAVIGATION     */}
       {/* ========================================================= */}
-      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-center z-30 pointer-events-none gap-1 sm:gap-2">
-        {/* Left: Hero Profile & Power Level Diamond */}
-        <div
-          onClick={() => handleBtn(onOpenCharacterSheet)}
-          className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 mc-panel-dark px-1.5 sm:px-2.5 py-1 sm:py-1.5 border-2 border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors flex-shrink-0 max-w-[42%] sm:max-w-none"
-          title="Open Hero Stats & Customization (C)"
-        >
-          {/* Avatar Icon */}
-          <div className="relative w-7 h-7 sm:w-10 sm:h-10 mc-slot-dark flex items-center justify-center flex-shrink-0 text-sm sm:text-xl">
-            <span>🗡️</span>
-            {/* Level Badge */}
-            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[7px] sm:text-[10px] font-black px-0.5 sm:px-1 border border-[#4ade80] shadow leading-none">
-              {stats.level}
+      <header className="absolute top-1.5 sm:top-3 left-1.5 sm:left-4 right-1.5 sm:right-4 pt-[max(0.25rem,env(safe-area-inset-top))] flex flex-col gap-1.5 z-30 pointer-events-none">
+        <div className="w-full flex justify-between items-center z-30 pointer-events-none gap-1 sm:gap-2">
+          {/* Left: Hero Profile & Power Level Diamond */}
+          {isPortrait ? (
+            /* Minimized Hero Pill for Portrait Mode */
+            <div
+              id="hud-portrait-hero-pill"
+              onClick={() => handleBtn(onOpenCharacterSheet)}
+              className="pointer-events-auto flex items-center gap-1 mc-panel-dark px-1.5 py-1 border border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors flex-shrink-0"
+              title="Hero Sheet & Stats [C]"
+            >
+              <div className="relative w-6 h-6 mc-slot-dark flex items-center justify-center flex-shrink-0 text-xs">
+                <span>🗡️</span>
+                <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[7px] font-black px-0.5 border border-[#4ade80] shadow leading-none">
+                  {stats.level}
+                </div>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-0.5 bg-[#142338] px-1 py-0.2 border border-[#38bdf8] text-[#38bdf8] font-black text-[8px] leading-none shadow-[0_0_6px_rgba(56,189,248,0.4)]">
+                  <span>◆</span>
+                  <span>{stats.powerLevel}</span>
+                </div>
+                <div className="w-6 bg-[#110e0c] h-1 overflow-hidden border border-[#3a322c]">
+                  <div
+                    className="bg-gradient-to-r from-[#22c55e] to-[#86efac] h-full"
+                    style={{ width: `${xpRatio * 100}%` }}
+                  />
+                </div>
+              </div>
+              {stats.enchantmentPoints > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping flex-shrink-0" title={`${stats.enchantmentPoints} Enchantment Points`} />
+              )}
             </div>
-          </div>
+          ) : (
+            /* Expanded Hero Card for Landscape & Wide Desktop */
+            <div
+              onClick={() => handleBtn(onOpenCharacterSheet)}
+              className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 mc-panel-dark px-1.5 sm:px-2.5 py-1 sm:py-1.5 border-2 border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors flex-shrink-0 max-w-[42%] sm:max-w-none"
+              title="Open Hero Stats & Customization (C)"
+            >
+              {/* Avatar Icon */}
+              <div className="relative w-7 h-7 sm:w-10 sm:h-10 mc-slot-dark flex items-center justify-center flex-shrink-0 text-sm sm:text-xl">
+                <span>🗡️</span>
+                {/* Level Badge */}
+                <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[7px] sm:text-[10px] font-black px-0.5 sm:px-1 border border-[#4ade80] shadow leading-none">
+                  {stats.level}
+                </div>
+              </div>
 
-          {/* Vitals Column */}
-          <div className="flex flex-col min-w-[60px] sm:min-w-[125px]">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-0.5 truncate">
-                HERO <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 flex-shrink-0" />
-              </span>
+              {/* Vitals Column */}
+              <div className="flex flex-col min-w-[60px] sm:min-w-[125px]">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-0.5 truncate">
+                    HERO <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 flex-shrink-0" />
+                  </span>
 
-              {/* Power Level Diamond */}
+                  {/* Power Level Diamond */}
+                  <div
+                    className="flex items-center gap-0.5 bg-[#142338] px-1 py-0.2 sm:px-1.5 sm:py-0.5 border border-[#38bdf8] text-[#38bdf8] font-black text-[8px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)] leading-none flex-shrink-0"
+                    title="Overall Gear Power Level"
+                  >
+                    <span>◆</span>
+                    <span>{stats.powerLevel}</span>
+                  </div>
+                </div>
+
+                {/* XP Bar */}
+                <div className="w-full bg-[#110e0c] h-1.5 sm:h-2 overflow-hidden border border-[#3a322c] mt-0.5 relative">
+                  <div
+                    className="bg-gradient-to-r from-[#22c55e] to-[#86efac] h-full transition-all duration-300"
+                    style={{ width: `${xpRatio * 100}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[7px] sm:text-[9px] text-[#a8998a] font-mono mt-0.5 leading-none">
+                  <span className="truncate">XP {Math.round(stats.xp)}/{stats.xpToNextLevel}</span>
+                  {stats.enchantmentPoints > 0 && (
+                    <span className="text-[#d8b4fe] font-bold animate-pulse ml-1">
+                      🟣{stats.enchantmentPoints}pt
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Center: Minimized Vitals for Portrait Mode */}
+          {isPortrait ? (
+            <div
+              id="hud-portrait-vitals-pill"
+              className="pointer-events-auto flex items-center gap-1 mc-panel-dark px-1.5 py-1 border border-[#5a483a] shadow-md flex-shrink-0"
+            >
+              {/* The Iconic Minecraft Dungeons Red Heart Orb */}
               <div
-                className="flex items-center gap-0.5 bg-[#142338] px-1 py-0.2 sm:px-1.5 sm:py-0.5 border border-[#38bdf8] text-[#38bdf8] font-black text-[8px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)] leading-none flex-shrink-0"
-                title="Overall Gear Power Level"
+                className={`relative w-6 h-6 rounded-full bg-[#3b0d11] border border-[#7f1d1d] shadow-[0_0_6px_rgba(239,68,68,0.5)] flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                  isLowHp ? 'animate-bounce shadow-[0_0_12px_rgba(239,68,68,1)] border-red-500' : ''
+                }`}
               >
-                <span>◆</span>
-                <span>{stats.powerLevel}</span>
+                <div
+                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#991b1b] via-[#dc2626] to-[#f87171] transition-all duration-300"
+                  style={{ height: `${hpRatio * 100}%` }}
+                />
+                <span className="relative z-10 text-[9px] drop-shadow">❤️</span>
+              </div>
+
+              <div className="flex flex-col leading-none">
+                <span className="font-mono font-black text-[10px] text-red-300 tracking-tight">
+                  {Math.round(stats.hp)}
+                </span>
+                {stats.souls > 0 && (
+                  <span className="text-[7px] text-purple-300 font-mono">
+                    👻{stats.souls}
+                  </span>
+                )}
+              </div>
+
+              {/* Quick Potion Flask Button */}
+              <button
+                onClick={onDrinkPotion}
+                disabled={stats.potionCooldownRemaining > 0}
+                className="relative w-6 h-6 bg-[#261314] hover:bg-[#3f191b] border border-[#ef4444] rounded flex items-center justify-center text-[10px] shadow-[0_0_6px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden flex-shrink-0 ml-0.5"
+                title="Drink Health Potion"
+              >
+                <span>🧪</span>
+                {potionRatio > 0 && (
+                  <div
+                    className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[7px]"
+                    style={{ height: `${potionRatio * 100}%`, top: 0 }}
+                  >
+                    {Math.ceil(stats.potionCooldownRemaining)}s
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : isCompact ? (
+            /* Tablet Landscape Compact Vitals Badge */
+            <div className="pointer-events-auto flex items-center gap-1.5 mc-panel-dark px-2 py-1 border-2 border-[#5a483a] shadow-lg flex-shrink-0">
+              <div
+                className={`relative w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#3b0d11] border-2 border-[#7f1d1d] shadow-[0_0_10px_rgba(239,68,68,0.6)] flex items-center justify-center overflow-hidden flex-shrink-0 ${
+                  isLowHp ? 'animate-bounce shadow-[0_0_20px_rgba(239,68,68,1)] border-red-500' : ''
+                }`}
+              >
+                <div
+                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#991b1b] via-[#dc2626] to-[#f87171] transition-all duration-300"
+                  style={{ height: `${hpRatio * 100}%` }}
+                />
+                <span className="relative z-10 text-[10px] sm:text-xs drop-shadow">❤️</span>
+              </div>
+
+              <div className="flex flex-col leading-none">
+                <span className="font-mono font-black text-[11px] sm:text-xs text-red-300 tracking-tight">
+                  {Math.round(stats.hp)}<span className="text-[8px] text-gray-400 font-normal">/{stats.maxHp}</span>
+                </span>
+                <span className="text-[7px] text-purple-300 font-mono mt-0.5">
+                  👻 {stats.souls}
+                </span>
+              </div>
+
+              {/* Quick Potion Flask Button */}
+              <button
+                onClick={onDrinkPotion}
+                disabled={stats.potionCooldownRemaining > 0}
+                className="relative w-6 h-6 sm:w-7 sm:h-7 bg-[#261314] hover:bg-[#3f191b] border border-[#ef4444] rounded-lg flex items-center justify-center text-xs shadow-[0_0_6px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden flex-shrink-0 ml-0.5"
+                title="Drink Health Potion"
+              >
+                <span>🧪</span>
+                {potionRatio > 0 && (
+                  <div
+                    className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[7px]"
+                    style={{ height: `${potionRatio * 100}%`, top: 0 }}
+                  >
+                    {Math.ceil(stats.potionCooldownRemaining)}s
+                  </div>
+                )}
+              </button>
+            </div>
+          ) : null}
+
+          {/* Right: Currency & Minimized Navigation Dock */}
+          <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            {/* Combined Currency Slot */}
+            <div
+              onClick={() => handleBtn(onOpenVillageTrade || onOpenCamp)}
+              className="flex items-center gap-1 sm:gap-1.5 mc-panel-dark px-1.5 sm:px-2 py-1 border border-[#5a483a] text-[10px] sm:text-xs shadow-md cursor-pointer hover:border-emerald-500 transition-colors flex-shrink-0"
+              title="Emeralds & Arrows - Click to visit Camp or Trade"
+            >
+              <div className="flex items-center gap-0.5 text-emerald-400 font-bold">
+                <span className="text-[10px] sm:text-xs">💎</span>
+                <span className="font-mono">{stats.emeralds}</span>
+              </div>
+              <span className="text-gray-600 text-[9px]">|</span>
+              <div className="flex items-center gap-0.5 text-amber-300 font-bold">
+                <span className="text-[10px] sm:text-xs">🏹</span>
+                <span className="font-mono">{stats.arrows}</span>
               </div>
             </div>
 
-            {/* XP Bar */}
-            <div className="w-full bg-[#110e0c] h-1.5 sm:h-2 overflow-hidden border border-[#3a322c] mt-0.5 relative">
-              <div
-                className="bg-gradient-to-r from-[#22c55e] to-[#86efac] h-full transition-all duration-300"
-                style={{ width: `${xpRatio * 100}%` }}
-              />
-            </div>
-            <div className="flex justify-between items-center text-[7px] sm:text-[9px] text-[#a8998a] font-mono mt-0.5 leading-none">
-              <span className="truncate">XP {Math.round(stats.xp)}/{stats.xpToNextLevel}</span>
-              {stats.enchantmentPoints > 0 && (
-                <span className="text-[#d8b4fe] font-bold animate-pulse ml-1">
-                  🟣{stats.enchantmentPoints}pt
-                </span>
-              )}
-            </div>
+            {/* Navigation Action Dock */}
+            {isPortrait ? (
+              /* Minimized Navigation Pill for Portrait: Direct Inventory + Quick Menu Toggle */
+              <div className="flex items-center gap-1 mc-panel-dark p-0.5 border border-[#5a483a] shadow-md flex-shrink-0">
+                {/* Inventory Button */}
+                <button
+                  id="hud-inventory-btn"
+                  onClick={() => handleBtn(onOpenInventory)}
+                  className="relative mc-btn w-7 h-7 flex items-center justify-center cursor-pointer"
+                  title="Hero Inventory [I]"
+                >
+                  <Backpack className="w-3.5 h-3.5 text-amber-300" />
+                  {stats.enchantmentPoints > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-ping" />
+                  )}
+                </button>
+
+                {/* Quick Nav Strip Toggle */}
+                <button
+                  id="hud-quick-nav-toggle"
+                  onClick={() => {
+                    dungeonsAudio.playButtonClick();
+                    setIsQuickNavOpen((prev) => !prev);
+                  }}
+                  className={`mc-btn w-7 h-7 flex items-center justify-center cursor-pointer transition-colors ${
+                    isQuickNavOpen ? 'bg-amber-400 text-black border-amber-300' : ''
+                  }`}
+                  title={isQuickNavOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+                >
+                  <Menu className={`w-3.5 h-3.5 ${isQuickNavOpen ? 'text-black font-bold' : 'text-yellow-400'}`} />
+                </button>
+              </div>
+            ) : (
+              /* Full Dock for Landscape & Desktop */
+              <div className="flex items-center gap-0.5 sm:gap-1 mc-panel-dark p-0.5 sm:p-1 border-2 border-[#5a483a] shadow-md">
+                {/* Inventory Button - Always visible */}
+                <button
+                  id="hud-inventory-btn"
+                  onClick={() => handleBtn(onOpenInventory)}
+                  className="relative mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+                  title="Hero Inventory [I]"
+                >
+                  <Backpack className="w-3.5 h-3.5 text-amber-300" />
+                  <span className="hidden sm:inline">INV</span>
+                  {stats.enchantmentPoints > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500 rounded-full animate-ping" />
+                  )}
+                </button>
+
+                {/* Mission Map Button - visible when width >= 460 */}
+                <button
+                  id="hud-map-btn"
+                  onClick={() => handleBtn(onOpenMissionMap)}
+                  className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                    windowWidth < 460 ? 'hidden' : 'flex'
+                  }`}
+                  title="Mission Map [M]"
+                >
+                  <MapIcon className="w-3.5 h-3.5 text-sky-300" />
+                  <span className="hidden md:inline">MAP</span>
+                </button>
+
+                {/* Camp Hub Button - visible when width >= 540 */}
+                <button
+                  id="hud-camp-btn"
+                  onClick={() => handleBtn(onOpenCamp)}
+                  className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                    windowWidth < 540 ? 'hidden' : 'flex'
+                  }`}
+                  title="Camp & Blacksmith Forge [C]"
+                >
+                  <Tent className="w-3.5 h-3.5 text-orange-300" />
+                  <span className="hidden md:inline">CAMP</span>
+                </button>
+
+                {/* Build & Craft Drawer Button - visible when width >= 620 */}
+                {onOpenBuildDrawer && (
+                  <button
+                    id="hud-build-btn"
+                    onClick={() => handleBtn(onOpenBuildDrawer)}
+                    className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
+                      windowWidth < 620 ? 'hidden' : 'flex'
+                    }`}
+                    title="Build Structures & Craft [B]"
+                  >
+                    <Hammer className="w-3.5 h-3.5 text-teal-300" />
+                    <span className="hidden md:inline">BUILD</span>
+                  </button>
+                )}
+
+                {/* Sound Toggle Icon Button - visible when width >= 400 */}
+                <button
+                  onClick={() => handleBtn(onToggleSound)}
+                  className={`mc-btn px-1 sm:px-1.5 py-1 text-xs sm:text-sm items-center justify-center text-gray-300 cursor-pointer ${
+                    windowWidth < 400 ? 'hidden' : 'flex'
+                  }`}
+                  title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
+                >
+                  {soundEnabled ? (
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                  )}
+                </button>
+
+                {/* In-Game Menu Button (Pause / Options / Save & Quit) - Always visible */}
+                <button
+                  id="hud-menu-btn"
+                  onClick={() => handleBtn(onOpenPauseMenu || onOpenSettings)}
+                  className="mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 text-yellow-300 cursor-pointer"
+                  title="Game Menu & Pause [ESC]"
+                >
+                  <Menu className="w-3.5 h-3.5 text-yellow-400" />
+                  <span className="hidden lg:inline">MENU</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Center: Mobile Compact Vitals Badge (Eliminates bottom center overlap) */}
-        {isCompact && (
-          <div className="pointer-events-auto flex items-center gap-1.5 mc-panel-dark px-2 py-1 border-2 border-[#5a483a] shadow-lg flex-shrink-0">
-            {/* The Iconic Minecraft Dungeons Red Heart Orb */}
-            <div
-              className={`relative w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#3b0d11] border-2 border-[#7f1d1d] shadow-[0_0_10px_rgba(239,68,68,0.6)] flex items-center justify-center overflow-hidden flex-shrink-0 ${
-                isLowHp ? 'animate-bounce shadow-[0_0_20px_rgba(239,68,68,1)] border-red-500' : ''
-              }`}
-            >
-              <div
-                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#991b1b] via-[#dc2626] to-[#f87171] transition-all duration-300"
-                style={{ height: `${hpRatio * 100}%` }}
-              />
-              <span className="relative z-10 text-[10px] sm:text-xs drop-shadow">❤️</span>
-            </div>
-
-            <div className="flex flex-col leading-none">
-              <span className="font-mono font-black text-[11px] sm:text-xs text-red-300 tracking-tight">
-                {Math.round(stats.hp)}<span className="text-[8px] text-gray-400 font-normal">/{stats.maxHp}</span>
-              </span>
-              <span className="text-[7px] text-purple-300 font-mono mt-0.5">
-                👻 {stats.souls}
-              </span>
-            </div>
-
-            {/* Quick Potion Flask Button */}
-            <button
-              onClick={onDrinkPotion}
-              disabled={stats.potionCooldownRemaining > 0}
-              className="relative w-6 h-6 sm:w-7 sm:h-7 bg-[#261314] hover:bg-[#3f191b] border border-[#ef4444] rounded-lg flex items-center justify-center text-xs shadow-[0_0_6px_rgba(239,68,68,0.4)] disabled:opacity-40 active:scale-95 transition-all cursor-pointer overflow-hidden flex-shrink-0 ml-0.5"
-              title="Drink Health Potion"
-            >
-              <span>🧪</span>
-              {potionRatio > 0 && (
-                <div
-                  className="absolute inset-0 bg-black/85 flex items-center justify-center text-white font-mono font-bold text-[7px]"
-                  style={{ height: `${potionRatio * 100}%`, top: 0 }}
-                >
-                  {Math.ceil(stats.potionCooldownRemaining)}s
-                </div>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Right: Currency & Clean Docked Navigation Bar */}
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Combined Currency Slot */}
+        {/* PORTRAIT QUICK NAVIGATION DROPDOWN STRIP */}
+        {isPortrait && isQuickNavOpen && (
           <div
-            onClick={() => handleBtn(onOpenVillageTrade || onOpenCamp)}
-            className="flex items-center gap-1 sm:gap-2 mc-panel-dark px-1.5 sm:px-2.5 py-1 sm:py-1.5 border-2 border-[#5a483a] text-[10px] sm:text-sm shadow-md cursor-pointer hover:border-emerald-500 transition-colors"
-            title="Emeralds & Arrows - Click to visit Camp or Trade"
+            id="portrait-quick-nav-strip"
+            className="pointer-events-auto flex items-center justify-between gap-1 mc-panel-dark px-1.5 py-1 border-2 border-[#ffd700] shadow-[0_8px_25px_rgba(0,0,0,0.9)] w-full max-w-sm mx-auto animate-in fade-in slide-in-from-top-1 z-35"
           >
-            <div className="flex items-center gap-0.5 sm:gap-1 text-emerald-400 font-bold">
-              <span className="text-xs sm:text-sm">💎</span>
-              <span className="font-mono">{stats.emeralds}</span>
-            </div>
-            <span className="text-gray-600">|</span>
-            <div className="flex items-center gap-0.5 sm:gap-1 text-amber-300 font-bold">
-              <span className="text-xs sm:text-sm">🏹</span>
-              <span className="font-mono">{stats.arrows}</span>
-            </div>
-          </div>
-
-          {/* Grouped Navigation Action Dock */}
-          <div className="flex items-center gap-0.5 sm:gap-1 mc-panel-dark p-0.5 sm:p-1 border-2 border-[#5a483a] shadow-md">
-            {/* Inventory Button - Always visible */}
+            {/* Map */}
             <button
-              id="hud-inventory-btn"
-              onClick={() => handleBtn(onOpenInventory)}
-              className="relative mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
-              title="Hero Inventory [I]"
+              onClick={() => {
+                setIsQuickNavOpen(false);
+                handleBtn(onOpenMissionMap);
+              }}
+              className="mc-btn px-1.5 py-1 text-[10px] font-bold flex items-center justify-center gap-1 text-sky-300 flex-1 cursor-pointer"
+              title="Mission Map"
             >
-              <Backpack className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">INV</span>
-              {stats.enchantmentPoints > 0 && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-purple-500 rounded-full animate-ping" />
-              )}
+              <MapIcon className="w-3 h-3 text-sky-300" />
+              <span>MAP</span>
             </button>
 
-            {/* Mission Map Button - visible when width >= 460 */}
+            {/* Camp */}
             <button
-              id="hud-map-btn"
-              onClick={() => handleBtn(onOpenMissionMap)}
-              className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
-                windowWidth < 460 ? 'hidden' : 'flex'
-              }`}
-              title="Mission Map [M]"
+              onClick={() => {
+                setIsQuickNavOpen(false);
+                handleBtn(onOpenCamp);
+              }}
+              className="mc-btn px-1.5 py-1 text-[10px] font-bold flex items-center justify-center gap-1 text-orange-300 flex-1 cursor-pointer"
+              title="Camp & Forge"
             >
-              <MapIcon className="w-3.5 h-3.5 text-sky-300" />
-              <span className="hidden md:inline">MAP</span>
+              <Tent className="w-3 h-3 text-orange-300" />
+              <span>CAMP</span>
             </button>
 
-            {/* Camp Hub Button - visible when width >= 540 */}
-            <button
-              id="hud-camp-btn"
-              onClick={() => handleBtn(onOpenCamp)}
-              className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
-                windowWidth < 540 ? 'hidden' : 'flex'
-              }`}
-              title="Camp & Blacksmith Forge [C]"
-            >
-              <Tent className="w-3.5 h-3.5 text-orange-300" />
-              <span className="hidden md:inline">CAMP</span>
-            </button>
-
-            {/* Build & Craft Drawer Button - visible when width >= 620 */}
+            {/* Build */}
             {onOpenBuildDrawer && (
               <button
-                id="hud-build-btn"
-                onClick={() => handleBtn(onOpenBuildDrawer)}
-                className={`mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold items-center gap-1 cursor-pointer ${
-                  windowWidth < 620 ? 'hidden' : 'flex'
-                }`}
-                title="Build Structures & Craft [B]"
+                onClick={() => {
+                  setIsQuickNavOpen(false);
+                  handleBtn(onOpenBuildDrawer);
+                }}
+                className="mc-btn px-1.5 py-1 text-[10px] font-bold flex items-center justify-center gap-1 text-teal-300 flex-1 cursor-pointer"
+                title="Build & Craft"
               >
-                <Hammer className="w-3.5 h-3.5 text-teal-300" />
-                <span className="hidden md:inline">BUILD</span>
+                <Hammer className="w-3 h-3 text-teal-300" />
+                <span>BUILD</span>
               </button>
             )}
 
-            {/* Sound Toggle Icon Button - visible when width >= 400 */}
+            {/* Sound Toggle */}
             <button
               onClick={() => handleBtn(onToggleSound)}
-              className={`mc-btn px-1 sm:px-1.5 py-1 text-xs sm:text-sm items-center justify-center text-gray-300 cursor-pointer ${
-                windowWidth < 400 ? 'hidden' : 'flex'
-              }`}
-              title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
+              className="mc-btn px-1.5 py-1 text-[10px] font-bold flex items-center justify-center gap-1 text-gray-200 flex-1 cursor-pointer"
+              title={soundEnabled ? 'Mute SFX' : 'Unmute SFX'}
             >
               {soundEnabled ? (
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                <Volume2 className="w-3 h-3 text-emerald-400" />
               ) : (
-                <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                <VolumeX className="w-3 h-3 text-rose-400" />
               )}
+              <span>{soundEnabled ? 'SFX' : 'MUTE'}</span>
             </button>
 
-            {/* In-Game Menu Button (Pause / Options / Save & Quit) - Always visible */}
+            {/* Game Menu */}
             <button
-              id="hud-menu-btn"
-              onClick={() => handleBtn(onOpenPauseMenu || onOpenSettings)}
-              className="mc-btn px-1.5 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 text-yellow-300 cursor-pointer"
-              title="Game Menu & Pause [ESC]"
+              onClick={() => {
+                setIsQuickNavOpen(false);
+                handleBtn(onOpenPauseMenu || onOpenSettings);
+              }}
+              className="mc-btn-gold px-1.5 py-1 text-[10px] font-bold flex items-center justify-center gap-1 text-black flex-1 cursor-pointer"
+              title="Game Menu"
             >
-              <Menu className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="hidden lg:inline">MENU</span>
+              <Settings className="w-3 h-3 text-black" />
+              <span>MENU</span>
             </button>
           </div>
-        </div>
+        )}
       </header>
 
       {/* Contextual Village Merchant Prompt (Appears Prominently Without Shifting Top Nav) */}
       {isNearVillager && onOpenVillageTrade && (
-        <div className="absolute top-16 sm:top-20 right-2 sm:right-4 pointer-events-auto z-40 animate-bounce">
+        <div className="absolute top-14 sm:top-20 right-2 sm:right-4 pointer-events-auto z-40 animate-bounce">
           <button
             onClick={() => handleBtn(onOpenVillageTrade)}
-            className="mc-btn-green px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.8)] border-2 border-emerald-300 rounded cursor-pointer"
+            className="mc-btn-green px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base font-bold flex items-center gap-1.5 shadow-[0_0_20px_rgba(34,197,94,0.8)] border-2 border-emerald-300 rounded cursor-pointer"
             title="Trade with Merchant (E)"
           >
-            <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-300" />
-            <span>TRADE WITH MERCHANT [E]</span>
+            <Coins className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-yellow-300" />
+            <span>{isPortrait ? 'TRADE [E]' : 'TRADE WITH MERCHANT [E]'}</span>
           </button>
         </div>
       )}

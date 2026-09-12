@@ -89,14 +89,14 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* --- MINECRAFT WINDOW HEADER --- */}
-        <header className="flex justify-between items-center px-4 py-2.5 bg-[#181818] border-b-2 border-black">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 mc-slot-dark flex items-center justify-center text-xl text-yellow-400">
+        <header className="flex justify-between items-center px-2 sm:px-4 py-2 sm:py-2.5 bg-[#181818] border-b-2 border-black">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 mc-slot-dark flex items-center justify-center text-sm sm:text-xl text-yellow-400 flex-shrink-0">
               🎒
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-[#ffd700] uppercase leading-tight mc-text">
-                Hero Inventory
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-base sm:text-2xl font-bold tracking-wider text-[#ffd700] uppercase leading-tight mc-text truncate">
+                Inventory
               </h1>
               <span className="hidden sm:inline text-xs text-gray-400 font-mono">
                 Equip gear, unlock enchantments, and salvage loot
@@ -105,23 +105,23 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
           </div>
 
           {/* Right: Power Level & Enchantment Points & Emeralds & Close */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
             {/* Power Diamond */}
             <div
-              className="mc-slot-dark px-2.5 sm:px-3 py-1 flex items-center gap-1.5 text-[#38bdf8] font-bold text-xs sm:text-sm"
+              className="mc-slot-dark px-1.5 sm:px-3 py-1 flex items-center gap-1 sm:gap-1.5 text-[#38bdf8] font-bold text-xs sm:text-sm"
               title="Overall Hero Power Level"
             >
               <span>◆</span>
-              <span className="font-mono">PL {stats.powerLevel}</span>
+              <span className="font-mono"><span className="hidden sm:inline">PL </span>{stats.powerLevel}</span>
             </div>
 
             {/* Enchantment Points */}
             <div
-              className="mc-slot-dark px-2 sm:px-2.5 py-1 flex items-center gap-1.5 text-purple-300 font-bold text-xs"
+              className="mc-slot-dark px-1.5 sm:px-2.5 py-1 flex items-center gap-1 text-purple-300 font-bold text-xs"
               title="Available Enchantment Points"
             >
               <span>🟣</span>
-              <span className="font-mono">{stats.enchantmentPoints} PTS</span>
+              <span className="font-mono">{stats.enchantmentPoints} <span className="hidden sm:inline">PTS</span></span>
             </div>
 
             {/* Emerald Pouch */}
@@ -137,10 +137,10 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
             <button
               id="close-inventory-btn"
               onClick={onClose}
-              className="mc-btn px-2 py-1 text-sm font-bold"
+              className="mc-btn px-2 py-1 text-sm font-bold cursor-pointer"
               title="Close [ESC] / [I]"
             >
-              <X className="w-5 h-5 inline" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5 inline" />
             </button>
           </div>
         </header>

@@ -137,26 +137,27 @@ export const BuildCraftDrawer: React.FC<BuildCraftDrawerProps> = ({
         onClick={e => e.stopPropagation()}
       >
         {/* Top Header */}
-        <div className="flex justify-between items-center border-b-2 border-black/20 pb-2 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-[#16a34a] border-2 border-[#86efac] flex items-center justify-center text-white shadow-md">
-              <Hammer className="w-5 h-5 text-white" />
+        {/* Drawer Header */}
+        <div className="flex justify-between items-center border-b-2 border-black/20 pb-2 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 bg-[#16a34a] border-2 border-[#86efac] flex items-center justify-center text-white shadow-md flex-shrink-0">
+              <Hammer className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-black leading-tight">
-                Wilderness Forge & Architecture
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-2xl font-bold text-black leading-tight truncate">
+                Wilderness Forge
               </h2>
-              <p className="text-[11px] sm:text-xs text-gray-700 font-mono">
+              <p className="hidden sm:block text-[11px] sm:text-xs text-gray-700 font-mono">
                 Loot monster drops to build shelters, defenses, and forge armaments
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Gold Display */}
-            <div className="mc-panel px-2.5 py-1 bg-[#ca8a04] text-black font-bold text-xs flex items-center gap-1 shadow-sm border border-[#fef08a]">
+            <div className="mc-panel px-2 sm:px-2.5 py-1 bg-[#ca8a04] text-black font-bold text-xs flex items-center gap-1 shadow-sm border border-[#fef08a]">
               <span>🪙</span>
-              <span className="font-mono">{gold} Gold</span>
+              <span className="font-mono">{gold} <span className="hidden sm:inline">Gold</span></span>
             </div>
 
             <button
@@ -164,7 +165,7 @@ export const BuildCraftDrawer: React.FC<BuildCraftDrawerProps> = ({
               className="p-1 hover:bg-black/10 rounded cursor-pointer transition-colors"
               title="Close (ESC)"
             >
-              <X className="w-6 h-6 text-black" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
             </button>
           </div>
         </div>

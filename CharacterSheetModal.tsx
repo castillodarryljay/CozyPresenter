@@ -144,30 +144,32 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-[#181818] border-b-2 border-black">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 mc-slot-dark flex items-center justify-center text-xl text-yellow-400">
+        <div className="flex items-center justify-between px-2.5 sm:px-4 py-2 sm:py-3 bg-[#181818] border-b-2 border-black">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 mc-slot-dark flex items-center justify-center text-base sm:text-xl text-yellow-400 flex-shrink-0">
               👑
             </div>
-            <div>
-              <h2 className="text-2xl font-bold tracking-wider text-yellow-400 leading-tight">HERO CHARACTER SHEET</h2>
-              <p className="text-xs text-gray-400 font-mono">Combat Attributes, Gear Progression & Appearance</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-2xl font-bold tracking-wider text-yellow-400 leading-tight truncate">
+                HERO SHEET
+              </h2>
+              <p className="hidden sm:block text-xs text-gray-400 font-mono">Combat Attributes, Gear Progression & Appearance</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {/* Quick Emeralds display */}
-            <div className="mc-slot-dark px-2.5 py-1 flex items-center gap-1.5 text-emerald-400 text-sm font-bold">
+            <div className="mc-slot-dark px-2 sm:px-2.5 py-1 flex items-center gap-1 text-emerald-400 text-xs sm:text-sm font-bold">
               <span>💎</span>
-              <span className="font-mono">{emeralds} Emeralds</span>
+              <span className="font-mono">{emeralds} <span className="hidden sm:inline">Emeralds</span></span>
             </div>
             <button
               id="close-character-sheet-btn"
               onClick={onClose}
-              className="mc-btn px-2 py-1 text-sm"
+              className="mc-btn px-2 py-1 text-sm cursor-pointer"
               title="Close (ESC)"
             >
-              <X className="w-5 h-5 inline" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5 inline" />
             </button>
           </div>
         </div>

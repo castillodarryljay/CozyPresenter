@@ -40,30 +40,31 @@ export const DungeonsMissionMap: React.FC<DungeonsMissionMapProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <header className="flex justify-between items-center px-4 py-3 border-b-2 border-black bg-[#1e1e1e]">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-2xl sm:text-3xl">🗺️</span>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-[#fde047] uppercase leading-none">
+        <header className="flex justify-between items-center px-2.5 sm:px-4 py-2.5 sm:py-3 border-b-2 border-black bg-[#1e1e1e]">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+            <span className="text-xl sm:text-3xl flex-shrink-0">🗺️</span>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-2xl font-bold tracking-wider text-[#fde047] uppercase leading-none truncate">
                 Mission Map
               </h1>
-              <span className="text-sm text-[#a3a3a3]">
+              <span className="hidden sm:inline text-xs sm:text-sm text-[#a3a3a3]">
                 Select an adventure to hunt loot and vanquish dungeon bosses
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 mc-slot-dark px-3 py-1 text-[#38bdf8] font-bold text-base">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 mc-slot-dark px-2 sm:px-3 py-1 text-[#38bdf8] font-bold text-xs sm:text-base">
               <span>◆</span>
-              <span>HERO POWER LEVEL {stats.powerLevel}</span>
+              <span className="font-mono"><span className="hidden sm:inline">POWER </span>PL {stats.powerLevel}</span>
             </div>
 
             <button
               onClick={onClose}
-              className="mc-btn w-8 h-8 flex items-center justify-center text-white"
+              className="mc-btn w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-white cursor-pointer"
+              title="Close [ESC]"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </header>

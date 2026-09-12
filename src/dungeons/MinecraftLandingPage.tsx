@@ -239,29 +239,29 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
       <div className="fixed inset-0 pointer-events-none z-10 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]" />
 
       {/* Top Bar with Branding & Quick Navigation */}
-      <div className="w-full flex justify-between items-center px-3 sm:px-4 py-2 sm:py-3 z-20 pointer-events-auto bg-black/50 backdrop-blur-sm border-b border-white/10">
-        <div className="flex items-center gap-2 text-xs sm:text-base text-gray-300">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-          <span className="tracking-wider font-bold text-yellow-400">
-            COZYWORLD: VOXEL ADVENTURE
+      <div className="w-full flex justify-between items-center px-2 sm:px-4 py-1.5 sm:py-3 z-20 pointer-events-auto bg-black/50 backdrop-blur-sm border-b border-white/10 gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-base text-gray-300 min-w-0">
+          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399] flex-shrink-0" />
+          <span className="tracking-wider font-bold text-yellow-400 truncate">
+            <span className="hidden sm:inline">COZYWORLD: </span>VOXEL ADVENTURE
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Audio SFX Toggle */}
           <button
             onClick={() => handleButtonClick(onToggleSound)}
-            className="mc-btn px-2.5 py-1 text-sm flex items-center gap-1.5 cursor-pointer text-gray-200"
+            className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm flex items-center gap-1 sm:gap-1.5 cursor-pointer text-gray-200"
             title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
           >
             {soundEnabled ? (
               <>
-                <Volume2 className="w-4 h-4 text-emerald-400" />
+                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
                 <span className="hidden sm:inline">SFX ON</span>
               </>
             ) : (
               <>
-                <VolumeX className="w-4 h-4 text-red-400" />
+                <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400" />
                 <span className="hidden sm:inline">SFX OFF</span>
               </>
             )}
@@ -271,10 +271,10 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
           <button
             id="top-bar-options-btn"
             onClick={() => handleButtonClick(onOpenSettings)}
-            className="mc-btn px-2.5 py-1 text-sm flex items-center gap-1.5 cursor-pointer text-gray-200"
+            className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm flex items-center gap-1 sm:gap-1.5 cursor-pointer text-gray-200"
             title="Open Game Options & Audio"
           >
-            <Settings className="w-4 h-4 text-yellow-400" />
+            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400" />
             <span className="hidden sm:inline">OPTIONS</span>
           </button>
 
@@ -282,10 +282,10 @@ export const MinecraftLandingPage: React.FC<MinecraftLandingPageProps> = ({
           <button
             id="top-bar-guide-btn"
             onClick={() => handleButtonClick(onOpenGuide)}
-            className="mc-btn px-2.5 py-1 text-sm flex items-center gap-1.5 cursor-pointer text-yellow-300"
+            className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm flex items-center gap-1 sm:gap-1.5 cursor-pointer text-yellow-300"
             title="Open Field Guide & Controls"
           >
-            <BookOpen className="w-4 h-4 text-yellow-400" />
+            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400" />
             <span className="hidden sm:inline">GUIDE</span>
           </button>
         </div>
