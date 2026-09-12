@@ -16,8 +16,6 @@ import {
   Shield,
   Trash2,
   Check,
-  RotateCcw,
-  Zap,
 } from 'lucide-react';
 
 interface DungeonsInventoryProps {
@@ -74,134 +72,159 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
     }
   };
 
+  // Ensure inventory grid shows at least 24 slots (4 rows of 6) for that authentic Minecraft inventory look
+  const totalSlotsCount = Math.max(24, Math.ceil(filteredItems.length / 6) * 6);
+  const emptySlotsCount = Math.max(0, totalSlotsCount - filteredItems.length);
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+      id="hero-inventory-overlay"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl h-[94vh] sm:h-[90vh] max-h-[780px] mc-panel-dark flex flex-col overflow-hidden text-white"
+        id="hero-inventory-modal"
+        className="relative w-full max-w-5xl h-[94vh] sm:h-[90vh] max-h-[800px] mc-panel-dark flex flex-col overflow-hidden text-white"
         style={{ fontFamily: "'VT323', monospace" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* --- WINDOW HEADER --- */}
-        <header className="flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 border-b-2 border-[#3d3329] bg-[#241f1a]">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xl sm:text-2xl">🎒</span>
+        {/* --- MINECRAFT WINDOW HEADER --- */}
+        <header className="flex justify-between items-center px-4 py-2.5 bg-[#181818] border-b-2 border-black">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 mc-slot-dark flex items-center justify-center text-xl text-yellow-400">
+              🎒
+            </div>
             <div className="flex flex-col">
-              <h1 className="text-base sm:text-xl font-black tracking-wider sm:tracking-widest text-[#f5ebd7] uppercase">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-wider text-[#ffd700] uppercase leading-tight mc-text">
                 Hero Inventory
               </h1>
-              <span className="hidden sm:inline text-xs text-[#b8a99a]">
-                Manage equipped gear, unlock enchantments, and salvage loot
+              <span className="hidden sm:inline text-xs text-gray-400 font-mono">
+                Equip gear, unlock enchantments, and salvage loot
               </span>
             </div>
           </div>
 
-          {/* Right: Power Level & Enchantment Points & Close */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Right: Power Level & Enchantment Points & Emeralds & Close */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Power Diamond */}
             <div
-              className="flex items-center gap-1 bg-[#142338] px-2 sm:px-3 py-1 rounded-lg border border-[#38bdf8] text-[#38bdf8] font-black text-xs sm:text-sm shadow-[0_0_12px_rgba(56,189,248,0.4)]"
+              className="mc-slot-dark px-2.5 sm:px-3 py-1 flex items-center gap-1.5 text-[#38bdf8] font-bold text-xs sm:text-sm"
               title="Overall Hero Power Level"
             >
               <span>◆</span>
-              <span>PL {stats.powerLevel}</span>
+              <span className="font-mono">PL {stats.powerLevel}</span>
             </div>
 
             {/* Enchantment Points */}
             <div
-              className="flex items-center gap-1 bg-[#261633] px-2 sm:px-2.5 py-1 rounded-lg border border-[#a855f7] text-[#e9d5ff] font-bold text-xs shadow-sm"
+              className="mc-slot-dark px-2 sm:px-2.5 py-1 flex items-center gap-1.5 text-purple-300 font-bold text-xs"
               title="Available Enchantment Points"
             >
               <span>🟣</span>
-              <span>{stats.enchantmentPoints} pts</span>
+              <span className="font-mono">{stats.enchantmentPoints} PTS</span>
+            </div>
+
+            {/* Emerald Pouch */}
+            <div
+              className="hidden sm:flex mc-slot-dark px-2.5 py-1 items-center gap-1 text-emerald-400 font-bold text-xs"
+              title="Emeralds"
+            >
+              <span>💎</span>
+              <span className="font-mono">{stats.emeralds}</span>
             </div>
 
             {/* Close Button */}
             <button
+              id="close-inventory-btn"
               onClick={onClose}
-              className="w-8 h-8 sm:w-9 sm:h-9 bg-[#352c24] hover:bg-[#4a3d31] border border-[#635343] rounded-lg flex items-center justify-center text-white active:scale-95 transition-all cursor-pointer"
+              className="mc-btn px-2 py-1 text-sm font-bold"
               title="Close [ESC] / [I]"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 inline" />
             </button>
           </div>
         </header>
 
         {/* --- MOBILE TAB SWITCHER (< md screens) --- */}
-        <div className="flex md:hidden bg-[#1f1b17] border-b border-[#3d3329] p-1.5 gap-1">
+        <div className="flex md:hidden bg-[#151515] border-b-2 border-black p-1.5 gap-1.5">
           <button
             onClick={() => setMobileTab('equipped')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 text-xs font-bold uppercase transition-none cursor-pointer ${
               mobileTab === 'equipped'
-                ? 'bg-[#d97706] text-white shadow'
-                : 'bg-[#2a241f] text-[#a8998a]'
+                ? 'mc-panel text-black border-black font-bold'
+                : 'mc-btn text-gray-300'
             }`}
           >
             ⚔️ Equipped
           </button>
           <button
             onClick={() => setMobileTab('backpack')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 text-xs font-bold uppercase transition-none cursor-pointer ${
               mobileTab === 'backpack'
-                ? 'bg-[#d97706] text-white shadow'
-                : 'bg-[#2a241f] text-[#a8998a]'
+                ? 'mc-panel text-black border-black font-bold'
+                : 'mc-btn text-gray-300'
             }`}
           >
             🎒 Bag ({stats.inventory.length})
           </button>
           <button
             onClick={() => setMobileTab('details')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 text-xs font-bold uppercase transition-none cursor-pointer ${
               mobileTab === 'details'
-                ? 'bg-[#d97706] text-white shadow'
-                : 'bg-[#2a241f] text-[#a8998a]'
+                ? 'mc-panel text-black border-black font-bold'
+                : 'mc-btn text-gray-300'
             }`}
           >
             ✨ Details
           </button>
         </div>
 
-        {/* --- MAIN BODY: 2-COLUMN LAYOUT (COLLAPSIBLE ON MOBILE) --- */}
+        {/* --- MAIN BODY: 2-COLUMN MINECRAFT LAYOUT --- */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           
           {/* ======================================================== */}
-          {/* LEFT COLUMN: PAPERDOLL EQUIPPED SLOTS (5 cols on desktop) */}
+          {/* LEFT COLUMN: MINECRAFT PAPERDOLL & EQUIPPED SLOTS (5 cols) */}
           {/* ======================================================== */}
           <div
-            className={`md:col-span-5 bg-[#1f1b17] p-3 sm:p-4 border-r-0 md:border-r-2 border-[#3d3329] flex flex-col gap-3 overflow-y-auto ${
+            className={`md:col-span-5 bg-[#1a1a1a] p-3 sm:p-4 border-r-0 md:border-r-2 border-black flex flex-col gap-3 overflow-y-auto ${
               mobileTab !== 'equipped' ? 'hidden md:flex' : 'flex'
             }`}
           >
-            <h2 className="text-xs font-bold text-[#bcaaa4] tracking-wider uppercase border-b border-[#3d3329] pb-1">
-              Equipped Equipment
-            </h2>
+            <div className="flex items-center justify-between pb-1 border-b-2 border-black">
+              <h2 className="text-sm font-bold text-gray-300 tracking-wider uppercase">
+                EQUIPPED LOADOUT
+              </h2>
+              <span className="text-xs text-yellow-400 font-mono">
+                CLICK TO INSPECT
+              </span>
+            </div>
 
             {/* Primary Equipment Slots */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
               {/* Melee Weapon Slot */}
               <div
                 onClick={() => handleSelectItem(stats.equippedMelee.id, true)}
-                className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                className={`p-2.5 border-2 transition-none cursor-pointer flex flex-col gap-1.5 ${
                   selectedItemId === stats.equippedMelee.id
-                    ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
-                    : 'border-[#4a3e32] bg-[#241f1a] hover:border-[#786352]'
+                    ? 'mc-slot-selected bg-[#241f17]'
+                    : 'mc-slot-dark hover:bg-[#202020]'
                 }`}
               >
-                <div className="flex items-center justify-between text-[11px] text-[#9ca3af] font-bold mb-1">
-                  <span className="flex items-center gap-1 text-[#f5ebd7]">
-                    <Sword className="w-3.5 h-3.5 text-red-400" /> MELEE
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-red-400">
+                    <Sword className="w-3.5 h-3.5" /> MELEE WEAPON
                   </span>
                   <span className="text-[#38bdf8] font-mono font-black">◆ {stats.equippedMelee.power}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{stats.equippedMelee.icon}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-12 h-12 mc-slot flex items-center justify-center text-2xl flex-shrink-0">
+                    {stats.equippedMelee.icon}
+                  </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-xs sm:text-sm text-[#fef08a] truncate">
+                    <span className="font-bold text-sm text-[#fef08a] truncate">
                       {stats.equippedMelee.name}
                     </span>
-                    <span className="text-[10px] text-[#94a3b8] font-mono">
+                    <span className="text-xs text-gray-400 font-mono">
                       {stats.equippedMelee.damage} DMG • {stats.equippedMelee.attackSpeed}x SPD
                     </span>
                   </div>
@@ -211,25 +234,27 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
               {/* Ranged Weapon Slot */}
               <div
                 onClick={() => handleSelectItem(stats.equippedRanged.id, true)}
-                className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                className={`p-2.5 border-2 transition-none cursor-pointer flex flex-col gap-1.5 ${
                   selectedItemId === stats.equippedRanged.id
-                    ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
-                    : 'border-[#4a3e32] bg-[#241f1a] hover:border-[#786352]'
+                    ? 'mc-slot-selected bg-[#241f17]'
+                    : 'mc-slot-dark hover:bg-[#202020]'
                 }`}
               >
-                <div className="flex items-center justify-between text-[11px] text-[#9ca3af] font-bold mb-1">
-                  <span className="flex items-center gap-1 text-[#f5ebd7]">
-                    <Crosshair className="w-3.5 h-3.5 text-amber-400" /> RANGED
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <Crosshair className="w-3.5 h-3.5" /> RANGED BOW
                   </span>
                   <span className="text-[#38bdf8] font-mono font-black">◆ {stats.equippedRanged.power}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{stats.equippedRanged.icon}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-12 h-12 mc-slot flex items-center justify-center text-2xl flex-shrink-0">
+                    {stats.equippedRanged.icon}
+                  </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-xs sm:text-sm text-[#fef08a] truncate">
+                    <span className="font-bold text-sm text-[#fef08a] truncate">
                       {stats.equippedRanged.name}
                     </span>
-                    <span className="text-[10px] text-[#94a3b8] font-mono">
+                    <span className="text-xs text-gray-400 font-mono">
                       {stats.equippedRanged.damage} DMG • {stats.arrows} Arrows
                     </span>
                   </div>
@@ -239,25 +264,27 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
               {/* Armor Slot */}
               <div
                 onClick={() => handleSelectItem(stats.equippedArmor.id, true)}
-                className={`sm:col-span-2 md:col-span-1 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                className={`sm:col-span-2 md:col-span-1 p-2.5 border-2 transition-none cursor-pointer flex flex-col gap-1.5 ${
                   selectedItemId === stats.equippedArmor.id
-                    ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_14px_rgba(251,191,36,0.4)]'
-                    : 'border-[#4a3e32] bg-[#241f1a] hover:border-[#786352]'
+                    ? 'mc-slot-selected bg-[#241f17]'
+                    : 'mc-slot-dark hover:bg-[#202020]'
                 }`}
               >
-                <div className="flex items-center justify-between text-[11px] text-[#9ca3af] font-bold mb-1">
-                  <span className="flex items-center gap-1 text-[#f5ebd7]">
-                    <Shield className="w-3.5 h-3.5 text-blue-400" /> ARMOR
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="flex items-center gap-1.5 text-sky-400">
+                    <Shield className="w-3.5 h-3.5" /> ARMOR SUITE
                   </span>
                   <span className="text-[#38bdf8] font-mono font-black">◆ {stats.equippedArmor.power}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{stats.equippedArmor.icon}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-12 h-12 mc-slot flex items-center justify-center text-2xl flex-shrink-0">
+                    {stats.equippedArmor.icon}
+                  </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-xs sm:text-sm text-[#fef08a] truncate">
+                    <span className="font-bold text-sm text-[#fef08a] truncate">
                       {stats.equippedArmor.name}
                     </span>
-                    <span className="text-[10px] text-[#94a3b8] font-mono">
+                    <span className="text-xs text-gray-400 font-mono">
                       +{stats.equippedArmor.hpBonus} HP • {Math.round((stats.equippedArmor.damageReduction || 0) * 100)}% Defense
                     </span>
                   </div>
@@ -267,8 +294,8 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
 
             {/* 3 Dedicated Artifact Slots */}
             <div className="flex flex-col gap-1.5 mt-1">
-              <span className="text-[11px] font-bold text-[#bcaaa4] tracking-wider uppercase">
-                Artifact Slots ([1], [2], [3])
+              <span className="text-xs font-bold text-gray-300 tracking-wider uppercase">
+                ARTIFACT SLOTS [KEY 1, 2, 3]
               </span>
               <div className="grid grid-cols-3 gap-2">
                 {[0, 1, 2].map((slotIdx) => {
@@ -279,19 +306,19 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                     <div
                       key={slotIdx}
                       onClick={() => art && handleSelectItem(art.id, true)}
-                      className={`p-2 rounded-xl border-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                      className={`p-2 border-2 flex flex-col items-center justify-between text-center cursor-pointer transition-none aspect-square ${
                         isSelected
-                          ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_12px_rgba(251,191,36,0.4)]'
+                          ? 'mc-slot-selected bg-[#241f17]'
                           : art
-                          ? 'border-[#4a3e32] bg-[#241f1a] hover:border-[#786352]'
-                          : 'border-[#382f25] bg-[#1a1714] opacity-50'
+                          ? 'mc-slot-dark hover:bg-[#202020]'
+                          : 'mc-slot-dark opacity-50 cursor-default'
                       }`}
                     >
-                      <div className="w-full flex justify-between text-[9px] text-gray-400 font-mono">
-                        <span>SLOT {slotIdx + 1}</span>
+                      <div className="w-full flex justify-between text-[10px] text-gray-400 font-mono">
+                        <span className="text-yellow-400 font-bold">[{slotIdx + 1}]</span>
                         {art && <span className="text-[#38bdf8] font-black">◆{art.power}</span>}
                       </div>
-                      <span className="text-2xl my-1">{art ? art.icon : '✦'}</span>
+                      <span className="text-2xl my-auto">{art ? art.icon : '✦'}</span>
                       <span className="text-[10px] font-bold text-[#f5ebd7] truncate w-full">
                         {art ? art.name : 'Empty'}
                       </span>
@@ -302,48 +329,47 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
             </div>
 
             {/* Hero Vitals Summary Card */}
-            <div className="mt-auto bg-[#141210] p-3 rounded-xl border border-[#3d3329] space-y-1 text-xs">
+            <div className="mt-auto mc-slot-dark p-3 space-y-1.5 text-xs">
               <div className="flex justify-between text-gray-400">
-                <span>Max Health</span>
+                <span>Max Health:</span>
                 <span className="text-red-400 font-bold font-mono">{stats.maxHp} HP</span>
               </div>
               <div className="flex justify-between text-gray-400">
-                <span>Total Defense Reduction</span>
-                <span className="text-blue-400 font-bold font-mono">
+                <span>Defense Reduction:</span>
+                <span className="text-sky-400 font-bold font-mono">
                   {Math.round((stats.equippedArmor.damageReduction || 0) * 100)}%
                 </span>
               </div>
               <div className="flex justify-between text-gray-400">
-                <span>Quiver Stock</span>
-                <span className="text-amber-400 font-bold font-mono">{stats.arrows} Arrows</span>
+                <span>Quiver Stock:</span>
+                <span className="text-yellow-400 font-bold font-mono">{stats.arrows} Arrows</span>
               </div>
               <div className="flex justify-between text-gray-400">
-                <span>Emerald Balance</span>
+                <span>Emerald Balance:</span>
                 <span className="text-emerald-400 font-bold font-mono">{stats.emeralds} 💎</span>
               </div>
             </div>
           </div>
 
           {/* ======================================================== */}
-          {/* RIGHT COLUMN: INVENTORY BAG & DETAILS (7 cols on desktop) */}
+          {/* RIGHT COLUMN: INVENTORY BACKPACK & INSPECTOR (7 cols) */}
           {/* ======================================================== */}
           <div
-            className={`md:col-span-7 bg-[#171412] p-3 sm:p-4 flex flex-col gap-3 overflow-y-auto ${
+            className={`md:col-span-7 bg-[#151515] p-3 sm:p-4 flex flex-col gap-3 overflow-y-auto ${
               mobileTab === 'equipped' ? 'hidden md:flex' : 'flex'
             }`}
           >
-            {/* Inventory Bag Section (hidden on mobile if user specifically is in 'details' tab) */}
+            {/* Category Filter Tabs */}
             <div className={`${mobileTab === 'details' ? 'hidden md:block' : 'block'}`}>
-              {/* Category Filter Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[#3d3329] mb-2">
+              <div className="flex items-center gap-1.5 pb-2 border-b-2 border-black mb-2 overflow-x-auto">
                 {(['all', 'melee', 'ranged', 'armor', 'artifact'] as const).map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer whitespace-nowrap ${
+                    className={`px-3 py-1 text-xs font-bold uppercase transition-none cursor-pointer whitespace-nowrap ${
                       activeCategory === cat
-                        ? 'bg-[#d97706] text-white shadow-md border border-[#fef08a]'
-                        : 'bg-[#241f1a] text-[#a8998a] hover:bg-[#352c24]'
+                        ? 'mc-panel text-black border-black font-bold'
+                        : 'mc-btn text-gray-300'
                     }`}
                   >
                     {cat === 'all' ? 'All Items' : cat}
@@ -351,8 +377,8 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                 ))}
               </div>
 
-              {/* Inventory Items Grid */}
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[220px] overflow-y-auto p-1 bg-[#120f0d] rounded-xl border border-[#352c24]">
+              {/* Minecraft Inventory Items Grid */}
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5 p-2 mc-slot-dark max-h-[220px] overflow-y-auto">
                 {filteredItems.map((item) => {
                   const isSel = item.id === selectedItemId;
                   const isUnique = item.rarity === 'unique';
@@ -362,33 +388,43 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                     <div
                       key={item.id}
                       onClick={() => handleSelectItem(item.id, true)}
-                      className={`relative p-2 rounded-xl border-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all ${
+                      className={`relative aspect-square p-1.5 flex flex-col items-center justify-between text-center cursor-pointer transition-none border-2 ${
                         isSel
-                          ? 'border-[#fbbf24] bg-[#2f271e] shadow-[0_0_12px_rgba(251,191,36,0.5)] scale-102 z-10'
+                          ? 'mc-slot-selected bg-[#241f17] z-10'
                           : isUnique
-                          ? 'border-[#f59e0b] bg-[#221c16] hover:border-[#fbbf24]'
+                          ? 'mc-slot-dark border-amber-500 hover:bg-[#202020]'
                           : isRare
-                          ? 'border-[#38bdf8] bg-[#18202b] hover:border-[#60a5fa]'
-                          : 'border-[#4a3e32] bg-[#1a1714] hover:border-[#786352]'
+                          ? 'mc-slot-dark border-sky-400 hover:bg-[#202020]'
+                          : 'mc-slot-dark hover:bg-[#202020]'
                       }`}
                     >
                       {/* Power Level Diamond */}
-                      <div className="w-full flex justify-between items-center text-[9px] font-mono">
+                      <div className="w-full flex justify-between items-center text-[9px] font-mono leading-none">
                         <span className="text-[#38bdf8] font-black">◆{item.power}</span>
                         {isUnique && <span className="text-amber-400 font-bold">★</span>}
                       </div>
 
-                      <span className="text-2xl sm:text-3xl my-1">{item.icon}</span>
-                      <span className="text-[10px] font-bold text-[#f5ebd7] truncate w-full">
+                      <span className="text-2xl sm:text-3xl my-auto">{item.icon}</span>
+                      <span className="text-[10px] font-bold text-[#f5ebd7] truncate w-full leading-none">
                         {item.name}
                       </span>
                     </div>
                   );
                 })}
 
-                {filteredItems.length === 0 && (
-                  <div className="col-span-full py-6 text-center text-xs text-gray-500">
-                    No items in this category. Slay monsters and open chests to loot more!
+                {/* Fill empty slots to emulate authentic Minecraft inventory grid */}
+                {Array.from({ length: emptySlotsCount }).map((_, idx) => (
+                  <div
+                    key={`empty-${idx}`}
+                    className="aspect-square mc-slot-dark opacity-35 border-2 border-black flex items-center justify-center"
+                  >
+                    <span className="text-gray-600 text-xs">·</span>
+                  </div>
+                ))}
+
+                {filteredItems.length === 0 && emptySlotsCount === 0 && (
+                  <div className="col-span-full py-6 text-center text-xs text-gray-400 font-mono">
+                    No items in this category. Defeat monsters and open dungeon chests to loot more!
                   </div>
                 )}
               </div>
@@ -397,34 +433,34 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
             {/* --- SELECTED ITEM INSPECTOR & ENCHANTMENT UPGRADES --- */}
             {selectedItem && (
               <div
-                className={`bg-[#241f1a] p-3 sm:p-4 rounded-xl border-2 border-[#4a3f35] flex flex-col gap-3 shadow-lg ${
+                className={`mc-slot-dark p-3 sm:p-4 border-2 border-black flex flex-col gap-2.5 ${
                   mobileTab === 'backpack' ? 'hidden md:flex' : 'flex'
                 }`}
               >
                 {/* Header: Name, Rarity & Action Buttons */}
                 <div className="flex justify-between items-start flex-wrap gap-2">
-                  <div className="flex items-center gap-2 sm:gap-2.5">
-                    <span className="text-2xl sm:text-4xl p-2 bg-[#171412] rounded-lg border border-[#4a3e32]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 mc-slot flex items-center justify-center text-3xl flex-shrink-0">
                       {selectedItem.icon}
-                    </span>
+                    </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-black text-sm sm:text-base text-[#fef08a]">
+                        <h3 className="font-black text-base sm:text-lg text-[#fef08a]">
                           {selectedItem.name}
                         </h3>
                         <span
-                          className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border ${
+                          className={`text-[10px] uppercase font-bold px-1.5 py-0.5 border ${
                             selectedItem.rarity === 'unique'
-                              ? 'bg-[#f59e0b]/20 text-[#fbbf24] border-[#f59e0b]'
+                              ? 'bg-amber-500/20 text-yellow-300 border-yellow-500'
                               : selectedItem.rarity === 'rare'
-                              ? 'bg-[#38bdf8]/20 text-[#38bdf8] border-[#38bdf8]'
-                              : 'bg-gray-800 text-gray-300 border-gray-600'
+                              ? 'bg-sky-500/20 text-sky-300 border-sky-400'
+                              : 'bg-black text-gray-300 border-gray-600'
                           }`}
                         >
                           {selectedItem.rarity}
                         </span>
                       </div>
-                      <span className="text-[11px] sm:text-xs text-[#94a3b8] font-mono">
+                      <span className="text-xs text-gray-400 font-mono">
                         Power ◆ {selectedItem.power} • {selectedItem.category.toUpperCase()}
                       </span>
                     </div>
@@ -432,16 +468,20 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
 
                   {/* Equip & Salvage Actions */}
                   <div className="flex items-center gap-2">
-                    {!isEquipped && (
+                    {!isEquipped ? (
                       <button
                         onClick={() => {
                           onEquipItem(selectedItem);
                           dungeonsAudio.playAnvilStrike();
                         }}
-                        className="px-3 py-1.5 bg-[#15803d] hover:bg-[#16a34a] border border-[#86efac] text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                        className="mc-btn-green px-3.5 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer uppercase"
                       >
                         <Check className="w-3.5 h-3.5" /> EQUIP
                       </button>
+                    ) : (
+                      <div className="mc-btn-green px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 opacity-90 cursor-default uppercase">
+                        <Check className="w-3.5 h-3.5" /> EQUIPPED
+                      </div>
                     )}
 
                     {!isEquipped && (
@@ -450,7 +490,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                           onSalvageItem(selectedItem);
                           dungeonsAudio.playEmeraldPickup();
                         }}
-                        className="px-2.5 sm:px-3 py-1.5 bg-[#b91c1c] hover:bg-[#dc2626] border border-[#fca5a5] text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                        className="mc-btn-red px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer uppercase"
                         title={`Salvage into ${selectedItem.salvageEmeralds} Emeralds`}
                       >
                         <Trash2 className="w-3.5 h-3.5" /> SALVAGE (+{selectedItem.salvageEmeralds} 💎)
@@ -460,25 +500,25 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                 </div>
 
                 {/* Description & Unique Perks */}
-                <p className="text-xs text-[#d1c7bd] leading-relaxed">
+                <p className="text-xs text-gray-300 leading-relaxed font-mono">
                   {selectedItem.description}
                 </p>
 
                 {'uniquePerk' in selectedItem && selectedItem.uniquePerk && (
-                  <div className="bg-[#3a2e24] p-2 rounded-lg border border-[#f59e0b]/50 text-xs text-[#fef08a] flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-[#fbbf24] flex-shrink-0" />
+                  <div className="mc-slot-dark p-2 border-2 border-amber-600/60 bg-[#1e1a12] text-xs text-yellow-300 flex items-center gap-2 font-mono">
+                    <Sparkles className="w-4 h-4 text-yellow-400 flex-shrink-0" />
                     <span><b>Unique Trait:</b> {selectedItem.uniquePerk}</span>
                   </div>
                 )}
 
-                {/* --- INTERACTIVE ENCHANTMENT SLOTS (For Weapons and Armor) --- */}
+                {/* --- INTERACTIVE ENCHANTMENT SLOTS --- */}
                 {'enchantmentSlots' in selectedItem && selectedItem.enchantmentSlots && (
-                  <div className="flex flex-col gap-2 pt-1 border-t border-[#3d3329]">
-                    <div className="flex justify-between items-center text-xs font-bold text-[#bcaaa4]">
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-purple-400" /> ENCHANTMENT SLOTS
+                  <div className="flex flex-col gap-2 pt-2 border-t-2 border-black">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span className="flex items-center gap-1 text-purple-400">
+                        <Sparkles className="w-3.5 h-3.5" /> ENCHANTMENT SLOTS
                       </span>
-                      <span className="text-[#e9d5ff] font-mono">
+                      <span className="text-purple-300 font-mono">
                         Available: 🟣 {stats.enchantmentPoints} PT{stats.enchantmentPoints === 1 ? '' : 'S'}
                       </span>
                     </div>
@@ -495,14 +535,14 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                         return (
                           <div
                             key={slot.id}
-                            className="bg-[#1a1714] p-2 rounded-lg border border-[#4a3e32] flex flex-col justify-between gap-1 text-xs"
+                            className="mc-slot-dark p-2 border border-black flex flex-col justify-between gap-1.5 text-xs"
                           >
                             <div>
                               <div className="flex justify-between items-center">
                                 <span className="font-bold text-[#fef08a] flex items-center gap-1">
                                   <span>{def.icon}</span> {def.name}
                                 </span>
-                                <span className="text-[#a855f7] font-bold">
+                                <span className="text-purple-400 font-bold tracking-widest text-sm">
                                   {currentTier === 0
                                     ? '☆☆☆'
                                     : currentTier === 1
@@ -512,12 +552,12 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                                     : '★★★'}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">
+                              <p className="text-[10px] text-gray-400 mt-1 line-clamp-2 font-mono">
                                 {currentTier > 0 ? def.tierEffects[currentTier - 1] : def.description}
                               </p>
                             </div>
 
-                            <div className="flex gap-1 mt-1">
+                            <div className="flex gap-1.5 mt-1">
                               {currentTier < 3 ? (
                                 <button
                                   onClick={() => {
@@ -525,12 +565,12 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                                     dungeonsAudio.playEnchantUpgrade();
                                   }}
                                   disabled={!canAffordUpgrade}
-                                  className="flex-1 py-1 bg-[#7e22ce] hover:bg-[#9333ea] disabled:opacity-40 text-white font-bold text-[10px] rounded border border-[#d8b4fe] transition-all cursor-pointer"
+                                  className="mc-btn-gold flex-1 py-1 px-2 text-[10px] font-bold cursor-pointer disabled:opacity-50"
                                 >
                                   Tier {currentTier + 1} ({nextCost} 🟣)
                                 </button>
                               ) : (
-                                <div className="flex-1 text-center py-0.5 text-[10px] font-bold text-amber-400">
+                                <div className="flex-1 text-center py-1 text-[10px] font-bold text-yellow-400 mc-slot-dark border border-yellow-500">
                                   MAX TIER
                                 </div>
                               )}
@@ -538,7 +578,7 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
                               {currentTier > 0 && (
                                 <button
                                   onClick={() => onRefundEnchantment(selectedItem.id, slotIdx)}
-                                  className="px-1.5 py-1 bg-[#374151] hover:bg-[#4b5563] text-gray-300 font-bold text-[10px] rounded border border-gray-500 cursor-pointer"
+                                  className="mc-btn px-2 py-1 text-[10px] font-bold text-gray-300 cursor-pointer"
                                   title="Refund points back"
                                 >
                                   Refund
@@ -554,6 +594,28 @@ export const DungeonsInventory: React.FC<DungeonsInventoryProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* --- MINECRAFT WINDOW FOOTER --- */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#181818] border-t-2 border-black text-xs text-gray-400">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-gray-300">Quick Key:</span>
+            <kbd className="px-1.5 py-0.5 bg-black text-yellow-400 border border-gray-700 font-mono text-xs">
+              I
+            </kbd>
+            <span>or</span>
+            <kbd className="px-1.5 py-0.5 bg-black text-yellow-400 border border-gray-700 font-mono text-xs">
+              ESC
+            </kbd>
+            <span>Toggles Hero Inventory</span>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="mc-btn px-4 py-1.5 text-sm font-bold"
+          >
+            Close Inventory
+          </button>
         </div>
       </div>
     </div>

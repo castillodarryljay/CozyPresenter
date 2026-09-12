@@ -1116,17 +1116,6 @@ const ProjectileItem: React.FC<{ p: Projectile }> = ({ p }) => {
     );
   }
 
-  if (p.type === 'slash') {
-    return (
-      <group ref={groupRef} position={[p.x, p.z, p.y]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.6, 1.1, 16, 1, 0, Math.PI]} />
-          <meshBasicMaterial color="#f8fafc" transparent opacity={0.6} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-    );
-  }
-
   return null;
 };
 
@@ -1143,263 +1132,254 @@ export const ProjectilesWorld: React.FC<{
   );
 };
 
-// --- Loot Drops Scene Container ---
-export const LootDropsWorld: React.FC<{
-  lootDrops: LootDrop[];
-}> = ({ lootDrops }) => {
-  const groupRef = useRef<THREE.Group>(null);
+// --- Single Loot Drop Item with Dynamic Vacuum Tracking and Instant Cleanup ---
+const SingleLootDropItem: React.FC<{ drop: LootDrop }> = ({ drop }) => {
+  const meshRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
-    if (groupRef.current) {
+    if (meshRef.current) {
       const t = state.clock.elapsedTime;
-      groupRef.current.children.forEach((child, i) => {
-        child.rotation.y = t * 2.5 + i;
-        child.position.y = (child.userData.baseY || 0) + Math.sin(t * 4 + i) * 0.12;
-      });
+      meshRef.current.position.set(
+        drop.x,
+        drop.z + 0.35 + Math.sin(t * 4 + ((drop.x * 2) % 6)) * 0.1,
+        drop.y
+      );
+      meshRef.current.rotation.y = t * 2.5 + ((drop.y * 2) % 6);
     }
   });
 
   return (
-    <group ref={groupRef}>
-      {lootDrops.map((drop) => {
-        const baseY = drop.z + 0.35;
-        return (
-          <group
-            key={drop.id}
-            position={[drop.x, baseY, drop.y]}
-            userData={{ baseY }}
-          >
-            {/* Ground Contact Shadow */}
-            <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <circleGeometry args={[0.22, 10]} />
-              <meshBasicMaterial color="#0f172a" transparent opacity={0.3} depthWrite={false} />
-            </mesh>
+    <group ref={meshRef} position={[drop.x, drop.z + 0.35, drop.y]}>
+      {/* Ground Contact Shadow */}
+      <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.22, 10]} />
+        <meshBasicMaterial color="#0f172a" transparent opacity={0.3} depthWrite={false} />
+      </mesh>
 
-            {drop.type === 'xp' && (
-              <mesh>
-                <octahedronGeometry args={[0.22]} />
-                <meshStandardMaterial
-                  color="#22c55e"
-                  emissive="#15803d"
-                  emissiveIntensity={2.5}
-                  roughness={0.2}
-                />
-              </mesh>
-            )}
+      {drop.type === 'xp' && (
+        <mesh>
+          <octahedronGeometry args={[0.22]} />
+          <meshStandardMaterial
+            color="#22c55e"
+            emissive="#15803d"
+            emissiveIntensity={2.5}
+            roughness={0.2}
+          />
+        </mesh>
+      )}
 
-            {drop.type === 'gold' && (
-              <mesh>
-                <cylinderGeometry args={[0.18, 0.18, 0.08, 12]} />
-                <meshStandardMaterial
-                  color="#eab308"
-                  emissive="#ca8a04"
-                  emissiveIntensity={1.8}
-                  roughness={0.3}
-                  metalness={0.8}
-                />
-              </mesh>
-            )}
+      {drop.type === 'gold' && (
+        <mesh>
+          <cylinderGeometry args={[0.18, 0.18, 0.08, 12]} />
+          <meshStandardMaterial
+            color="#eab308"
+            emissive="#ca8a04"
+            emissiveIntensity={1.8}
+            roughness={0.3}
+            metalness={0.8}
+          />
+        </mesh>
+      )}
 
-            {drop.type === 'potion' && (
-              <group>
-                <mesh position={[0, 0, 0]}>
-                  <boxGeometry args={[0.18, 0.24, 0.18]} />
-                  <meshStandardMaterial
-                    color="#ef4444"
-                    emissive="#b91c1c"
-                    emissiveIntensity={2}
-                    roughness={0.2}
-                  />
-                </mesh>
-                <mesh position={[0, 0.15, 0]}>
-                  <boxGeometry args={[0.08, 0.08, 0.08]} />
-                  <meshStandardMaterial color="#78350f" roughness={0.9} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'potion' && (
+        <group>
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.18, 0.24, 0.18]} />
+            <meshStandardMaterial
+              color="#ef4444"
+              emissive="#b91c1c"
+              emissiveIntensity={2}
+              roughness={0.2}
+            />
+          </mesh>
+          <mesh position={[0, 0.15, 0]}>
+            <boxGeometry args={[0.08, 0.08, 0.08]} />
+            <meshStandardMaterial color="#78350f" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'shard' && (
-              <mesh>
-                <dodecahedronGeometry args={[0.2]} />
-                <meshStandardMaterial
-                  color="#a855f7"
-                  emissive="#7e22ce"
-                  emissiveIntensity={2}
-                  roughness={0.2}
-                />
-              </mesh>
-            )}
+      {drop.type === 'shard' && (
+        <mesh>
+          <dodecahedronGeometry args={[0.2]} />
+          <meshStandardMaterial
+            color="#a855f7"
+            emissive="#7e22ce"
+            emissiveIntensity={2}
+            roughness={0.2}
+          />
+        </mesh>
+      )}
 
-            {drop.type === 'wood' && (
-              <group rotation={[0, 0, Math.PI / 4]}>
-                {/* Wood Timber Log */}
-                <mesh>
-                  <cylinderGeometry args={[0.12, 0.12, 0.36, 8]} />
-                  <meshStandardMaterial color="#854d0e" roughness={0.8} />
-                </mesh>
-                {/* Rings top and bottom */}
-                <mesh position={[0, 0.181, 0]}>
-                  <circleGeometry args={[0.1, 8]} />
-                  <meshStandardMaterial color="#fef08a" roughness={0.9} />
-                </mesh>
-                <mesh position={[0, -0.181, 0]} rotation={[Math.PI, 0, 0]}>
-                  <circleGeometry args={[0.1, 8]} />
-                  <meshStandardMaterial color="#fef08a" roughness={0.9} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'wood' && (
+        <group rotation={[0, 0, Math.PI / 4]}>
+          <cylinderGeometry args={[0.12, 0.12, 0.36, 8]} />
+          <meshStandardMaterial color="#854d0e" roughness={0.8} />
+          <mesh position={[0, 0.181, 0]}>
+            <circleGeometry args={[0.1, 8]} />
+            <meshStandardMaterial color="#fef08a" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, -0.181, 0]} rotation={[Math.PI, 0, 0]}>
+            <circleGeometry args={[0.1, 8]} />
+            <meshStandardMaterial color="#fef08a" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'stone' && (
-              <group>
-                <mesh rotation={[0.4, 0.3, 0.2]}>
-                  <dodecahedronGeometry args={[0.19]} />
-                  <meshStandardMaterial color="#64748b" roughness={0.9} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'stone' && (
+        <group>
+          <mesh rotation={[0.4, 0.3, 0.2]}>
+            <dodecahedronGeometry args={[0.19]} />
+            <meshStandardMaterial color="#64748b" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'iron' && (
-              <group>
-                <mesh rotation={[0.2, 0.4, 0]}>
-                  <boxGeometry args={[0.28, 0.12, 0.16]} />
-                  <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.25} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'iron' && (
+        <group>
+          <mesh rotation={[0.2, 0.4, 0]}>
+            <boxGeometry args={[0.28, 0.12, 0.16]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.25} />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'bone' && (
-              <group rotation={[0, 0, 0.4]}>
-                {/* Bone shaft */}
-                <mesh>
-                  <boxGeometry args={[0.07, 0.32, 0.07]} />
-                  <meshStandardMaterial color="#f8fafc" roughness={0.7} />
-                </mesh>
-                {/* Bone knobbies top and bottom */}
-                <mesh position={[-0.05, 0.16, 0]}>
-                  <sphereGeometry args={[0.06, 6, 6]} />
-                  <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
-                </mesh>
-                <mesh position={[0.05, 0.16, 0]}>
-                  <sphereGeometry args={[0.06, 6, 6]} />
-                  <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
-                </mesh>
-                <mesh position={[-0.05, -0.16, 0]}>
-                  <sphereGeometry args={[0.06, 6, 6]} />
-                  <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
-                </mesh>
-                <mesh position={[0.05, -0.16, 0]}>
-                  <sphereGeometry args={[0.06, 6, 6]} />
-                  <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'bone' && (
+        <group rotation={[0, 0, 0.4]}>
+          <mesh>
+            <boxGeometry args={[0.07, 0.32, 0.07]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.7} />
+          </mesh>
+          <mesh position={[-0.05, 0.16, 0]}>
+            <sphereGeometry args={[0.06, 6, 6]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+          </mesh>
+          <mesh position={[0.05, 0.16, 0]}>
+            <sphereGeometry args={[0.06, 6, 6]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+          </mesh>
+          <mesh position={[-0.05, -0.16, 0]}>
+            <sphereGeometry args={[0.06, 6, 6]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+          </mesh>
+          <mesh position={[0.05, -0.16, 0]}>
+            <sphereGeometry args={[0.06, 6, 6]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'silk' && (
-              <group>
-                <mesh>
-                  <sphereGeometry args={[0.17, 8, 8]} />
-                  <meshStandardMaterial
-                    color="#e0f2fe"
-                    emissive="#bae6fd"
-                    emissiveIntensity={0.8}
-                    roughness={0.9}
-                  />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'silk' && (
+        <group>
+          <mesh>
+            <sphereGeometry args={[0.17, 8, 8]} />
+            <meshStandardMaterial
+              color="#e0f2fe"
+              emissive="#bae6fd"
+              emissiveIntensity={0.8}
+              roughness={0.9}
+            />
+          </mesh>
+        </group>
+      )}
 
-            {drop.type === 'crystal' && (
-              <group>
-                <mesh rotation={[0.3, 0.5, 0.2]}>
-                  <octahedronGeometry args={[0.22, 0]} />
-                  <meshStandardMaterial
-                    color="#c084fc"
-                    emissive="#9333ea"
-                    emissiveIntensity={3.0}
-                    roughness={0.1}
-                  />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'crystal' && (
+        <group>
+          <mesh rotation={[0.3, 0.5, 0.2]}>
+            <octahedronGeometry args={[0.22, 0]} />
+            <meshStandardMaterial
+              color="#c084fc"
+              emissive="#9333ea"
+              emissiveIntensity={3.0}
+              roughness={0.1}
+            />
+          </mesh>
+        </group>
+      )}
 
-            {/* Minecraft Dungeons Emerald Gem */}
-            {drop.type === 'emerald' && (
-              <group rotation={[0.2, 0.6, 0.1]}>
-                <mesh>
-                  <octahedronGeometry args={[0.24, 0]} />
-                  <meshStandardMaterial
-                    color="#22c55e"
-                    emissive="#15803d"
-                    emissiveIntensity={3.5}
-                    roughness={0.1}
-                    metalness={0.2}
-                  />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'emerald' && (
+        <group rotation={[0.2, 0.6, 0.1]}>
+          <mesh>
+            <octahedronGeometry args={[0.24, 0]} />
+            <meshStandardMaterial
+              color="#22c55e"
+              emissive="#15803d"
+              emissiveIntensity={3.5}
+              roughness={0.1}
+              metalness={0.2}
+            />
+          </mesh>
+        </group>
+      )}
 
-            {/* Quiver Arrows Bundle */}
-            {drop.type === 'arrows' && (
-              <group rotation={[0.6, 0.2, 0.4]}>
-                <mesh position={[0, 0, 0]}>
-                  <cylinderGeometry args={[0.03, 0.03, 0.4, 6]} />
-                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
-                </mesh>
-                <mesh position={[0.04, 0, 0.04]}>
-                  <cylinderGeometry args={[0.03, 0.03, 0.38, 6]} />
-                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
-                </mesh>
-                <mesh position={[0, 0.18, 0]}>
-                  <coneGeometry args={[0.07, 0.12, 4]} />
-                  <meshStandardMaterial color="#f8fafc" roughness={0.3} />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'arrows' && (
+        <group rotation={[0.6, 0.2, 0.4]}>
+          <mesh position={[0, 0, 0]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.4, 6]} />
+            <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+          </mesh>
+          <mesh position={[0.04, 0, 0.04]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.38, 6]} />
+            <meshStandardMaterial color="#ca8a04" roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.18, 0]}>
+            <coneGeometry args={[0.07, 0.12, 4]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+          </mesh>
+        </group>
+      )}
 
-            {/* Minecraft Dungeons Soul Wisp */}
-            {drop.type === 'soul' && (
-              <group>
-                <mesh>
-                  <sphereGeometry args={[0.2, 8, 8]} />
-                  <meshStandardMaterial
-                    color="#c084fc"
-                    emissive="#a855f7"
-                    emissiveIntensity={4.5}
-                    transparent
-                    opacity={0.85}
-                  />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'soul' && (
+        <group>
+          <mesh>
+            <sphereGeometry args={[0.2, 8, 8]} />
+            <meshStandardMaterial
+              color="#c084fc"
+              emissive="#a855f7"
+              emissiveIntensity={4.5}
+              transparent
+              opacity={0.85}
+            />
+          </mesh>
+        </group>
+      )}
 
-            {/* Mystery Gear Drop Chest/Cube */}
-            {drop.type === 'gear' && (
-              <group rotation={[0.2, 0.4, 0.1]}>
-                <mesh>
-                  <boxGeometry args={[0.32, 0.32, 0.32]} />
-                  <meshStandardMaterial
-                    color="#f59e0b"
-                    emissive="#d97706"
-                    emissiveIntensity={3.5}
-                    metalness={0.6}
-                    roughness={0.2}
-                  />
-                </mesh>
-              </group>
-            )}
+      {drop.type === 'gear' && (
+        <group rotation={[0.2, 0.4, 0.1]}>
+          <mesh>
+            <boxGeometry args={[0.32, 0.32, 0.32]} />
+            <meshStandardMaterial
+              color="#f59e0b"
+              emissive="#d97706"
+              emissiveIntensity={3.5}
+              metalness={0.6}
+              roughness={0.2}
+            />
+          </mesh>
+        </group>
+      )}
 
-            {/* Food (Porkchop) */}
-            {drop.type === 'food' && (
-              <group rotation={[0.4, 0.2, 0.5]}>
-                <mesh>
-                  <boxGeometry args={[0.26, 0.16, 0.12]} />
-                  <meshStandardMaterial color="#b91c1c" roughness={0.6} />
-                </mesh>
-              </group>
-            )}
-          </group>
-        );
-      })}
+      {drop.type === 'food' && (
+        <group rotation={[0.4, 0.2, 0.5]}>
+          <mesh>
+            <boxGeometry args={[0.26, 0.16, 0.12]} />
+            <meshStandardMaterial color="#b91c1c" roughness={0.6} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+};
+
+// --- Loot Drops Scene Container ---
+export const LootDropsWorld: React.FC<{
+  lootDrops: LootDrop[];
+}> = ({ lootDrops }) => {
+  return (
+    <group>
+      {lootDrops.map((drop) => (
+        <SingleLootDropItem key={drop.id} drop={drop} />
+      ))}
     </group>
   );
 };

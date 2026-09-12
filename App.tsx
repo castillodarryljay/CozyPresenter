@@ -704,6 +704,7 @@ const GameLoopController: React.FC<{
   onCombatTick: (hp: number, stamina: number) => void;
   onSyncUI: (pos: { x: number; y: number }, steps: number) => void;
   onChunkChange: (chunk: { cx: number; cz: number }) => void;
+  onSyncProjectiles?: (projs: Projectile[]) => void;
 }> = ({
   playerPosRef,
   inputVectorRef,
@@ -727,9 +728,11 @@ const GameLoopController: React.FC<{
   onCombatTick,
   onSyncUI,
   onChunkChange,
+  onSyncProjectiles,
 }) => {
   const distWalkedAcc = useRef(0);
   const lastSyncTime = useRef(0);
+  const lastProjCount = useRef(0);
 
   useFrame((_, delta) => {
     if (isPaused) return;
@@ -956,6 +959,9 @@ const GameLoopController: React.FC<{
       const floorElev = getTerrainHeight(proj.x, proj.y, settings);
       if (hitMonster || proj.z < floorElev || proj.distanceTraveled >= proj.maxDistance) {
         projs.splice(i, 1);
+        if (onSyncProjectiles) {
+          onSyncProjectiles([...projs]);
+        }
       }
     }
 
@@ -1055,6 +1061,11 @@ const GameLoopController: React.FC<{
       if (steps > 0) distWalkedAcc.current -= steps;
       onSyncUI({ x: p.x, y: p.y }, steps);
       onCombatTick(playerCombatRef.current.hp, playerCombatRef.current.stamina);
+
+      if (projectilesRef.current.length !== lastProjCount.current) {
+        lastProjCount.current = projectilesRef.current.length;
+        onSyncProjectiles?.([...projectilesRef.current]);
+      }
     }
   });
 
@@ -2251,22 +2262,6 @@ export const App: React.FC = () => {
     if (weapon.type === 'sword' || weapon.type === 'halberd') {
       sounds.playSwordSwing();
 
-      // Spawn brief visual slash arc
-      projectilesRef.current.push({
-        id: `slash_${now}`,
-        type: 'slash',
-        x: p.x + forwardX * 1.0,
-        y: p.y + forwardY * 1.0,
-        z: p.elevation + 0.6,
-        vx: 0,
-        vy: 0,
-        vz: 0,
-        damage: 0,
-        color: weapon.type === 'halberd' ? '#f97316' : '#f8fafc',
-        distanceTraveled: 0,
-        maxDistance: 0.1,
-      });
-
       // Hit detection in front cone
       let hitCount = 0;
       for (const m of monstersRef.current) {
@@ -2720,6 +2715,10 @@ export const App: React.FC = () => {
 
   // 6. Collect Loot Vacuum
   const handleCollectLoot = useCallback((loot: LootDrop) => {
+    // Immediately remove from React state and ref so 3D model and particles vanish upon pickup
+    lootDropsRef.current = lootDropsRef.current.filter(d => d.id !== loot.id);
+    setLootDrops(prev => prev.filter(d => d.id !== loot.id));
+
     if (loot.type === 'xp') {
       addXP(loot.value, 'XP Crystal');
       sounds.playLootPickup();
@@ -3593,6 +3592,7 @@ export const App: React.FC = () => {
             onCombatTick={handleCombatTick}
             onSyncUI={handleSyncUI}
             onChunkChange={handleChunkChange}
+            onSyncProjectiles={setProjectiles}
           />
 
           <CameraRig playerPosRef={playerMotionRef} zoom={cameraZoom} pan={cameraPan} settings={settings} />
