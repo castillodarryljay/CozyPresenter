@@ -279,6 +279,48 @@ class DungeonsAudioEngine {
     this.playPotionDrink();
   }
 
+  // Classic Minecraft UI button click
+  playButtonClick() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(440, now + 0.05);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  }
+
+  // World creation trumpet chord
+  playWorldCreated() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const chord = [440, 554.37, 659.25, 880];
+    chord.forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.6);
+    });
+  }
+
   // Salvage item sound
   playSalvageSound() {
     this.playEmeraldPickup();

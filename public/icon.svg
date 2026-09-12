@@ -1,64 +1,135 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      <!-- Background Obsidian Gradient -->
       <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#3b82f6"/>
-        <stop offset="60%" stop-color="#60a5fa"/>
-        <stop offset="100%" stop-color="#93c5fd"/>
+        <stop offset="0%" stop-color="#18181b"/>
+        <stop offset="50%" stop-color="#09090b"/>
+        <stop offset="100%" stop-color="#020617"/>
       </linearGradient>
-      <linearGradient id="grassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#65a30d"/>
-        <stop offset="100%" stop-color="#4d7c0f"/>
+
+      <!-- Golden Border Gradient -->
+      <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fde047"/>
+        <stop offset="50%" stop-color="#d97706"/>
+        <stop offset="100%" stop-color="#78350f"/>
       </linearGradient>
-      <linearGradient id="dirtGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#854d0e"/>
-        <stop offset="100%" stop-color="#713f12"/>
+
+      <!-- Diamond Blade Shading -->
+      <linearGradient id="diamondBlade" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#a5f3fc"/>
+        <stop offset="40%" stop-color="#22d3ee"/>
+        <stop offset="100%" stop-color="#0891b2"/>
+      </linearGradient>
+
+      <!-- Emerald Shading -->
+      <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#86efac"/>
+        <stop offset="45%" stop-color="#10b981"/>
+        <stop offset="100%" stop-color="#047857"/>
       </linearGradient>
     </defs>
     
-    <!-- Background rounded card or full-bleed for maskable -->
+    <!-- Background Card with Golden Bevel -->
     <rect width="512" height="512" rx="112.64" fill="url(#bgGrad)"/>
     
-    <!-- Clouds in background -->
-    <rect x="71.67999999999998" y="62.464" width="184.32000000000002" height="36.864000000000004" fill="#ffffff" opacity="0.85" rx="7.68"/>
-    <rect x="279.04" y="94.72" width="161.28" height="32.25600000000001" fill="#ffffff" opacity="0.85" rx="7.68"/>
+    <rect x="15.36" y="15.36" width="481.28" height="481.28" rx="102.4" fill="none" stroke="url(#goldBorder)" stroke-width="10.24"/>
     
-    <!-- Isometric 3D Voxel Grass Block -->
-    <!-- Center coordinate for top vertex of cube -->
-    <g transform="translate(256, 279.04)">
-      <!-- Top Face (Grass) -->
-      <polygon points="0,-147.45600000000002 165.888,-64.51200000000001 0,18.432000000000002 -165.888,-64.51200000000001" 
-               fill="#84cc16" stroke="#4d7c0f" stroke-width="4.096"/>
-      
-      <!-- Grass fringe details on top -->
-      <polygon points="-46.080000000000005,-92.16000000000001 46.080000000000005,-92.16000000000001 0,-55.296" fill="#a3e635"/>
-      <polygon points="-115.2,-55.296 -55.296,-27.648 -92.16000000000001,-9.216000000000001" fill="#65a30d"/>
 
-      <!-- Left Face (Dirt + Grass top) -->
-      <polygon points="-165.888,-64.51200000000001 0,18.432000000000002 0,202.752 -165.888,119.808" 
-               fill="#78350f" stroke="#451a03" stroke-width="4.096"/>
-      
-      <!-- Left side grass layer & dripping pixel hanging teeth -->
-      <polygon points="-165.888,-64.51200000000001 0,18.432000000000002 0,55.296 -55.296,41.472 -82.944,69.12 -129.02400000000003,23.040000000000003 -165.888,18.432000000000002" 
-               fill="#4d7c0f"/>
-
-      <!-- Right Face (Dirt shaded + Grass top) -->
-      <polygon points="0,18.432000000000002 165.888,-64.51200000000001 165.888,119.808 0,202.752" 
-               fill="#542407" stroke="#331402" stroke-width="4.096"/>
-      
-      <!-- Right side grass layer -->
-      <polygon points="0,18.432000000000002 165.888,-64.51200000000001 165.888,13.824 110.592,32.25600000000001 64.51200000000001,64.51200000000001 0,55.296" 
-               fill="#3f6212"/>
-
-      <!-- Mini Presenter / Signpost sticking out -->
-      <rect x="-13.824" y="-207.36" width="27.648" height="82.944" fill="#a16207" stroke="#451a03" stroke-width="2.56"/>
-      <rect x="-73.72800000000001" y="-253.44000000000003" width="147.45600000000002" height="64.51200000000001" fill="#fde047" stroke="#854d0e" stroke-width="3.072" rx="5.12"/>
-      
-      <!-- Sign text lines -->
-      <rect x="-55.296" y="-235.008" width="110.592" height="9.216000000000001" fill="#713f12" opacity="0.8"/>
-      <rect x="-46.080000000000005" y="-211.96800000000002" width="92.16000000000001" height="9.216000000000001" fill="#713f12" opacity="0.8"/>
+    <!-- Background Minecraft Dungeon Brick Vignette Lines -->
+    <g opacity="0.18">
+      <line x1="51.2" y1="128" x2="460.8" y2="128" stroke="#ffffff" stroke-width="3.072"/>
+      <line x1="51.2" y1="256" x2="460.8" y2="256" stroke="#ffffff" stroke-width="3.072"/>
+      <line x1="51.2" y1="384" x2="460.8" y2="384" stroke="#ffffff" stroke-width="3.072"/>
     </g>
 
-    <!-- Badge '3D' pill bottom-right -->
-    <rect x="311.296" y="375.808" width="147.45600000000002" height="82.944" rx="23.040000000000003" fill="#15803d" stroke="#86efac" stroke-width="4.096"/>
-    <text x="385.024" y="435.712" fill="#ffffff" font-family="monospace, sans-serif" font-weight="900" font-size="50.688" text-anchor="middle">3D</text>
+    <!-- Center Composition: Isometric Minecraft Voxel Block (Grass / Cobblestone) -->
+    <g transform="translate(256, 331.3664)">
+      <!-- Top Face (Lush Grass) -->
+      <polygon points="0,-113.0496 150.7328,-37.6832 0,37.6832 -150.7328,-37.6832" 
+               fill="#4ade80" stroke="#15803d" stroke-width="4.096"/>
+      
+      <!-- Grass fringe details on top -->
+      <polygon points="-37.6832,-65.94560000000001 37.6832,-65.94560000000001 0,-32.97280000000001" fill="#86efac"/>
+      <polygon points="-94.20800000000001,-32.97280000000001 -42.3936,-9.4208 -75.3664,9.4208" fill="#22c55e"/>
+
+      <!-- Left Face (Dirt) -->
+      <polygon points="-150.7328,-37.6832 0,37.6832 0,169.5744 -150.7328,94.20800000000001" 
+               fill="#78350f" stroke="#451a03" stroke-width="4.096"/>
+      
+      <!-- Left side hanging grass teeth -->
+      <polygon points="-150.7328,-37.6832 0,37.6832 0,70.656 -47.104000000000006,56.5248 -75.3664,84.7872 -113.0496,37.6832 -150.7328,28.2624" 
+               fill="#16a34a"/>
+
+      <!-- Right Face (Darker Shaded Dirt) -->
+      <polygon points="0,37.6832 150.7328,-37.6832 150.7328,94.20800000000001 0,169.5744" 
+               fill="#542407" stroke="#331402" stroke-width="4.096"/>
+      
+      <!-- Right side hanging grass teeth -->
+      <polygon points="0,37.6832 150.7328,-37.6832 150.7328,23.552000000000003 103.6288,47.104000000000006 56.5248,75.3664 0,65.94560000000001" 
+               fill="#15803d"/>
+    </g>
+
+    <!-- Iconic Minecraft Pixelated Diamond Sword (Diagonal 45 degrees) -->
+    <g transform="translate(237.1584, 199.4752) rotate(-25)">
+      <!-- Sword Tip & Blade with Pixel Stepping -->
+      <!-- Glow Underlay -->
+      <polygon points="0,-207.2576 37.6832,-169.5744 37.6832,37.6832 -37.6832,37.6832 -37.6832,-169.5744" 
+               fill="#0891b2" stroke="#06b6d4" stroke-width="8.192" opacity="0.6"/>
+
+      <!-- Main Diamond Blade Core -->
+      <polygon points="0,-197.8368 32.97280000000001,-164.864 32.97280000000001,37.6832 -32.97280000000001,37.6832 -32.97280000000001,-164.864" 
+               fill="url(#diamondBlade)" stroke="#0e7490" stroke-width="4.096"/>
+
+      <!-- Center Highlight Spine -->
+      <line x1="0" y1="-188.41600000000003" x2="0" y2="32.97280000000001" stroke="#e0f2fe" stroke-width="9.216" stroke-linecap="round"/>
+
+      <!-- Gold Crossguard -->
+      <polygon points="-75.3664,37.6832 75.3664,37.6832 61.235200000000006,65.94560000000001 -61.235200000000006,65.94560000000001" 
+               fill="#f59e0b" stroke="#78350f" stroke-width="3.584"/>
+      
+      <!-- Guard Jewel -->
+      <rect x="-14.1312" y="42.3936" width="28.2624" height="18.8416" fill="#ef4444" stroke="#991b1b" stroke-width="2.048"/>
+
+      <!-- Oak Grip / Hilt -->
+      <rect x="-16.486400000000003" y="65.94560000000001" width="32.97280000000001" height="65.94560000000001" fill="#854d0e" stroke="#451a03" stroke-width="3.072"/>
+      <!-- Grip Wrap Bands -->
+      <line x1="-14.1312" y1="84.7872" x2="14.1312" y2="84.7872" stroke="#ca8a04" stroke-width="2.56"/>
+      <line x1="-14.1312" y1="108.3392" x2="14.1312" y2="108.3392" stroke="#ca8a04" stroke-width="2.56"/>
+
+      <!-- Golden Pommel -->
+      <polygon points="0,155.44320000000002 23.552000000000003,131.89120000000003 -23.552000000000003,131.89120000000003" 
+               fill="#fbbf24" stroke="#78350f" stroke-width="3.072"/>
+    </g>
+
+    <!-- Sparkling Minecraft Emerald (Right Foreground) -->
+    <g transform="translate(378.47040000000004, 321.9456)">
+      <!-- Emerald Diamond / Hexagon Facet Shape -->
+      <polygon points="0,-65.94560000000001 56.5248,-23.552000000000003 56.5248,32.97280000000001 0,75.3664 -56.5248,32.97280000000001 -56.5248,-23.552000000000003" 
+               fill="url(#emeraldGrad)" stroke="#047857" stroke-width="5.12"/>
+      
+      <!-- Inner Facet -->
+      <polygon points="0,-42.3936 37.6832,-14.1312 37.6832,23.552000000000003 0,47.104000000000006 -37.6832,23.552000000000003 -37.6832,-14.1312" 
+               fill="#34d399" stroke="#059669" stroke-width="3.072"/>
+      
+      <!-- Sparkle Highlights -->
+      <circle cx="-14.1312" cy="-18.8416" r="8.192" fill="#ffffff"/>
+      <polygon points="0,-75.3664 9.4208,-61.235200000000006 0,-47.104000000000006 -9.4208,-61.235200000000006" fill="#ffffff"/>
+    </g>
+
+    <!-- Top Left: Redstone / Dungeons Power Diamond Badge (◆) -->
+    <g transform="translate(105.2672, 124.10879999999997)">
+      <polygon points="0,-37.6832 37.6832,0 0,37.6832 -37.6832,0" 
+               fill="#ef4444" stroke="#fca5a5" stroke-width="4.096"/>
+      <polygon points="0,-18.8416 18.8416,0 0,18.8416 -18.8416,0" 
+               fill="#ffffff"/>
+    </g>
+
+    <!-- Bottom Emblem Text Pill: 'DUNGEONS' -->
+    <g transform="translate(256, 444.41600000000005)">
+      <rect x="-169.5744" y="-32.97280000000001" width="339.1488" height="65.94560000000001" rx="14.1312" 
+            fill="#0f172a" stroke="#fbbf24" stroke-width="4.096"/>
+      <text x="0" y="16.486400000000003" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="51.8144" text-anchor="middle" letter-spacing="2">
+        DUNGEONS
+      </text>
+    </g>
   </svg>

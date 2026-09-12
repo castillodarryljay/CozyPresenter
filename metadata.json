@@ -1,5 +1,5 @@
 {
-  "name": "Voxel Nomad: Infinite Explorer",
+  "name": "Minecraft Dungeons: Voxel Explorer",
   "description": "An action-packed Minecraft Dungeons crawler featuring iconic mechanics: Power Level scaling, cooldown-based Artifacts, tier-based Enchantments, Camp Blacksmith and Trader merchants, Emerald economy, and authentic Dungeons HUD.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

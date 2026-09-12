@@ -7,76 +7,148 @@ if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
 }
 
-// Standard SVG Icon (Isometric Minecraft Grass Block with Pickaxe / Signpost)
+// Pixel-perfect Minecraft Dungeons App Icon
+// Features: Isometric Voxel Block, Iconic Diamond Sword, Glowing Emerald & Redstone Power Diamond
 const createSvg = (size, isMaskable = false) => {
-  const padding = isMaskable ? size * 0.15 : size * 0.05;
+  const padding = isMaskable ? size * 0.12 : size * 0.04;
   const innerSize = size - padding * 2;
   const cx = size / 2;
   const cy = size / 2;
   
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      <!-- Background Obsidian Gradient -->
       <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#3b82f6"/>
-        <stop offset="60%" stop-color="#60a5fa"/>
-        <stop offset="100%" stop-color="#93c5fd"/>
+        <stop offset="0%" stop-color="#18181b"/>
+        <stop offset="50%" stop-color="#09090b"/>
+        <stop offset="100%" stop-color="#020617"/>
       </linearGradient>
-      <linearGradient id="grassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#65a30d"/>
-        <stop offset="100%" stop-color="#4d7c0f"/>
+
+      <!-- Golden Border Gradient -->
+      <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#fde047"/>
+        <stop offset="50%" stop-color="#d97706"/>
+        <stop offset="100%" stop-color="#78350f"/>
       </linearGradient>
-      <linearGradient id="dirtGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#854d0e"/>
-        <stop offset="100%" stop-color="#713f12"/>
+
+      <!-- Diamond Blade Shading -->
+      <linearGradient id="diamondBlade" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#a5f3fc"/>
+        <stop offset="40%" stop-color="#22d3ee"/>
+        <stop offset="100%" stop-color="#0891b2"/>
+      </linearGradient>
+
+      <!-- Emerald Shading -->
+      <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#86efac"/>
+        <stop offset="45%" stop-color="#10b981"/>
+        <stop offset="100%" stop-color="#047857"/>
       </linearGradient>
     </defs>
     
-    <!-- Background rounded card or full-bleed for maskable -->
+    <!-- Background Card with Golden Bevel -->
     <rect width="${size}" height="${size}" rx="${isMaskable ? 0 : size * 0.22}" fill="url(#bgGrad)"/>
-    
-    <!-- Clouds in background -->
-    <rect x="${cx - innerSize * 0.4}" y="${cy - innerSize * 0.42}" width="${innerSize * 0.4}" height="${innerSize * 0.08}" fill="#ffffff" opacity="0.85" rx="${size * 0.015}"/>
-    <rect x="${cx + innerSize * 0.05}" y="${cy - innerSize * 0.35}" width="${innerSize * 0.35}" height="${innerSize * 0.07}" fill="#ffffff" opacity="0.85" rx="${size * 0.015}"/>
-    
-    <!-- Isometric 3D Voxel Grass Block -->
-    <!-- Center coordinate for top vertex of cube -->
-    <g transform="translate(${cx}, ${cy + innerSize * 0.05})">
-      <!-- Top Face (Grass) -->
-      <polygon points="0,${-innerSize * 0.32} ${innerSize * 0.36},${-innerSize * 0.14} 0,${innerSize * 0.04} ${-innerSize * 0.36},${-innerSize * 0.14}" 
-               fill="#84cc16" stroke="#4d7c0f" stroke-width="${size * 0.008}"/>
-      
-      <!-- Grass fringe details on top -->
-      <polygon points="${-innerSize * 0.1},${-innerSize * 0.2} ${innerSize * 0.1},${-innerSize * 0.2} 0,${-innerSize * 0.12}" fill="#a3e635"/>
-      <polygon points="${-innerSize * 0.25},${-innerSize * 0.12} ${-innerSize * 0.12},${-innerSize * 0.06} ${-innerSize * 0.2},${-innerSize * 0.02}" fill="#65a30d"/>
+    ${!isMaskable ? `
+    <rect x="${size * 0.03}" y="${size * 0.03}" width="${size * 0.94}" height="${size * 0.94}" rx="${size * 0.20}" fill="none" stroke="url(#goldBorder)" stroke-width="${size * 0.02}"/>
+    ` : ''}
 
-      <!-- Left Face (Dirt + Grass top) -->
-      <polygon points="${-innerSize * 0.36},${-innerSize * 0.14} 0,${innerSize * 0.04} 0,${innerSize * 0.44} ${-innerSize * 0.36},${innerSize * 0.26}" 
-               fill="#78350f" stroke="#451a03" stroke-width="${size * 0.008}"/>
-      
-      <!-- Left side grass layer & dripping pixel hanging teeth -->
-      <polygon points="${-innerSize * 0.36},${-innerSize * 0.14} 0,${innerSize * 0.04} 0,${innerSize * 0.12} ${-innerSize * 0.12},${innerSize * 0.09} ${-innerSize * 0.18},${innerSize * 0.15} ${-innerSize * 0.28},${innerSize * 0.05} ${-innerSize * 0.36},${innerSize * 0.04}" 
-               fill="#4d7c0f"/>
-
-      <!-- Right Face (Dirt shaded + Grass top) -->
-      <polygon points="0,${innerSize * 0.04} ${innerSize * 0.36},${-innerSize * 0.14} ${innerSize * 0.36},${innerSize * 0.26} 0,${innerSize * 0.44}" 
-               fill="#542407" stroke="#331402" stroke-width="${size * 0.008}"/>
-      
-      <!-- Right side grass layer -->
-      <polygon points="0,${innerSize * 0.04} ${innerSize * 0.36},${-innerSize * 0.14} ${innerSize * 0.36},${innerSize * 0.03} ${innerSize * 0.24},${innerSize * 0.07} ${innerSize * 0.14},${innerSize * 0.14} 0,${innerSize * 0.12}" 
-               fill="#3f6212"/>
-
-      <!-- Mini Presenter / Signpost sticking out -->
-      <rect x="${-innerSize * 0.03}" y="${-innerSize * 0.45}" width="${innerSize * 0.06}" height="${innerSize * 0.18}" fill="#a16207" stroke="#451a03" stroke-width="${size * 0.005}"/>
-      <rect x="${-innerSize * 0.16}" y="${-innerSize * 0.55}" width="${innerSize * 0.32}" height="${innerSize * 0.14}" fill="#fde047" stroke="#854d0e" stroke-width="${size * 0.006}" rx="${size * 0.01}"/>
-      
-      <!-- Sign text lines -->
-      <rect x="${-innerSize * 0.12}" y="${-innerSize * 0.51}" width="${innerSize * 0.24}" height="${innerSize * 0.02}" fill="#713f12" opacity="0.8"/>
-      <rect x="${-innerSize * 0.10}" y="${-innerSize * 0.46}" width="${innerSize * 0.20}" height="${innerSize * 0.02}" fill="#713f12" opacity="0.8"/>
+    <!-- Background Minecraft Dungeon Brick Vignette Lines -->
+    <g opacity="0.18">
+      <line x1="${size * 0.1}" y1="${size * 0.25}" x2="${size * 0.9}" y2="${size * 0.25}" stroke="#ffffff" stroke-width="${size * 0.006}"/>
+      <line x1="${size * 0.1}" y1="${size * 0.5}" x2="${size * 0.9}" y2="${size * 0.5}" stroke="#ffffff" stroke-width="${size * 0.006}"/>
+      <line x1="${size * 0.1}" y1="${size * 0.75}" x2="${size * 0.9}" y2="${size * 0.75}" stroke="#ffffff" stroke-width="${size * 0.006}"/>
     </g>
 
-    <!-- Badge '3D' pill bottom-right -->
-    <rect x="${cx + innerSize * 0.12}" y="${cy + innerSize * 0.26}" width="${innerSize * 0.32}" height="${innerSize * 0.18}" rx="${innerSize * 0.05}" fill="#15803d" stroke="#86efac" stroke-width="${size * 0.008}"/>
-    <text x="${cx + innerSize * 0.28}" y="${cy + innerSize * 0.39}" fill="#ffffff" font-family="monospace, sans-serif" font-weight="900" font-size="${innerSize * 0.11}" text-anchor="middle">3D</text>
+    <!-- Center Composition: Isometric Minecraft Voxel Block (Grass / Cobblestone) -->
+    <g transform="translate(${cx}, ${cy + innerSize * 0.16})">
+      <!-- Top Face (Lush Grass) -->
+      <polygon points="0,${-innerSize * 0.24} ${innerSize * 0.32},${-innerSize * 0.08} 0,${innerSize * 0.08} ${-innerSize * 0.32},${-innerSize * 0.08}" 
+               fill="#4ade80" stroke="#15803d" stroke-width="${size * 0.008}"/>
+      
+      <!-- Grass fringe details on top -->
+      <polygon points="${-innerSize * 0.08},${-innerSize * 0.14} ${innerSize * 0.08},${-innerSize * 0.14} 0,${-innerSize * 0.07}" fill="#86efac"/>
+      <polygon points="${-innerSize * 0.20},${-innerSize * 0.07} ${-innerSize * 0.09},${-innerSize * 0.02} ${-innerSize * 0.16},${innerSize * 0.02}" fill="#22c55e"/>
+
+      <!-- Left Face (Dirt) -->
+      <polygon points="${-innerSize * 0.32},${-innerSize * 0.08} 0,${innerSize * 0.08} 0,${innerSize * 0.36} ${-innerSize * 0.32},${innerSize * 0.20}" 
+               fill="#78350f" stroke="#451a03" stroke-width="${size * 0.008}"/>
+      
+      <!-- Left side hanging grass teeth -->
+      <polygon points="${-innerSize * 0.32},${-innerSize * 0.08} 0,${innerSize * 0.08} 0,${innerSize * 0.15} ${-innerSize * 0.10},${innerSize * 0.12} ${-innerSize * 0.16},${innerSize * 0.18} ${-innerSize * 0.24},${innerSize * 0.08} ${-innerSize * 0.32},${innerSize * 0.06}" 
+               fill="#16a34a"/>
+
+      <!-- Right Face (Darker Shaded Dirt) -->
+      <polygon points="0,${innerSize * 0.08} ${innerSize * 0.32},${-innerSize * 0.08} ${innerSize * 0.32},${innerSize * 0.20} 0,${innerSize * 0.36}" 
+               fill="#542407" stroke="#331402" stroke-width="${size * 0.008}"/>
+      
+      <!-- Right side hanging grass teeth -->
+      <polygon points="0,${innerSize * 0.08} ${innerSize * 0.32},${-innerSize * 0.08} ${innerSize * 0.32},${innerSize * 0.05} ${innerSize * 0.22},${innerSize * 0.10} ${innerSize * 0.12},${innerSize * 0.16} 0,${innerSize * 0.14}" 
+               fill="#15803d"/>
+    </g>
+
+    <!-- Iconic Minecraft Pixelated Diamond Sword (Diagonal 45 degrees) -->
+    <g transform="translate(${cx - innerSize * 0.04}, ${cy - innerSize * 0.12}) rotate(-25)">
+      <!-- Sword Tip & Blade with Pixel Stepping -->
+      <!-- Glow Underlay -->
+      <polygon points="0,${-innerSize * 0.44} ${innerSize * 0.08},${-innerSize * 0.36} ${innerSize * 0.08},${innerSize * 0.08} ${-innerSize * 0.08},${innerSize * 0.08} ${-innerSize * 0.08},${-innerSize * 0.36}" 
+               fill="#0891b2" stroke="#06b6d4" stroke-width="${size * 0.016}" opacity="0.6"/>
+
+      <!-- Main Diamond Blade Core -->
+      <polygon points="0,${-innerSize * 0.42} ${innerSize * 0.07},${-innerSize * 0.35} ${innerSize * 0.07},${innerSize * 0.08} ${-innerSize * 0.07},${innerSize * 0.08} ${-innerSize * 0.07},${-innerSize * 0.35}" 
+               fill="url(#diamondBlade)" stroke="#0e7490" stroke-width="${size * 0.008}"/>
+
+      <!-- Center Highlight Spine -->
+      <line x1="0" y1="${-innerSize * 0.40}" x2="0" y2="${innerSize * 0.07}" stroke="#e0f2fe" stroke-width="${size * 0.018}" stroke-linecap="round"/>
+
+      <!-- Gold Crossguard -->
+      <polygon points="${-innerSize * 0.16},${innerSize * 0.08} ${innerSize * 0.16},${innerSize * 0.08} ${innerSize * 0.13},${innerSize * 0.14} ${-innerSize * 0.13},${innerSize * 0.14}" 
+               fill="#f59e0b" stroke="#78350f" stroke-width="${size * 0.007}"/>
+      
+      <!-- Guard Jewel -->
+      <rect x="${-innerSize * 0.03}" y="${innerSize * 0.09}" width="${innerSize * 0.06}" height="${innerSize * 0.04}" fill="#ef4444" stroke="#991b1b" stroke-width="${size * 0.004}"/>
+
+      <!-- Oak Grip / Hilt -->
+      <rect x="${-innerSize * 0.035}" y="${innerSize * 0.14}" width="${innerSize * 0.07}" height="${innerSize * 0.14}" fill="#854d0e" stroke="#451a03" stroke-width="${size * 0.006}"/>
+      <!-- Grip Wrap Bands -->
+      <line x1="${-innerSize * 0.03}" y1="${innerSize * 0.18}" x2="${innerSize * 0.03}" y2="${innerSize * 0.18}" stroke="#ca8a04" stroke-width="${size * 0.005}"/>
+      <line x1="${-innerSize * 0.03}" y1="${innerSize * 0.23}" x2="${innerSize * 0.03}" y2="${innerSize * 0.23}" stroke="#ca8a04" stroke-width="${size * 0.005}"/>
+
+      <!-- Golden Pommel -->
+      <polygon points="0,${innerSize * 0.33} ${innerSize * 0.05},${innerSize * 0.28} ${-innerSize * 0.05},${innerSize * 0.28}" 
+               fill="#fbbf24" stroke="#78350f" stroke-width="${size * 0.006}"/>
+    </g>
+
+    <!-- Sparkling Minecraft Emerald (Right Foreground) -->
+    <g transform="translate(${cx + innerSize * 0.26}, ${cy + innerSize * 0.14})">
+      <!-- Emerald Diamond / Hexagon Facet Shape -->
+      <polygon points="0,${-innerSize * 0.14} ${innerSize * 0.12},${-innerSize * 0.05} ${innerSize * 0.12},${innerSize * 0.07} 0,${innerSize * 0.16} ${-innerSize * 0.12},${innerSize * 0.07} ${-innerSize * 0.12},${-innerSize * 0.05}" 
+               fill="url(#emeraldGrad)" stroke="#047857" stroke-width="${size * 0.01}"/>
+      
+      <!-- Inner Facet -->
+      <polygon points="0,${-innerSize * 0.09} ${innerSize * 0.08},${-innerSize * 0.03} ${innerSize * 0.08},${innerSize * 0.05} 0,${innerSize * 0.10} ${-innerSize * 0.08},${innerSize * 0.05} ${-innerSize * 0.08},${-innerSize * 0.03}" 
+               fill="#34d399" stroke="#059669" stroke-width="${size * 0.006}"/>
+      
+      <!-- Sparkle Highlights -->
+      <circle cx="${-innerSize * 0.03}" cy="${-innerSize * 0.04}" r="${size * 0.016}" fill="#ffffff"/>
+      <polygon points="0,${-innerSize * 0.16} ${innerSize * 0.02},${-innerSize * 0.13} 0,${-innerSize * 0.10} ${-innerSize * 0.02},${-innerSize * 0.13}" fill="#ffffff"/>
+    </g>
+
+    <!-- Top Left: Redstone / Dungeons Power Diamond Badge (◆) -->
+    <g transform="translate(${cx - innerSize * 0.32}, ${cy - innerSize * 0.28})">
+      <polygon points="0,${-innerSize * 0.08} ${innerSize * 0.08},0 0,${innerSize * 0.08} ${-innerSize * 0.08},0" 
+               fill="#ef4444" stroke="#fca5a5" stroke-width="${size * 0.008}"/>
+      <polygon points="0,${-innerSize * 0.04} ${innerSize * 0.04},0 0,${innerSize * 0.04} ${-innerSize * 0.04},0" 
+               fill="#ffffff"/>
+    </g>
+
+    <!-- Bottom Emblem Text Pill: 'DUNGEONS' -->
+    <g transform="translate(${cx}, ${cy + innerSize * 0.40})">
+      <rect x="${-innerSize * 0.36}" y="${-innerSize * 0.07}" width="${innerSize * 0.72}" height="${innerSize * 0.14}" rx="${innerSize * 0.03}" 
+            fill="#0f172a" stroke="#fbbf24" stroke-width="${size * 0.008}"/>
+      <text x="0" y="${innerSize * 0.035}" fill="#fde047" font-family="'VT323', monospace, sans-serif" font-weight="900" font-size="${innerSize * 0.11}" text-anchor="middle" letter-spacing="2">
+        DUNGEONS
+      </text>
+    </g>
   </svg>`;
 };
 
@@ -108,7 +180,8 @@ async function generate() {
     .resize(64, 64)
     .toFile(path.join(publicDir, 'favicon.ico'));
 
-  console.log('Successfully generated all PWA icons!');
+  console.log('Successfully generated all Minecraft Dungeons app icons and favicons!');
 }
 
 generate().catch(console.error);
+

@@ -289,3 +289,20 @@ export interface MapSettings {
   dayNightCycle?: boolean;
   companionType?: CompanionType;
 }
+
+export type GameScreen = 'title' | 'world_select' | 'create_world' | 'playing';
+
+export interface SavedWorld {
+  id: string;
+  name: string;
+  seed: number;
+  gameMode: 'survival' | 'creative' | 'hardcore';
+  biome: TerrainType;
+  difficulty: 'peaceful' | 'easy' | 'normal' | 'hard';
+  dayNightCycle: boolean;
+  powerLevel: number;
+  level: number;
+  lastPlayed: number;
+  createdDate: string;
+}
+

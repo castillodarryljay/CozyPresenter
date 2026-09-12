@@ -63,6 +63,8 @@ import {
   ResourceType,
   WeaponRecipe,
   CharacterCustomization,
+  SavedWorld,
+  GameScreen,
 } from './types';
 import {
   getTerrainHeight,
@@ -117,6 +119,8 @@ import { DungeonsHUD } from './src/dungeons/DungeonsHUD';
 import { DungeonsInventory } from './src/dungeons/DungeonsInventory';
 import { DungeonsCamp } from './src/dungeons/DungeonsCamp';
 import { DungeonsMissionMap } from './src/dungeons/DungeonsMissionMap';
+import { MinecraftLandingPage } from './src/dungeons/MinecraftLandingPage';
+import { MinecraftPauseMenu } from './src/dungeons/MinecraftPauseMenu';
 
 // Game Constants
 const STORAGE_KEY = 'voxel_nomad_save_v1';
@@ -629,14 +633,31 @@ const Player3D: React.FC<{
   );
 };
 
-// Isometric Camera Rig with Synchronized Smooth Follow
+// Isometric Camera Rig with Synchronized Smooth Follow & Title Screen Panorama Orbit
 const CameraRig: React.FC<{
   playerPosRef: React.MutableRefObject<PlayerMotionState>;
   zoom: number;
   pan: { x: number; y: number };
   settings: MapSettings;
-}> = ({ playerPosRef, zoom, pan, settings }) => {
+  isTitleScreen?: boolean;
+}> = ({ playerPosRef, zoom, pan, settings, isTitleScreen }) => {
   useFrame((state, delta) => {
+    if (isTitleScreen) {
+      const time = state.clock.getElapsedTime();
+      const p = playerPosRef.current;
+      const tX = isNaN(p.x) ? 0 : p.x;
+      const tZ = isNaN(p.y) ? 0 : p.y;
+      const tY = isNaN(p.elevation) ? 6 : p.elevation;
+      // Majestic slow cinematic panoramic camera orbit around the voxel world
+      const radius = 26;
+      const camX = tX + Math.sin(time * 0.1) * radius;
+      const camZ = tZ + Math.cos(time * 0.1) * radius;
+      const camY = tY + 15 + Math.sin(time * 0.05) * 2.5;
+      state.camera.position.lerp(new THREE.Vector3(camX, camY, camZ), Math.min(1, delta * 3));
+      state.camera.lookAt(tX, tY + 1.2, tZ);
+      return;
+    }
+
     const p = playerPosRef.current;
     if (isNaN(p.x) || isNaN(p.y) || isNaN(pan.x) || isNaN(pan.y)) return;
 
@@ -1233,6 +1254,43 @@ export const App: React.FC = () => {
   const [isDungeonsCampOpen, setIsDungeonsCampOpen] = useState<boolean>(false);
   const [isDungeonsMapOpen, setIsDungeonsMapOpen] = useState<boolean>(false);
 
+  // Minecraft Landing Page & Game Screen States
+  const [gameScreen, setGameScreen] = useState<GameScreen>('title');
+  const [isPauseMenuOpen, setIsPauseMenuOpen] = useState<boolean>(false);
+  const [savedWorlds, setSavedWorlds] = useState<SavedWorld[]>(() => {
+    try {
+      const saved = localStorage.getItem('voxel_nomad_saved_worlds_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    const defaultWorld: SavedWorld = {
+      id: 'world_survival_main',
+      name: 'My Survival World',
+      seed: 1337,
+      gameMode: 'survival',
+      biome: 'hills',
+      difficulty: 'normal',
+      dayNightCycle: true,
+      powerLevel: 1,
+      level: 1,
+      lastPlayed: Date.now(),
+      createdDate: new Date().toISOString().split('T')[0],
+    };
+    return [defaultWorld];
+  });
+  const [currentWorld, setCurrentWorld] = useState<SavedWorld | null>(() => {
+    try {
+      const saved = localStorage.getItem('voxel_nomad_saved_worlds_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      }
+    } catch (e) {}
+    return null;
+  });
+
   // Character Customization & Stats Sheet Modal State
   const [characterCustomization, setCharacterCustomization] = useState<CharacterCustomization>(() => {
     try {
@@ -1588,6 +1646,104 @@ export const App: React.FC = () => {
   useEffect(() => {
     sounds.enabled = settings.soundEnabled ?? true;
   }, [settings.soundEnabled]);
+
+  // Minecraft World Management Handlers
+  const handlePlayWorld = (world: SavedWorld) => {
+    dungeonsAudio.playButtonClick();
+    setCurrentWorld(world);
+    setSettings(prev => ({
+      ...prev,
+      seed: world.seed,
+      terrainType: world.biome as any,
+      dayNightCycle: world.dayNightCycle,
+    }));
+    const updated = savedWorlds.map(w =>
+      w.id === world.id
+        ? {
+            ...w,
+            lastPlayed: Date.now(),
+            level: dungeonsStats.level,
+            powerLevel: dungeonsStats.powerLevel,
+          }
+        : w
+    );
+    setSavedWorlds(updated);
+    try {
+      localStorage.setItem('voxel_nomad_saved_worlds_v1', JSON.stringify(updated));
+    } catch (e) {}
+    setGameScreen('playing');
+    setIsPauseMenuOpen(false);
+    showToast(`⚔️ Entered: ${world.name}`, `Mode: ${world.gameMode.toUpperCase()} • Biome: ${world.biome.toUpperCase()}`);
+  };
+
+  const handleCreateWorld = (newWorldData: Omit<SavedWorld, 'id' | 'lastPlayed' | 'createdDate'>) => {
+    const newWorld: SavedWorld = {
+      ...newWorldData,
+      id: `world_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      lastPlayed: Date.now(),
+      createdDate: new Date().toISOString().split('T')[0],
+      level: 1,
+      powerLevel: 1,
+    };
+    const updated = [newWorld, ...savedWorlds];
+    setSavedWorlds(updated);
+    try {
+      localStorage.setItem('voxel_nomad_saved_worlds_v1', JSON.stringify(updated));
+    } catch (e) {}
+    handlePlayWorld(newWorld);
+  };
+
+  const handleDeleteWorld = (worldId: string) => {
+    const updated = savedWorlds.filter(w => w.id !== worldId);
+    setSavedWorlds(updated);
+    try {
+      localStorage.setItem('voxel_nomad_saved_worlds_v1', JSON.stringify(updated));
+    } catch (e) {}
+    if (currentWorld?.id === worldId) {
+      setCurrentWorld(updated[0] || null);
+    }
+  };
+
+  const handleSaveAndQuit = () => {
+    dungeonsAudio.playButtonClick();
+    if (currentWorld) {
+      const updated = savedWorlds.map(w =>
+        w.id === currentWorld.id
+          ? {
+              ...w,
+              lastPlayed: Date.now(),
+              level: dungeonsStats.level,
+              powerLevel: dungeonsStats.powerLevel,
+            }
+          : w
+      );
+      setSavedWorlds(updated);
+      try {
+        localStorage.setItem('voxel_nomad_saved_worlds_v1', JSON.stringify(updated));
+      } catch (e) {}
+    }
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          stats: {
+            ...stats,
+            hp: Math.round(playerCombatRef.current.hp),
+            stamina: Math.round(playerCombatRef.current.stamina),
+          },
+          inventory,
+          quests,
+          settings,
+          charPos,
+          placedStructures,
+          dungeonsStats,
+        })
+      );
+    } catch (e) {}
+    setIsPauseMenuOpen(false);
+    setGameScreen('title');
+    showToast('💾 World Saved', 'Returned to Title Screen');
+  };
 
   // Dynamic Chunk Features & Monsters Generator - Runs when entering a new chunk!
   useEffect(() => {
@@ -3425,14 +3581,36 @@ export const App: React.FC = () => {
       showToast('Build placement cancelled');
     },
     closeModals: () => {
-      setIsJournalOpen(false);
-      setIsSettingsOpen(false);
-      setIsBuildDrawerOpen(false);
-      setIsDungeonsInventoryOpen(false);
-      setIsDungeonsCampOpen(false);
-      setIsDungeonsMapOpen(false);
-      setIsCharacterSheetOpen(false);
-      setIsVillageTradeOpen(false);
+      if (isSettingsOpen) {
+        setIsSettingsOpen(false);
+        return;
+      }
+      if (isJournalOpen) {
+        setIsJournalOpen(false);
+        return;
+      }
+      if (isPauseMenuOpen) {
+        setIsPauseMenuOpen(false);
+        return;
+      }
+      const anyOpen =
+        isBuildDrawerOpen ||
+        isDungeonsInventoryOpen ||
+        isDungeonsCampOpen ||
+        isDungeonsMapOpen ||
+        isCharacterSheetOpen ||
+        isVillageTradeOpen;
+
+      if (anyOpen) {
+        setIsBuildDrawerOpen(false);
+        setIsDungeonsInventoryOpen(false);
+        setIsDungeonsCampOpen(false);
+        setIsDungeonsMapOpen(false);
+        setIsCharacterSheetOpen(false);
+        setIsVillageTradeOpen(false);
+      } else if (gameScreen === 'playing') {
+        setIsPauseMenuOpen(true);
+      }
     },
     openTrade: () => {
       if (nearVillager) setActiveTradeVillager(nearVillager);
@@ -3576,7 +3754,7 @@ export const App: React.FC = () => {
             cameraPanRef={cameraPanRef}
             setCameraPan={setCameraPan}
             settings={settings}
-            isPaused={isJournalOpen || isSettingsOpen || Boolean(unlockedRelicModal)}
+            isPaused={isJournalOpen || isSettingsOpen || Boolean(unlockedRelicModal) || gameScreen !== 'playing' || isPauseMenuOpen}
             monstersRef={monstersRef}
             projectilesRef={projectilesRef}
             lootDropsRef={lootDropsRef}
@@ -3595,7 +3773,13 @@ export const App: React.FC = () => {
             onSyncProjectiles={setProjectiles}
           />
 
-          <CameraRig playerPosRef={playerMotionRef} zoom={cameraZoom} pan={cameraPan} settings={settings} />
+          <CameraRig
+            playerPosRef={playerMotionRef}
+            zoom={cameraZoom}
+            pan={cameraPan}
+            settings={settings}
+            isTitleScreen={gameScreen !== 'playing'}
+          />
 
           {/* Infinite Voxel Terrain - Only re-evaluates when crossing chunk boundaries */}
           <VoxelTerrainMesh
@@ -3727,61 +3911,118 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Responsive Minecraft Dungeons HUD */}
-        <DungeonsHUD
-          stats={dungeonsStats}
-          currentMission={currentMission}
-          onOpenInventory={() => setIsDungeonsInventoryOpen(true)}
-          onOpenMissionMap={() => setIsDungeonsMapOpen(true)}
-          onOpenCamp={() => setIsDungeonsCampOpen(true)}
-          onOpenCharacterSheet={() => setIsCharacterSheetOpen(true)}
-          onOpenBuildDrawer={() => setIsBuildDrawerOpen(true)}
-          onOpenVillageTrade={() => {
-            if (nearVillager) setActiveTradeVillager(nearVillager);
-            setIsVillageTradeOpen(true);
+        {/* Responsive Minecraft Dungeons HUD (Only shown when actively playing) */}
+        {gameScreen === 'playing' && (
+          <DungeonsHUD
+            stats={dungeonsStats}
+            currentMission={currentMission}
+            onOpenInventory={() => setIsDungeonsInventoryOpen(true)}
+            onOpenMissionMap={() => setIsDungeonsMapOpen(true)}
+            onOpenCamp={() => setIsDungeonsCampOpen(true)}
+            onOpenCharacterSheet={() => setIsCharacterSheetOpen(true)}
+            onOpenBuildDrawer={() => setIsBuildDrawerOpen(true)}
+            onOpenVillageTrade={() => {
+              if (nearVillager) setActiveTradeVillager(nearVillager);
+              setIsVillageTradeOpen(true);
+            }}
+            isNearVillager={Boolean(nearVillager)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenPauseMenu={() => setIsPauseMenuOpen(true)}
+            onMeleeAttack={handlePlayerAttack}
+            onRangedAttack={handleRangedAttack}
+            onDodgeRoll={handleDodgeRoll}
+            onDrinkPotion={handleDrinkPotion}
+            onActivateArtifact={handleActivateArtifact}
+            soundEnabled={settings.soundEnabled}
+            onToggleSound={() => {
+              const next = !settings.soundEnabled;
+              setSettings(s => ({ ...s, soundEnabled: next }));
+              sounds.enabled = next;
+              dungeonsAudio.enabled = next;
+            }}
+            onMoveJoystick={(x, y) => {
+              inputVector.current = { x, y };
+            }}
+            onInteract={interactContextAction}
+            canInteract={Boolean(
+              nearVillager ||
+              (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) ||
+              (nearbyFeature.feature && nearbyFeature.dist < 3.0)
+            )}
+            interactLabel={
+              nearVillager
+                ? 'TRADE'
+                : nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
+                ? nearbyPlacedStructure.structure.type === 'workbench'
+                  ? 'FORGE'
+                  : nearbyPlacedStructure.structure.type === 'storage_chest'
+                  ? 'CHEST'
+                  : 'REST'
+                : nearbyFeature.feature && nearbyFeature.dist < 3.0
+                ? nearbyFeature.feature.type === 'obelisk'
+                  ? 'AWAKEN'
+                  : nearbyFeature.feature.type === 'chest'
+                  ? 'OPEN'
+                  : 'EXCAVATE'
+                : 'DIG'
+            }
+          />
+        )}
+      </div>
+
+      {/* --- MINECRAFT LANDING PAGE (TITLE / WORLD SELECT / CREATE WORLD) --- */}
+      {gameScreen !== 'playing' && (
+        <MinecraftLandingPage
+          currentWorld={currentWorld}
+          savedWorlds={savedWorlds}
+          onPlayWorld={handlePlayWorld}
+          onCreateWorld={handleCreateWorld}
+          onDeleteWorld={handleDeleteWorld}
+          onOpenSettings={() => {
+            setSettingsTab('options');
+            setIsSettingsOpen(true);
           }}
-          isNearVillager={Boolean(nearVillager)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onMeleeAttack={handlePlayerAttack}
-          onRangedAttack={handleRangedAttack}
-          onDodgeRoll={handleDodgeRoll}
-          onDrinkPotion={handleDrinkPotion}
-          onActivateArtifact={handleActivateArtifact}
-          soundEnabled={settings.soundEnabled}
+          onOpenGuide={() => {
+            setSettingsTab('tutorial');
+            setIsSettingsOpen(true);
+          }}
+          soundEnabled={settings.soundEnabled ?? true}
           onToggleSound={() => {
             const next = !settings.soundEnabled;
             setSettings(s => ({ ...s, soundEnabled: next }));
             sounds.enabled = next;
             dungeonsAudio.enabled = next;
           }}
-          onMoveJoystick={(x, y) => {
-            inputVector.current = { x, y };
-          }}
-          onInteract={interactContextAction}
-          canInteract={Boolean(
-            nearVillager ||
-            (nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2) ||
-            (nearbyFeature.feature && nearbyFeature.dist < 3.0)
-          )}
-          interactLabel={
-            nearVillager
-              ? 'TRADE'
-              : nearbyPlacedStructure.structure && nearbyPlacedStructure.dist < 3.2
-              ? nearbyPlacedStructure.structure.type === 'workbench'
-                ? 'FORGE'
-                : nearbyPlacedStructure.structure.type === 'storage_chest'
-                ? 'CHEST'
-                : 'REST'
-              : nearbyFeature.feature && nearbyFeature.dist < 3.0
-              ? nearbyFeature.feature.type === 'obelisk'
-                ? 'AWAKEN'
-                : nearbyFeature.feature.type === 'chest'
-                ? 'OPEN'
-                : 'EXCAVATE'
-              : 'DIG'
-          }
         />
-      </div>
+      )}
+
+      {/* --- MINECRAFT IN-GAME PAUSE MENU --- */}
+      <MinecraftPauseMenu
+        isOpen={isPauseMenuOpen && gameScreen === 'playing'}
+        onResume={() => setIsPauseMenuOpen(false)}
+        onOpenInventory={() => {
+          setIsPauseMenuOpen(false);
+          setIsDungeonsInventoryOpen(true);
+        }}
+        onOpenMap={() => {
+          setIsPauseMenuOpen(false);
+          setIsDungeonsMapOpen(true);
+        }}
+        onOpenCamp={() => {
+          setIsPauseMenuOpen(false);
+          setIsDungeonsCampOpen(true);
+        }}
+        onOpenJournal={() => {
+          setIsPauseMenuOpen(false);
+          setIsJournalOpen(true);
+        }}
+        onOpenSettings={() => {
+          setIsPauseMenuOpen(false);
+          setIsSettingsOpen(true);
+        }}
+        onSaveAndQuit={handleSaveAndQuit}
+        worldName={currentWorld?.name || 'Survival Realm'}
+      />
 
       {/* --- MINECRAFT DUNGEONS MODALS --- */}
 
@@ -3856,7 +4097,7 @@ export const App: React.FC = () => {
       {isJournalOpen && (
         <div
           id="explorer-compendium-overlay"
-          className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-[250] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => setIsJournalOpen(false)}
         >
           <div
@@ -4476,7 +4717,7 @@ export const App: React.FC = () => {
       {isSettingsOpen && (
         <div
           id="game-settings-overlay"
-          className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-[250] flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-auto bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => setIsSettingsOpen(false)}
         >
           <div

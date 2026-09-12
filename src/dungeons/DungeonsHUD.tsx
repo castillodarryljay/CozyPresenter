@@ -18,8 +18,10 @@ import {
   Shield,
   Hammer,
   Coins,
+  Menu,
 } from 'lucide-react';
 import { VirtualJoystick } from './VirtualJoystick';
+import { dungeonsAudio } from './dungeonsAudio';
 
 interface DungeonsHUDProps {
   stats: DungeonsPlayerStats;
@@ -32,6 +34,7 @@ interface DungeonsHUDProps {
   onOpenVillageTrade?: () => void;
   isNearVillager?: boolean;
   onOpenSettings?: () => void;
+  onOpenPauseMenu?: () => void;
   onMeleeAttack: () => void;
   onRangedAttack: () => void;
   onDodgeRoll: () => void;
@@ -56,6 +59,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
   onOpenVillageTrade,
   isNearVillager = false,
   onOpenSettings,
+  onOpenPauseMenu,
   onMeleeAttack,
   onRangedAttack,
   onDodgeRoll,
@@ -79,6 +83,11 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
     if (typeof window === 'undefined') return false;
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   });
+
+  const handleBtn = (cb?: () => void) => {
+    dungeonsAudio.playButtonClick();
+    if (cb) cb();
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -117,34 +126,34 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* 1. TOP HEADER BAR: HERO VITALS & QUICK CONTROLS           */}
+      {/* 1. TOP HEADER BAR: HERO VITALS & ORGANIZED NAVIGATION     */}
       {/* ========================================================= */}
-      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-start z-30 pointer-events-none gap-1.5 sm:gap-2">
-        {/* Top-Left: Hero Profile & Power Level Diamond */}
+      <header className="absolute top-2 sm:top-3 left-2 sm:left-4 right-2 sm:right-4 pt-[env(safe-area-inset-top)] flex justify-between items-start z-30 pointer-events-none gap-2">
+        {/* Left: Hero Profile & Power Level Diamond */}
         <div
-          onClick={onOpenCharacterSheet}
-          className="pointer-events-auto flex items-center gap-1 sm:gap-2.5 bg-[#1a1714]/92 p-1.5 sm:p-2 rounded-xl border-2 border-[#453c35] hover:border-amber-500 shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md cursor-pointer transition-colors"
-          title="Open Hero Stats & Appearance Customization (C)"
+          onClick={() => handleBtn(onOpenCharacterSheet)}
+          className="pointer-events-auto flex items-center gap-2 mc-panel-dark px-2.5 py-1.5 border-2 border-[#5a483a] hover:border-amber-400 shadow-md cursor-pointer transition-colors"
+          title="Open Hero Stats & Customization (C)"
         >
           {/* Avatar Icon */}
-          <div className="relative w-7 h-7 sm:w-10 sm:h-10 bg-[#2d2722] rounded-lg border border-[#6b5e52] flex items-center justify-center flex-shrink-0">
-            <span className="text-sm sm:text-xl">🗡️</span>
+          <div className="relative w-8 h-8 sm:w-10 sm:h-10 mc-slot-dark flex items-center justify-center flex-shrink-0 text-base sm:text-xl">
+            <span>🗡️</span>
             {/* Level Badge */}
-            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[8px] sm:text-[10px] font-black px-1 rounded border border-[#4ade80] shadow">
+            <div className="absolute -bottom-1 -right-1 bg-[#15803d] text-white text-[8px] sm:text-[10px] font-black px-1 border border-[#4ade80] shadow">
               {stats.level}
             </div>
           </div>
 
           {/* Vitals Column */}
-          <div className="flex flex-col min-w-[85px] sm:min-w-[150px]">
+          <div className="flex flex-col min-w-[85px] sm:min-w-[130px]">
             <div className="flex items-center justify-between gap-1">
-              <span className="text-[9px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-1">
+              <span className="text-[10px] sm:text-xs font-black text-[#f3ece7] tracking-wider flex items-center gap-1">
                 HERO <Shield className="w-3 h-3 text-amber-400" />
               </span>
 
               {/* Power Level Diamond */}
               <div
-                className="flex items-center gap-0.5 sm:gap-1 bg-[#142338] px-1 sm:px-2 py-0.5 rounded border border-[#38bdf8] text-[#38bdf8] font-black text-[9px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+                className="flex items-center gap-0.5 sm:gap-1 bg-[#142338] px-1 sm:px-1.5 py-0.5 border border-[#38bdf8] text-[#38bdf8] font-black text-[9px] sm:text-xs shadow-[0_0_8px_rgba(56,189,248,0.4)]"
                 title="Overall Gear Power Level"
               >
                 <span>◆</span>
@@ -153,7 +162,7 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
             </div>
 
             {/* XP Bar */}
-            <div className="w-full bg-[#110e0c] h-1.5 sm:h-2 rounded-full overflow-hidden border border-[#3a322c] mt-0.5 relative">
+            <div className="w-full bg-[#110e0c] h-1.5 sm:h-2 overflow-hidden border border-[#3a322c] mt-0.5 relative">
               <div
                 className="bg-gradient-to-r from-[#22c55e] to-[#86efac] h-full transition-all duration-300"
                 style={{ width: `${xpRatio * 100}%` }}
@@ -170,162 +179,116 @@ export const DungeonsHUD: React.FC<DungeonsHUDProps> = ({
           </div>
         </div>
 
-        {/* Top-Right: Currency, Mission Tracker & Modals Bar */}
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
-          {/* Emeralds Currency Pill */}
+        {/* Right: Currency & Clean Docked Navigation Bar */}
+        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+          {/* Combined Currency Slot */}
           <div
-            onClick={onOpenVillageTrade || onOpenCamp}
-            className="flex items-center gap-1 bg-[#0e1f13]/90 px-1.5 sm:px-2 py-1 rounded-lg border border-[#15803d] text-[#4ade80] font-black text-[10px] sm:text-xs shadow-sm cursor-pointer hover:border-[#4ade80] transition-colors"
-            title="Emeralds Currency - Click to trade or visit Camp"
+            onClick={() => handleBtn(onOpenVillageTrade || onOpenCamp)}
+            className="flex items-center gap-2 mc-panel-dark px-2.5 py-1.5 border-2 border-[#5a483a] text-xs sm:text-sm shadow-md cursor-pointer hover:border-emerald-500 transition-colors"
+            title="Emeralds & Arrows - Click to visit Camp or Trade"
           >
-            <span>💎</span>
-            <span className="font-mono">{stats.emeralds}</span>
-          </div>
-
-          {/* Arrows Quiver Pill */}
-          <div
-            className="flex items-center gap-1 bg-[#261c14]/90 px-1.5 sm:px-2 py-1 rounded-lg border border-[#92400e] text-[#fde047] font-black text-[10px] sm:text-xs shadow-sm"
-            title="Quiver Arrows"
-          >
-            <span>🏹</span>
-            <span className="font-mono">{stats.arrows}</span>
-          </div>
-
-          {/* Trade Button (Highlighted when near a villager) */}
-          {isNearVillager && onOpenVillageTrade && (
-            <button
-              onClick={onOpenVillageTrade}
-              className="h-7 sm:h-9 px-2 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-2 border-emerald-300 rounded-lg text-white font-black text-[10px] sm:text-xs flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.7)] animate-bounce transition-all cursor-pointer"
-              title="Trade with Village Merchant (E)"
-            >
-              <Coins className="w-3.5 h-3.5 text-yellow-300" />
-              <span>TRADE [E]</span>
-            </button>
-          )}
-
-          {/* Hero Sheet Button */}
-          {onOpenCharacterSheet && (
-            <button
-              onClick={onOpenCharacterSheet}
-              className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#7c2d12] hover:bg-[#9a3412] border border-[#fdba74] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-              title="Hero Character Sheet & Stats (C)"
-            >
-              <Shield className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">HERO</span>
-            </button>
-          )}
-
-          {/* Build & Craft Forge Button */}
-          {onOpenBuildDrawer && (
-            <button
-              onClick={onOpenBuildDrawer}
-              className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#0f766e] hover:bg-[#115e59] border border-[#99f6e4] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-              title="Build Structures & Craft Forge (B)"
-            >
-              <Hammer className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-emerald-300" />
-              <span className="hidden sm:inline">BUILD</span>
-            </button>
-          )}
-
-          {/* Current Mission Tracker (hidden on narrow screens to prevent crowding) */}
-          {!isNarrowMobile && !isUltraNarrow && (
-            <div
-              onClick={onOpenMissionMap}
-              className="hidden md:flex items-center gap-1.5 bg-[#1a1714]/90 px-2.5 py-1 rounded-lg border border-[#453c35] text-white shadow-sm cursor-pointer hover:border-[#fbbf24] transition-colors"
-              title="Click to view Mission Map (M)"
-            >
-              <span className="text-sm">{currentMission.icon}</span>
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[10px] font-bold text-[#fef08a] truncate max-w-[90px]">
-                  {currentMission.name}
-                </span>
-                <span className="text-[8px] text-[#cbd5e1] font-mono">
-                  {Math.min(currentMission.targetKills, stats.mobsKilled)}/{currentMission.targetKills}
-                </span>
-              </div>
+            <div className="flex items-center gap-1 text-emerald-400 font-bold">
+              <span>💎</span>
+              <span className="font-mono">{stats.emeralds}</span>
             </div>
-          )}
+            <span className="text-gray-600">|</span>
+            <div className="flex items-center gap-1 text-amber-300 font-bold">
+              <span>🏹</span>
+              <span className="font-mono">{stats.arrows}</span>
+            </div>
+          </div>
 
-          {/* Camp Hub Button */}
-          <button
-            onClick={onOpenCamp}
-            className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#ea580c] hover:bg-[#c2410c] border border-[#fed7aa] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-            title="Camp & Blacksmith"
-          >
-            <Tent className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-            <span className="hidden sm:inline">CAMP</span>
-          </button>
+          {/* Grouped Navigation Action Dock */}
+          <div className="flex items-center gap-1 mc-panel-dark p-1 border-2 border-[#5a483a] shadow-md">
+            {/* Inventory Button */}
+            <button
+              id="hud-inventory-btn"
+              onClick={() => handleBtn(onOpenInventory)}
+              className="relative mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              title="Hero Inventory [I]"
+            >
+              <Backpack className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">INV</span>
+              {stats.enchantmentPoints > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full animate-ping" />
+              )}
+            </button>
 
-          {/* Mission Map Button */}
-          <button
-            onClick={onOpenMissionMap}
-            className="h-7 sm:h-9 px-1.5 sm:px-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] border border-[#93c5fd] rounded-lg text-white font-bold text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-            title="Mission Map (M)"
-          >
-            <MapIcon className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-            <span className="hidden sm:inline">MAP</span>
-          </button>
+            {/* Mission Map Button */}
+            <button
+              id="hud-map-btn"
+              onClick={() => handleBtn(onOpenMissionMap)}
+              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              title="Mission Map [M]"
+            >
+              <MapIcon className="w-3.5 h-3.5 text-sky-300" />
+              <span className="hidden sm:inline">MAP</span>
+            </button>
 
-          {/* Inventory Button with Point Notification Badge */}
-          <button
-            onClick={onOpenInventory}
-            className="relative h-7 sm:h-9 px-1.5 sm:px-3 bg-[#d97706] hover:bg-[#b45309] border border-[#fef08a] rounded-lg text-white font-black text-[10px] sm:text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
-            title="Hero Inventory (I)"
-          >
-            <Backpack className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-            <span className="hidden sm:inline">INV</span>
-            {stats.enchantmentPoints > 0 && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full animate-ping" />
+            {/* Camp Hub Button */}
+            <button
+              id="hud-camp-btn"
+              onClick={() => handleBtn(onOpenCamp)}
+              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+              title="Camp & Blacksmith Forge [C]"
+            >
+              <Tent className="w-3.5 h-3.5 text-orange-300" />
+              <span className="hidden sm:inline">CAMP</span>
+            </button>
+
+            {/* Build & Craft Drawer Button */}
+            {onOpenBuildDrawer && (
+              <button
+                id="hud-build-btn"
+                onClick={() => handleBtn(onOpenBuildDrawer)}
+                className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 cursor-pointer"
+                title="Build Structures & Craft [B]"
+              >
+                <Hammer className="w-3.5 h-3.5 text-teal-300" />
+                <span className="hidden sm:inline">BUILD</span>
+              </button>
             )}
-          </button>
 
-          {/* Audio Mute Button */}
-          <button
-            onClick={onToggleSound}
-            className="w-7 h-7 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
-            title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
-          >
-            {soundEnabled ? (
-              <Volume2 className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-emerald-400" />
-            ) : (
-              <VolumeX className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-rose-400" />
-            )}
-          </button>
+            {/* Sound Toggle Icon Button */}
+            <button
+              onClick={() => handleBtn(onToggleSound)}
+              className="mc-btn px-1.5 py-1 text-xs sm:text-sm flex items-center justify-center text-gray-300 cursor-pointer"
+              title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
+            >
+              {soundEnabled ? (
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+              )}
+            </button>
 
-          {/* Settings / Guide Toggle */}
-          {onOpenSettings && (
+            {/* In-Game Menu Button (Pause / Options / Save & Quit) */}
             <button
-              onClick={onOpenSettings}
-              className="w-7 h-7 sm:w-9 sm:h-9 bg-[#1a1714]/90 hover:bg-[#2d2722] border border-[#453c35] rounded-lg text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
-              title="Game Settings & Guide"
+              id="hud-menu-btn"
+              onClick={() => handleBtn(onOpenPauseMenu || onOpenSettings)}
+              className="mc-btn px-2 sm:px-2.5 py-1 text-xs sm:text-sm font-bold flex items-center gap-1 text-yellow-300 cursor-pointer"
+              title="Game Menu & Pause [ESC]"
             >
-              <Settings className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-gray-300" />
+              <Menu className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="hidden md:inline">MENU</span>
             </button>
-          )}
-
-          {/* On-Screen Touch Controls Mode Toggle (for Desktop / Tablets) */}
-          {!forceTouchControls && windowWidth >= 840 && (
-            <button
-              onClick={() => setForceTouchControls(true)}
-              className="hidden lg:flex items-center gap-1 bg-[#1a1714]/80 hover:bg-[#2e2924] border border-[#554a40] px-2 py-1 rounded-lg text-[10px] text-gray-300 font-mono transition-colors"
-              title="Enable touch controls mode"
-            >
-              <span>🕹️</span>
-              <span>Touch Mode</span>
-            </button>
-          )}
-          {forceTouchControls && windowWidth >= 840 && (
-            <button
-              onClick={() => setForceTouchControls(false)}
-              className="hidden lg:flex items-center gap-1 bg-[#0369a1]/80 hover:bg-[#0284c7] border border-[#38bdf8] px-2 py-1 rounded-lg text-[10px] text-white font-mono transition-colors"
-              title="Switch back to desktop keyboard bar"
-            >
-              <span>⌨️</span>
-              <span>Desktop Bar</span>
-            </button>
-          )}
+          </div>
         </div>
       </header>
+
+      {/* Contextual Village Merchant Prompt (Appears Prominently Without Shifting Top Nav) */}
+      {isNearVillager && onOpenVillageTrade && (
+        <div className="absolute top-16 sm:top-20 right-3 sm:right-6 pointer-events-auto z-40 animate-bounce">
+          <button
+            onClick={() => handleBtn(onOpenVillageTrade)}
+            className="mc-btn-green px-4 py-2 text-base sm:text-lg font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.8)] border-2 border-emerald-300 rounded cursor-pointer"
+            title="Trade with Merchant (E)"
+          >
+            <Coins className="w-5 h-5 text-yellow-300" />
+            <span>TRADE WITH MERCHANT [E]</span>
+          </button>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* 2. BOTTOM CONTROLS: MOBILE / TOUCH ERGONOMIC DUAL-THUMB   */}
