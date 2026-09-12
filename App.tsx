@@ -311,11 +311,11 @@ const Player3D: React.FC<{
             } else if (equippedMelee?.subType === 'claymore') {
               // Great Claymore: Two-Handed Heavy Cleave
               const heavySwing = Math.sin(elapsed * Math.PI);
-              rightArm.current.rotation.x = -Math.PI * 1.1 * heavySwing;
-              rightArm.current.rotation.y = -Math.PI * 0.3 * heavySwing;
+              rightArm.current.rotation.x = -Math.PI * 0.65 * heavySwing;
+              rightArm.current.rotation.y = -Math.PI * 0.25 * heavySwing;
               if (leftArm.current) {
-                leftArm.current.rotation.x = -Math.PI * 0.95 * heavySwing;
-                leftArm.current.rotation.y = Math.PI * 0.25 * heavySwing;
+                leftArm.current.rotation.x = -Math.PI * 0.6 * heavySwing;
+                leftArm.current.rotation.y = Math.PI * 0.2 * heavySwing;
               }
               group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.16;
               group.current.position.y += Math.sin(elapsed * Math.PI) * 0.08;
@@ -323,19 +323,19 @@ const Player3D: React.FC<{
               // 3-Step Combo Melee Swing
               if (comboStep === 0) {
                 // Combo 1: Downward right-to-left cleave
-                rightArm.current.rotation.x = -Math.PI * 0.85 * swingProgress;
-                rightArm.current.rotation.y = -Math.PI * 0.4 * swingProgress;
-                rightArm.current.rotation.z = swingProgress * 0.35;
+                rightArm.current.rotation.x = -Math.PI * 0.55 * swingProgress;
+                rightArm.current.rotation.y = -Math.PI * 0.35 * swingProgress;
+                rightArm.current.rotation.z = swingProgress * 0.25;
                 group.current.rotation.z = Math.sin(elapsed * Math.PI) * 0.1;
               } else if (comboStep === 1) {
                 // Combo 2: Rising left-to-right slash
-                rightArm.current.rotation.x = -Math.PI * 0.7 * swingProgress;
-                rightArm.current.rotation.y = Math.PI * 0.45 * swingProgress;
-                rightArm.current.rotation.z = -swingProgress * 0.3;
+                rightArm.current.rotation.x = -Math.PI * 0.45 * swingProgress;
+                rightArm.current.rotation.y = Math.PI * 0.4 * swingProgress;
+                rightArm.current.rotation.z = -swingProgress * 0.25;
                 group.current.rotation.z = -Math.sin(elapsed * Math.PI) * 0.1;
               } else {
                 // Combo 3 (Finisher): Powerful overhead vertical smash
-                rightArm.current.rotation.x = -Math.PI * 1.25 * swingProgress;
+                rightArm.current.rotation.x = -Math.PI * 0.75 * swingProgress;
                 rightArm.current.rotation.y = 0;
                 rightArm.current.rotation.z = 0;
                 group.current.position.y += Math.sin(elapsed * Math.PI) * 0.14;
@@ -616,11 +616,11 @@ const Player3D: React.FC<{
           </Box>
         )}
 
-        {/* Equipped 3D Weapon Model (High-Fidelity Voxel Craft) */}
-        <group position={[0, -0.75, 0.2]} rotation={[-Math.PI / 4, 0, 0]}>
+        {/* Equipped 3D Weapon Model (High-Fidelity Voxel Craft) - Forward-Facing Grip */}
+        <group position={[0, -0.68, 0.06]} rotation={[Math.PI * 0.35, -0.05, 0.05]}>
           {/* 1. Diamond Sword / Standard Sword */}
           {((equippedMelee && equippedMelee.subType === 'sword') || (!equippedMelee && activeWeapon?.type === 'sword')) && (
-            <group position={[0, 0.2, 0]}>
+            <group position={[0, 0.12, 0]}>
               {/* Pommel */}
               <mesh position={[0, -0.22, 0]}>
                 <boxGeometry args={[0.08, 0.08, 0.08]} />
@@ -669,7 +669,7 @@ const Player3D: React.FC<{
 
           {/* 2. Cursed Double-Headed Battleaxe */}
           {equippedMelee?.subType === 'axe' && (
-            <group position={[0, 0.25, 0]}>
+            <group position={[0, 0.15, 0]}>
               {/* Dark Wood / Obsidian Haft */}
               <mesh position={[0, 0.1, 0]}>
                 <boxGeometry args={[0.06, 1.05, 0.06]} />
@@ -705,7 +705,7 @@ const Player3D: React.FC<{
 
           {/* 3. Sun's Grace Radiant Solar Mace */}
           {equippedMelee?.subType === 'mace' && (
-            <group position={[0, 0.25, 0]}>
+            <group position={[0, 0.15, 0]}>
               {/* Golden Shaft */}
               <mesh position={[0, 0.1, 0]}>
                 <boxGeometry args={[0.07, 0.95, 0.07]} />
@@ -740,7 +740,7 @@ const Player3D: React.FC<{
 
           {/* 4. Great Claymore (Colossal Two-Handed Blade) */}
           {equippedMelee?.subType === 'claymore' && (
-            <group position={[0, 0.35, 0]}>
+            <group position={[0, 0.22, 0]}>
               {/* Long 2-Handed Grip */}
               <mesh position={[0, -0.22, 0]}>
                 <boxGeometry args={[0.07, 0.32, 0.07]} />
@@ -766,7 +766,7 @@ const Player3D: React.FC<{
 
           {/* 5. Fighter's Bindings (Knuckle Gauntlets) */}
           {equippedMelee?.subType === 'gauntlets' && (
-            <group position={[0, 0.03, -0.2]}>
+            <group position={[0, -0.04, -0.06]} rotation={[-Math.PI * 0.35, 0.05, -0.05]}>
               <Box args={[0.24, 0.16, 0.28]}>
                 <meshStandardMaterial color="#10b981" roughness={0.6} />
               </Box>
@@ -779,7 +779,7 @@ const Player3D: React.FC<{
 
           {/* 6. Bow / Harp Crossbow / Firebolt Bow */}
           {(!equippedMelee && activeWeapon?.type === 'bow') && (
-            <group position={[0, 0.1, 0]} rotation={[0, 0, 0.15]}>
+            <group position={[0, 0.05, 0]} rotation={[-Math.PI * 0.25, 0, 0.15]}>
               <mesh>
                 <boxGeometry args={[0.06, 0.95, 0.06]} />
                 <meshStandardMaterial color="#ca8a04" roughness={0.7} />
@@ -793,7 +793,7 @@ const Player3D: React.FC<{
 
           {/* 7. Magic Staff */}
           {(!equippedMelee && activeWeapon?.type === 'staff') && (
-            <group position={[0, 0.25, 0]}>
+            <group position={[0, 0.18, 0]}>
               <mesh>
                 <boxGeometry args={[0.06, 1.15, 0.06]} />
                 <meshStandardMaterial color="#334155" roughness={0.8} />
@@ -812,7 +812,7 @@ const Player3D: React.FC<{
 
           {/* 8. War Glaive / Halberd */}
           {((!equippedMelee && activeWeapon?.type === 'halberd') || (equippedMelee && equippedMelee.subType === 'glaive')) && (
-            <group position={[0, 0.3, 0]}>
+            <group position={[0, 0.22, 0]}>
               <mesh>
                 <boxGeometry args={[0.06, 1.35, 0.06]} />
                 <meshStandardMaterial color="#57534e" roughness={0.9} />
